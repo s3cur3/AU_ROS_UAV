@@ -20,6 +20,7 @@
 #define BESTER_COST_GRID
 
 #define natural unsigned int
+#define SQRT_2 1.41421356
 
 #include <vector>
 #include "danger_grid.h"
@@ -37,6 +38,7 @@ struct coord
   unsigned int x;
   unsigned int y;
   unsigned int t;
+  char tag;
   
   coord()
   {
@@ -49,6 +51,7 @@ struct coord
   {
     x = start_x;
     y = start_y;
+    t = 0;
   }
   
   coord( unsigned int start_x, unsigned int start_y, unsigned int time )
@@ -56,6 +59,15 @@ struct coord
     x = start_x;
     y = start_y;
     t = time;
+    tag = NULL;
+  }
+  
+  coord( unsigned int start_x, unsigned int start_y, unsigned int time, char label )
+  {
+    x = start_x;
+    y = start_y;
+    t = time;
+    tag = label;
   }
 };
 
@@ -117,6 +129,7 @@ private:
   int n_secs; // number of seconds in the danger grid
   unsigned int n_sqrs_h; // height of the danger grid in squares
   unsigned int n_sqrs_w; // width of the danger grid in squares
+  double res;
 };
 
 bester_cost_grid::bester_cost_grid( vector< Plane > & set_of_aircraft, double width,
@@ -125,6 +138,8 @@ bester_cost_grid::bester_cost_grid( vector< Plane > & set_of_aircraft, double wi
 {
   assert( plane_id < set_of_aircraft.size() );
 
+  res = resolution;
+  
   start.x = set_of_aircraft[ plane_id ].getLocation().getX();
   start.y = set_of_aircraft[ plane_id ].getLocation().getY();
   
@@ -187,9 +202,6 @@ void bester_cost_grid::initialize_path( )
     x_to_set = ( move_right ? start.x + x_moves_rem : start.x - x_moves_rem );
     y_to_set = ( move_up ? start.y - y_moves_rem : start.y + y_moves_rem );
     
-    // This (x, y) coordinate can change the best cost of its neighbors; check later
-    to_do.push_back( coord( x_to_set, y_to_set ) );
-    
     // Calculate starting-place heuristic for this square using the MC (danger) grid
     // and the straight-line distance to the goal
     for( unsigned int t = 0; t <= n_secs; t++ )
@@ -199,18 +211,22 @@ void bester_cost_grid::initialize_path( )
                          (y_to_set - goal.y)*(y_to_set - goal.y) );
       bc->set_danger_at( x_to_set, y_to_set, t,
                          danger_adjust * danger + dist );
+      // This (x, y, t) coordinate can change the best cost of its neighbors; check later
+      to_do.push_back( coord( x_to_set, y_to_set, t ) );
     }
   }
-  
-  cout << "The to-do list is: " << endl;
-  for( vector< coord >::iterator i = to_do.begin(); i != to_do.end(); ++i )
-    cout << "   (" << i->x << ", " << i->y << ")" << endl;
+
   bc->dump_big_numbers( 0 );
   bc->dump_big_numbers( 3 );
 }
 
 void bester_cost_grid::minimize_cost()
 {
+  // increase travel cost to search a smaller area
+  // 0.05 gives almost no penalty to added distance
+  // 0.1 looks to be about right
+  const double travel_cost = res * 0.1;
+  
   while( to_do.size() != 0 )
   {
     // Note that variable names i and j come from "Highly parallelizable . . ."
@@ -221,34 +237,41 @@ void bester_cost_grid::minimize_cost()
     // Per "Highly parallelizable . . . ", we can get away with considering only
     // the up, down, left, and right neighbors (ignoring diagonals)
     if( i.x + 1 < n_sqrs_w ) // Only add neighbor if it is a legal square
-      neighbors.push_back( coord( i.x + 1, i.y ) ); // right neighbor
+    {
+      neighbors.push_back( coord( i.x + 1, i.y, i.t ) ); // right neighbor
+      if( i.y + 1 < n_sqrs_h )
+       neighbors.push_back( coord( i.x + 1, i.y + 1, i.t, 'd' ) ); // down-right neighbor
+       if( i.y > 0 )
+       neighbors.push_back( coord( i.x + 1, i.y - 1, i.t, 'd' ) ); // up-right neighbor
+    }
     if( i.x > 0 )
-      neighbors.push_back( coord( i.x - 1, i.y ) ); // left neighbor
+    {
+      neighbors.push_back( coord( i.x - 1, i.y, i.t ) ); // left neighbor
+      if( i.y + 1 < n_sqrs_h )
+       neighbors.push_back( coord( i.x - 1, i.y + 1, i.t, 'd' ) ); // down-left neighbor
+       if( i.y > 0 )
+       neighbors.push_back( coord( i.x - 1, i.y - 1, i.t, 'd' ) ); // down-right neighbor
+    }
     if( i.y + 1 < n_sqrs_h )
-      neighbors.push_back( coord( i.x, i.y + 1 ) ); // down neighbor
+      neighbors.push_back( coord( i.x, i.y + 1, i.t ) ); // down neighbor
     if( i.y > 0 )
-      neighbors.push_back( coord( i.x, i.y - 1 ) ); // up neighbor
+      neighbors.push_back( coord( i.x, i.y - 1, i.t ) ); // up neighbor
     
     // for each neighbor j of i . . .
     for( vector< coord >::const_iterator j = neighbors.begin(); j != neighbors.end(); ++j )
     {
-      for( int t = 0; t <= n_secs; t++ ) // . . . at each time . . .
+      double cost = (*bc)( i.x, i.y, i.t ) + (*mc)( j->x, j->y, j->t ) +
+                    ( j->tag == 'd' ? travel_cost * SQRT_2 : travel_cost );
+      // IS THIS THE CORRECT TIME TO USE ON THE START COMPARISON?? //////////////////////////////////////////////////////
+      if( cost < (*bc)( j->x, j->y, j->t ) && cost < (*bc)( start.x, start.y, j->t ) )
       {
-        double cost = (*bc)( i.x, i.y, t ) + (*mc)( j->x, j->y, t );
-        // IS THIS THE CORRECT TIME TO USE ON THE START COMPARISON?? //////////////////////////////////////////////////////
-        if( cost < (*bc)( j->x, j->y, t ) && cost < (*bc)( start.x, start.y, 0 ) )
+        (*bc).set_danger_at( j->x, j->y, j->t, cost );
+                
+        // If the neighbor isn't in the to-do list . . .
+        if( !is_in_to_do( *j ) ) // THIS HAS MUCH ROOM FOR EFFICIENCY IMPROVEMENT ///////////////////////////////
         {
-          (*bc).set_danger_at( j->x, j->y, t, cost );
-          
-          cout << "Set the danger at (" << j->x << ", " << j->y << ", " << t << ") to " << cost << endl;
-          
-          // If the neighbor isn't in the to-do list . . .
-          if( !is_in_to_do( *j ) ) // THIS HAS MUCH ROOM FOR EFFICIENCY IMPROVEMENT ///////////////////////////////
-          {
-            // . . . add it.
-            to_do.push_back( *j );
-            cout << "Neighbor (" << j-> x << ", " << j->y << ") was added to to-do list " << endl;
-          }
+          // . . . add it.
+          to_do.push_back( *j );
         }
       }
     }
@@ -259,7 +282,7 @@ bool bester_cost_grid::is_in_to_do( coord find_me )
 {
   for( vector< coord >::iterator it = to_do.begin(); it != to_do.end(); ++it )
   {
-    if( it->x == find_me.x && it->y == find_me.y )
+    if( it->x == find_me.x && it->y == find_me.y && it->t == find_me.t )
     {
       return true;
     }
@@ -269,8 +292,11 @@ bool bester_cost_grid::is_in_to_do( coord find_me )
 
 
 void bester_cost_grid::dump( int time ) const
-{
-  cout << "Danger at (0, 0, 1) is " << (*bc)(0,0,1) << endl;
+{  
+  cout << "The MC grid for " << time << endl;
+  mc->dump_big_numbers( time );
+  
+  cout << "The BC grid for " << time << endl;
   bc->dump_big_numbers( time );
 }
 
