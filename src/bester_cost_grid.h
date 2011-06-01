@@ -224,8 +224,9 @@ void bester_cost_grid::minimize_cost()
 {
   // increase travel cost to search a smaller area
   // 0.05 gives almost no penalty to added distance
-  // 0.1 looks to be about right
-  const double travel_cost = res * 0.1;
+  // 0.1 looks to be about right when you're close to the goal, but it causes an
+  // explosion with random seed 20 in the tester class
+  const double travel_cost = res * 0.5;
   
   while( to_do.size() != 0 )
   {
@@ -234,8 +235,8 @@ void bester_cost_grid::minimize_cost()
     to_do.pop_back();
     
     vector< coord > neighbors;
-    // Per "Highly parallelizable . . . ", we can get away with considering only
-    // the up, down, left, and right neighbors (ignoring diagonals)
+    // Per "Highly parallelizable . . . ", we may be able to get away with
+    // considering only the up, down, left, and right neighbors (ignoring diagonals)
     if( i.x + 1 < n_sqrs_w ) // Only add neighbor if it is a legal square
     {
       neighbors.push_back( coord( i.x + 1, i.y, i.t ) ); // right neighbor
@@ -257,11 +258,15 @@ void bester_cost_grid::minimize_cost()
     if( i.y > 0 )
       neighbors.push_back( coord( i.x, i.y - 1, i.t ) ); // up neighbor
     
+    // the scale factor for the "danger" rating;
+    // the cost of conflicting with another aircraft
+    const double map_weight = 20.0;
+    
     // for each neighbor j of i . . .
     for( vector< coord >::const_iterator j = neighbors.begin(); j != neighbors.end(); ++j )
     {
-      double cost = (*bc)( i.x, i.y, i.t ) + (*mc)( j->x, j->y, j->t ) +
-                    ( j->tag == 'd' ? travel_cost * SQRT_2 : travel_cost );
+      double cost = (*bc)( i.x, i.y, i.t ) + map_weight * (*mc)( j->x, j->y, j->t ) +
+                    ( j->tag == 'd' ? travel_cost * SQRT_2 : travel_cost ); // higher travel cost for diagonals
       // IS THIS THE CORRECT TIME TO USE ON THE START COMPARISON?? //////////////////////////////////////////////////////
       if( cost < (*bc)( j->x, j->y, j->t ) && cost < (*bc)( start.x, start.y, j->t ) )
       {
@@ -293,10 +298,12 @@ bool bester_cost_grid::is_in_to_do( coord find_me )
 
 void bester_cost_grid::dump( int time ) const
 {  
+  cout << endl << "Your plane begins at (" << start.x << ", " << start.y << ")" << endl;
+  
   cout << "The MC grid for " << time << endl;
   mc->dump_big_numbers( time );
   
-  cout << "The BC grid for " << time << endl;
+  cout << endl << "The BC grid for " << time << endl;
   bc->dump_big_numbers( time );
 }
 

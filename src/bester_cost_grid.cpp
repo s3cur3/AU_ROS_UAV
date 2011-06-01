@@ -51,7 +51,7 @@ int main()
   
   vector< Plane > test_set;
   
-  natural num_planes = 12;
+  natural num_planes = 50;
   
   // The following vars are required to set a plane's position
   Position new_pos;
@@ -87,9 +87,11 @@ int main()
   
   bester_cost_grid bc( test_set, width_of_field, height_of_field, resolution, 2 );
   
+  bc.dump( 0 );
+  
   bc.dump( 1 );
   
-  //bc.dump( 10 );
+  bc.dump( 5 );
   
   cout << endl << endl << "Success!" << endl;
 }
