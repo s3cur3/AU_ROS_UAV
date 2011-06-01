@@ -122,7 +122,9 @@ public:
   // Prints the contents of the map, once with the aircraft and their locations,
   // and once with the danger values. Used for testing.
   void dump( ) const;
-  
+
+  void dump_big_numbers( ) const;
+
 private:
   vector< vector< grid_square > > the_map; // a 2-D vector array of grid squares
   double width; // the x dimension, in your system of measurement (e.g., meters)
@@ -304,6 +306,48 @@ void map::dump( ) const
    }
    cout << endl;
    }*/
+}
+
+void map::dump_big_numbers( ) const
+{
+  cout << endl << " Danger ratings:" << endl;
+  cout << "    ";
+  for( unsigned int top_guide = 0; top_guide < the_map.size(); ++top_guide )
+  {
+    if( top_guide < 10 )
+      cout << " " << top_guide << " ";
+    else
+      cout << top_guide << " ";
+  }
+  cout << endl;
+  
+  for( unsigned int right_index = 0; right_index < the_map[ 0 ].size(); ++right_index )
+  {
+    if( right_index < 10 )
+      cout << " " << right_index << " ";
+    else
+      cout << right_index << " ";
+    
+    for( unsigned int left_index = 0; left_index < the_map.size(); ++left_index )
+    {
+      if( the_map[ left_index ][ right_index ].danger < EPSILON &&
+         the_map[ left_index ][ right_index ].danger > -EPSILON )
+      {
+        cout << " --";
+      }
+      else
+      {
+#define BIG_SCALE 1
+        if( (the_map[ left_index ][ right_index ].danger) > 1.6e+307 )
+          printf( " in" );
+        else if( (the_map[ left_index ][ right_index ].danger)/BIG_SCALE - 1/BIG_SCALE > -EPSILON )
+          printf( "%3.0f", (the_map[ left_index ][ right_index ].danger)/BIG_SCALE );
+        else
+          printf( "%2.0f ", (the_map[ left_index ][ right_index ].danger)/BIG_SCALE );
+      }
+    }
+    cout << endl;
+  }
 }
 
 #endif

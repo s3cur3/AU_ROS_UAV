@@ -10,6 +10,14 @@ using namespace std;
 const double PI = 2*acos(0.0);//PI
 const double RADtoDEGREES = 180/PI;//Conversion factor from Radians to Degrees
 const double DEGREEStoRAD = PI/180;//Conversion factor from Degrees to Radians
+int planesMap[];double upperLeftLon;
+	double upperLeftLat;
+	double lonWidth;
+	double latWidth;
+	double res;
+	int planeNum;	
+	vector<Plane> planes();
+
 void neighoboringAngles(double angle, double &first, double &second)
 {
 		if(angle>0)
@@ -314,7 +322,7 @@ int main()
 	vector<estimate> theFuture4=calculate_future_pos(p4,.3);
   vector<estimate> theFuture5=calculate_future_pos(p5,.3);*/
 
-	vector<estimate> theFuture=calculate_future_pos(7,5,0,1,.3);
+/*	vector<estimate> theFuture=calculate_future_pos(7,5,0,1,.3);
 	int grid[10][11];
 	for(int i=0; i<11; i++)
 		for(int j=0; j<10; j++)
@@ -379,7 +387,7 @@ int main()
 			seconds++;
 	}
   */
-	for(int i=0; i<11; i++)
+	/*for(int i=0; i<11; i++)
 	{	for (int j=0; j<10; j++)
 			printf( "%1d ", grid[j][i]);
 	cout<<endl;}
@@ -406,5 +414,32 @@ int main()
 		cout<<"Lon:"<<p.getLon()<<" Lat:"<<p.getLat()<<" X:"<<p.getX()<<" Y:"<<p.getY()<<endl;
 	}
 	cout<<"hey";*/
+
+
+
+
+	//testing of logic in ros cross through
+	
+	cout<<"Upperleftlon:";
+	cin>>upperLeftLon;
+	cout<<"Upperleftlat";
+	cin>>upperLeftLat;
+	cout<<"Lon-width:";
+	cin>>lonWidth;
+	cout<<"Lat-width:";
+	cin>>latWidth;
+	cout<<"Resoultion";
+	cin>>res;
+	cout<<"How Many Planes:";
+	cin>>planeNum;
+	planesMap[planeNum];
+	for(int i=0; i<planeNum; i++)
+		planesMap[i]=-1;
+
+	if(planesMap[msg->planeID]==-1)
+		{
+			cout<<"hey";
+		}
+
 	cin.get();
 }

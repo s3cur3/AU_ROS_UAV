@@ -28,14 +28,14 @@ double latWidth;
 double res;
 int planeNum;
 //where the planes are
-vector<Plane> planes(planeNum+1);//just in case :)
+vector<Plane> planes();
 int planesMap[];
 
 
 //keeps count of the number of services requested
 int count;
 
-bool inVector(int id);
+
 void makeField();
 //this function is run everytime new telemetry information from any plane is recieved
 void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
@@ -120,7 +120,7 @@ void makeField()
 {
 	cout<<"Upperleftlon:";
 	cin>>upperLeftLon;
-	cout>>"Upperleftlat";
+	cout<<"Upperleftlat";
 	cin>>upperLeftLat;
 	cout<<"Lon-width:";
 	cin>>lonWidth;

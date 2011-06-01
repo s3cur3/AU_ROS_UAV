@@ -124,6 +124,13 @@ public:
    */
   void dump( int time ) const;
   
+  /**
+   * Output the map at a given time, scaling all numbers down significantly;
+   * for troubleshooting the "bester cost grid"
+   * @param time The time, in seconds, whose map should be output
+   */
+  void dump_big_numbers( int time ) const;
+  
 private:
   /**
    * The method that does virtually all the important work for the class.
@@ -359,6 +366,19 @@ void danger_grid::dump( int time ) const
   {
     // the meat of the dump is performed by the map class
     danger_space[ time + look_behind ].dump();
+  }
+}
+
+void danger_grid::dump_big_numbers( int time ) const
+{
+  assert( time + (int)look_behind < (int)( danger_space.size() ) || time == 10000 );
+  
+  if( time == 10000 )
+    overlayed[0].dump_big_numbers();
+  else
+  {
+    // the meat of the dump is performed by the map class
+    danger_space[ time + look_behind ].dump_big_numbers();
   }
 }
 
