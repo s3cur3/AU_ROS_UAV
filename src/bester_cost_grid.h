@@ -36,17 +36,26 @@ struct coord
 {
   unsigned int x;
   unsigned int y;
+  unsigned int t;
   
   coord()
   {
     x = 0;
     y = 0;
+    t = 0;
   }
   
   coord( unsigned int start_x, unsigned int start_y )
   {
     x = start_x;
     y = start_y;
+  }
+  
+  coord( unsigned int start_x, unsigned int start_y, unsigned int time )
+  {
+    x = start_x;
+    y = start_y;
+    t = time;
   }
 };
 
@@ -96,7 +105,7 @@ private:
    * @param find_me The (x,y) coordinates which are sought
    * @return True if the coordinate is in the to-do list, false otherwise
    */
-  bool search_to_do( coord find_me );
+  bool is_in_to_do( coord find_me );
   
   danger_grid * mc; // the map cost (MC) grid (a.k.a., the danger grid)
   danger_grid * bc; // the best cost grid; the heart of this class
@@ -144,6 +153,9 @@ bester_cost_grid::bester_cost_grid( vector< Plane > & set_of_aircraft, double wi
     }
   }
   
+  cout << "Start: (" << start.x << ", " << start.y << ")" << endl;
+  cout << "Goal: (" << goal.x << ", " << goal.y << ")" << endl;
+  
   initialize_path();
   minimize_cost();
 }
@@ -159,15 +171,15 @@ void bester_cost_grid::initialize_path( )
   int dy = start.y - goal.y; // since origin is at top left
   int x_moves_rem = abs( dx ); // remaining x moves until we reach goal's x
   int y_moves_rem = abs( dy );
-  bool move_up = ( dx > 0 ? true : false );
-  bool move_right = ( dy > 0 ? true : false );
+  bool move_up = ( dy > 0 ? true : false );
+  bool move_right = ( dx > 0 ? true : false );
   
   int x_to_set, y_to_set;
   double danger_adjust = ( n_sqrs_w + n_sqrs_h ) / 4;
   while( x_moves_rem > 0 || y_moves_rem > 0 ) // 1 or more moves req'd to reach goal
   {
     if( x_moves_rem != 0 ) // there are one or more x moves remaining, so . . .
-      --x_moves_rem; // we'll use it
+      --x_moves_rem;      // we'll use one
     if( y_moves_rem != 0 )
       --y_moves_rem;
     
@@ -180,7 +192,7 @@ void bester_cost_grid::initialize_path( )
     
     // Calculate starting-place heuristic for this square using the MC (danger) grid
     // and the straight-line distance to the goal
-    for( unsigned int t = 0; t < n_secs; t++ )
+    for( unsigned int t = 0; t <= n_secs; t++ )
     {
       double danger = (*mc)( x_to_set, y_to_set, t );
       double dist = sqrt( (x_to_set - goal.x)*(x_to_set - goal.x) + 
@@ -189,43 +201,53 @@ void bester_cost_grid::initialize_path( )
                          danger_adjust * danger + dist );
     }
   }
-  bc->dump_big_numbers( 1 );
+  
+  cout << "The to-do list is: " << endl;
+  for( vector< coord >::iterator i = to_do.begin(); i != to_do.end(); ++i )
+    cout << "   (" << i->x << ", " << i->y << ")" << endl;
+  bc->dump_big_numbers( 0 );
+  bc->dump_big_numbers( 3 );
 }
 
 void bester_cost_grid::minimize_cost()
 {
   while( to_do.size() != 0 )
   {
-    coord crnt_sqr = to_do.back();
+    // Note that variable names i and j come from "Highly parallelizable . . ."
+    coord i = to_do.back();
     to_do.pop_back();
+    
     vector< coord > neighbors;
     // Per "Highly parallelizable . . . ", we can get away with considering only
-    // the up, down, left and right neighbors (ignoring diagonals)
-    neighbors.push_back( coord( crnt_sqr.x + 1, crnt_sqr.y ) ); // right neighbor
-    neighbors.push_back( coord( crnt_sqr.x - 1, crnt_sqr.y ) ); // left neighbor
-    neighbors.push_back( coord( crnt_sqr.x, crnt_sqr.y - 1 ) ); // up neighbor
-    neighbors.push_back( coord( crnt_sqr.x, crnt_sqr.y + 1 ) ); // down neighbor
+    // the up, down, left, and right neighbors (ignoring diagonals)
+    if( i.x + 1 < n_sqrs_w ) // Only add neighbor if it is a legal square
+      neighbors.push_back( coord( i.x + 1, i.y ) ); // right neighbor
+    if( i.x > 0 )
+      neighbors.push_back( coord( i.x - 1, i.y ) ); // left neighbor
+    if( i.y + 1 < n_sqrs_h )
+      neighbors.push_back( coord( i.x, i.y + 1 ) ); // down neighbor
+    if( i.y > 0 )
+      neighbors.push_back( coord( i.x, i.y - 1 ) ); // up neighbor
     
-    for( vector< coord >::iterator neighbor = neighbors.begin();
-         neighbor != neighbors.end(); ++neighbor ) // for each neighbor . . .
+    // for each neighbor j of i . . .
+    for( vector< coord >::const_iterator j = neighbors.begin(); j != neighbors.end(); ++j )
     {
-      for( int t = 0; t < n_secs; t++ ) // . . . at each time . . .
+      for( int t = 0; t <= n_secs; t++ ) // . . . at each time . . .
       {
-        double cost = (*bc)( crnt_sqr.x, crnt_sqr.y, t ) +
-                      (*mc)( neighbor->x, neighbor->y, t );
+        double cost = (*bc)( i.x, i.y, t ) + (*mc)( j->x, j->y, t );
         // IS THIS THE CORRECT TIME TO USE ON THE START COMPARISON?? //////////////////////////////////////////////////////
-        if( cost < (*bc)( neighbor->x, neighbor->y, t ) && cost < (*bc)( start.x, start.y, t ) )
+        if( cost < (*bc)( j->x, j->y, t ) && cost < (*bc)( start.x, start.y, 0 ) )
         {
-          (*bc).set_danger_at( neighbor->x, neighbor->y, t, cost );
+          (*bc).set_danger_at( j->x, j->y, t, cost );
           
-          cout << "Set the danger at (" << neighbor->x << ", " << neighbor->y << ") to " << cost << endl;
+          cout << "Set the danger at (" << j->x << ", " << j->y << ", " << t << ") to " << cost << endl;
           
           // If the neighbor isn't in the to-do list . . .
-          if( search_to_do( *neighbor ) ) // THIS HAS MUCH ROOM FOR EFFICIENCY IMPROVEMENT ///////////////////////////////
+          if( !is_in_to_do( *j ) ) // THIS HAS MUCH ROOM FOR EFFICIENCY IMPROVEMENT ///////////////////////////////
           {
             // . . . add it.
-            to_do.push_back( *neighbor );
-            cout << "Neighbor was added to to-do list " << endl;
+            to_do.push_back( *j );
+            cout << "Neighbor (" << j-> x << ", " << j->y << ") was added to to-do list " << endl;
           }
         }
       }
@@ -233,7 +255,7 @@ void bester_cost_grid::minimize_cost()
   }
 }
 
-bool bester_cost_grid::search_to_do( coord find_me )
+bool bester_cost_grid::is_in_to_do( coord find_me )
 {
   for( vector< coord >::iterator it = to_do.begin(); it != to_do.end(); ++it )
   {

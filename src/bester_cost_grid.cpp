@@ -87,7 +87,7 @@ int main()
   
   bester_cost_grid bc( test_set, width_of_field, height_of_field, resolution, 2 );
   
-  //bc.dump( 1 );
+  bc.dump( 1 );
   
   //bc.dump( 10 );
   
