@@ -72,7 +72,7 @@ int main()
 {
   srand ( 20 );
   
-  natural num_planes = 50;
+  natural num_planes = 100;
   
   vector< Plane > test_set = randomized_planes( num_planes );
   vector< Plane > test_set1 = randomized_planes( num_planes );
@@ -107,6 +107,8 @@ int main()
                                                upper_left_longitude,
                                                "meters");
   
+  cout << "Here, width is " << width_of_field << " and height is " << height_of_field << endl;
+  
   bester_cost_grid bc( test_set, width_of_field, height_of_field, resolution, 2 );
   bester_cost_grid bc1( test_set1, width_of_field, height_of_field, resolution, 2 );
   bester_cost_grid bc2( test_set2, width_of_field, height_of_field, resolution, 2 );
@@ -129,11 +131,11 @@ int main()
   bester_cost_grid bc19( test_set19, width_of_field, height_of_field, resolution, 2 );
 
   
-  //bc.dump( 0 );
+  bc.dump( 0 );
   
-  //bc.dump( 1 );
+  bc.dump( 1 );
   
-  //bc.dump( 5 );
+  bc.dump( 5 );
   
   cout << endl << endl << "Success!" << endl;
 }

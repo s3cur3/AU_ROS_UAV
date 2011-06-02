@@ -112,14 +112,6 @@ private:
   void minimize_cost();
   
   /**
-   * Search the to-do list for a given (x,y) coordinate. If it is found, return a
-   * pointer to it.
-   * @param find_me The (x,y) coordinates which are sought
-   * @return True if the coordinate is in the to-do list, false otherwise
-   */
-  bool is_in_to_do( coord find_me );
-  
-  /**
    * Sets up the in_to_do 3-D vector array to be of the same size as the mc and bc
    * grids
    */
@@ -128,6 +120,8 @@ private:
   danger_grid * mc; // the map cost (MC) grid (a.k.a., the danger grid)
   danger_grid * bc; // the best cost grid; the heart of this class
   vector< coord > to_do;
+  // A sort of indexer for the to_do list. Allows a constant-time check to see if
+  // a given (x, y, t) coordinate is in the to-do list.
   vector< vector< vector< bool > > > in_to_do;
   
   coord goal;
@@ -137,6 +131,7 @@ private:
   unsigned int n_sqrs_h; // height of the danger grid in squares
   unsigned int n_sqrs_w; // width of the danger grid in squares
   double res;
+  double danger_threshold;
 };
 
 bester_cost_grid::bester_cost_grid( vector< Plane > & set_of_aircraft, double width,
@@ -198,13 +193,35 @@ void bester_cost_grid::initialize_path( )
   bool move_right = ( dx > 0 ? true : false );
   
   int x_to_set, y_to_set;
+  unsigned int moves_since_dag = 0;
+  const bool more_x = x_to_set > y_to_set;
+  unsigned int dag_to_straight_ratio =
+                      ( more_x ? x_moves_rem/y_moves_rem : y_moves_rem/x_moves_rem );
+  
   double danger_adjust = ( n_sqrs_w + n_sqrs_h ) / 4;
   while( x_moves_rem > 0 || y_moves_rem > 0 ) // 1 or more moves req'd to reach goal
   {
-    if( x_moves_rem != 0 ) // there are one or more x moves remaining, so . . .
-      --x_moves_rem;      // we'll use one
-    if( y_moves_rem != 0 )
-      --y_moves_rem;
+    if( moves_since_dag >= dag_to_straight_ratio )
+    {
+      // make a diagonal move
+      if( x_moves_rem != 0 ) // there are one or more x moves remaining, so . . .
+        --x_moves_rem;      // we'll use one
+      if( y_moves_rem != 0 )
+        --y_moves_rem;
+      moves_since_dag = 0;
+    }
+    else if( more_x )
+    {
+      if( x_moves_rem != 0 ) // there are one or more x moves remaining, so . . .
+        --x_moves_rem;      // we'll use one
+      moves_since_dag++;
+    }
+    else
+    {
+      if( y_moves_rem != 0 )
+        --y_moves_rem;
+      moves_since_dag++;
+    }
     
     // Values depend on direction of movement
     x_to_set = ( move_right ? start.x + x_moves_rem : start.x - x_moves_rem );
@@ -212,7 +229,7 @@ void bester_cost_grid::initialize_path( )
     
     // Calculate starting-place heuristic for this square using the MC (danger) grid
     // and the straight-line distance to the goal
-    for( unsigned int t = 0; t <= n_secs; t++ )
+    for( int t = n_secs; t >= 0; t-- )
     {
       double danger = (*mc)( x_to_set, y_to_set, t );
       double dist = sqrt( (x_to_set - goal.x)*(x_to_set - goal.x) + 
@@ -224,6 +241,8 @@ void bester_cost_grid::initialize_path( )
       in_to_do[ x_to_set ][ y_to_set ][ t ] = true;
     }
   }
+  
+  danger_threshold = (*bc)( start.x, start.y, start.t );
 
   //bc->dump_big_numbers( 0 );
   //bc->dump_big_numbers( 3 );
@@ -268,17 +287,25 @@ void bester_cost_grid::minimize_cost()
     if( i.y > 0 )
       neighbors.push_back( coord( i.x, i.y - 1, i.t ) ); // up neighbor
     
-    // the scale factor for the "danger" rating;
+    // The scale factor for the "danger" rating;
     // the cost of conflicting with another aircraft
     const double map_weight = 20.0;
     
     // for each neighbor j of i . . .
     for( vector< coord >::const_iterator j = neighbors.begin(); j != neighbors.end(); ++j )
     {
+      // These vars are for the sake of analyzing the algorithm
+//      double i_bc = (*bc)( i.x, i.y, i.t );
+//      double j_mc = (*mc)( j->x, j->y, j->t );
+//      double travel = ( j->tag == 'd' ? travel_cost * SQRT_2 : travel_cost );
+//      double j_bc = (*bc)( j->x, j->y, j->t );
+      
+      // The cost to check is the (current) best cost of i plus the danger cost of j
+      // plus the cost of traversing the distance
       double cost = (*bc)( i.x, i.y, i.t ) + map_weight * (*mc)( j->x, j->y, j->t ) +
                     ( j->tag == 'd' ? travel_cost * SQRT_2 : travel_cost ); // higher travel cost for diagonals
-      // IS THIS THE CORRECT TIME TO USE ON THE START COMPARISON?? //////////////////////////////////////////////////////
-      if( cost < (*bc)( j->x, j->y, j->t ) && cost < (*bc)( start.x, start.y, start.t ) )
+
+      if( cost < (*bc)( j->x, j->y, j->t ) && cost < danger_threshold )
       {
         (*bc).set_danger_at( j->x, j->y, j->t, cost );
                 
@@ -292,18 +319,6 @@ void bester_cost_grid::minimize_cost()
       }
     }
   }
-}
-
-bool bester_cost_grid::is_in_to_do( coord find_me )
-{
-  for( vector< coord >::iterator it = to_do.begin(); it != to_do.end(); ++it )
-  {
-    if( it->x == find_me.x && it->y == find_me.y && it->t == find_me.t )
-    {
-      return true;
-    }
-  }
-  return false;
 }
 
 void bester_cost_grid::initialize_to_do_index()
