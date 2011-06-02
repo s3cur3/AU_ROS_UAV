@@ -119,9 +119,16 @@ private:
    */
   bool is_in_to_do( coord find_me );
   
+  /**
+   * Sets up the in_to_do 3-D vector array to be of the same size as the mc and bc
+   * grids
+   */
+  void initialize_to_do_index();
+  
   danger_grid * mc; // the map cost (MC) grid (a.k.a., the danger grid)
   danger_grid * bc; // the best cost grid; the heart of this class
   vector< coord > to_do;
+  vector< vector< vector< bool > > > in_to_do;
   
   coord goal;
   coord start;
@@ -168,9 +175,10 @@ bester_cost_grid::bester_cost_grid( vector< Plane > & set_of_aircraft, double wi
     }
   }
   
-  cout << "Start: (" << start.x << ", " << start.y << ")" << endl;
-  cout << "Goal: (" << goal.x << ", " << goal.y << ")" << endl;
+//  cout << "Start: (" << start.x << ", " << start.y << ")" << endl;
+//  cout << "Goal: (" << goal.x << ", " << goal.y << ")" << endl;
   
+  initialize_to_do_index();
   initialize_path();
   minimize_cost();
 }
@@ -213,11 +221,12 @@ void bester_cost_grid::initialize_path( )
                          danger_adjust * danger + dist );
       // This (x, y, t) coordinate can change the best cost of its neighbors; check later
       to_do.push_back( coord( x_to_set, y_to_set, t ) );
+      in_to_do[ x_to_set ][ y_to_set ][ t ] = true;
     }
   }
 
-  bc->dump_big_numbers( 0 );
-  bc->dump_big_numbers( 3 );
+  //bc->dump_big_numbers( 0 );
+  //bc->dump_big_numbers( 3 );
 }
 
 void bester_cost_grid::minimize_cost()
@@ -226,13 +235,14 @@ void bester_cost_grid::minimize_cost()
   // 0.05 gives almost no penalty to added distance
   // 0.1 looks to be about right when you're close to the goal, but it causes an
   // explosion with random seed 20 in the tester class
-  const double travel_cost = res * 0.5;
+  const double travel_cost = res * 1;
   
   while( to_do.size() != 0 )
   {
     // Note that variable names i and j come from "Highly parallelizable . . ."
     coord i = to_do.back();
     to_do.pop_back();
+    in_to_do[ i.x ][ i.y ][ i.t ] = false;
     
     vector< coord > neighbors;
     // Per "Highly parallelizable . . . ", we may be able to get away with
@@ -268,15 +278,16 @@ void bester_cost_grid::minimize_cost()
       double cost = (*bc)( i.x, i.y, i.t ) + map_weight * (*mc)( j->x, j->y, j->t ) +
                     ( j->tag == 'd' ? travel_cost * SQRT_2 : travel_cost ); // higher travel cost for diagonals
       // IS THIS THE CORRECT TIME TO USE ON THE START COMPARISON?? //////////////////////////////////////////////////////
-      if( cost < (*bc)( j->x, j->y, j->t ) && cost < (*bc)( start.x, start.y, j->t ) )
+      if( cost < (*bc)( j->x, j->y, j->t ) && cost < (*bc)( start.x, start.y, start.t ) )
       {
         (*bc).set_danger_at( j->x, j->y, j->t, cost );
                 
         // If the neighbor isn't in the to-do list . . .
-        if( !is_in_to_do( *j ) ) // THIS HAS MUCH ROOM FOR EFFICIENCY IMPROVEMENT ///////////////////////////////
+        if( !in_to_do[ j->x ][ j->y ][ j->t ] )
         {
           // . . . add it.
           to_do.push_back( *j );
+          in_to_do[ j->x ][ j->y ][ j->t ] = true;
         }
       }
     }
@@ -295,6 +306,18 @@ bool bester_cost_grid::is_in_to_do( coord find_me )
   return false;
 }
 
+void bester_cost_grid::initialize_to_do_index()
+{  
+  in_to_do.resize( n_sqrs_w );
+  for( unsigned int x = 0; x < n_sqrs_w; x++ )
+  {
+    in_to_do[ x ].resize( n_sqrs_h );
+    for( unsigned int y = 0; y < n_sqrs_h; y++ )
+    {
+      in_to_do[ x ][ y ].resize( n_secs, false );
+    }
+  }
+}
 
 void bester_cost_grid::dump( int time ) const
 {  
