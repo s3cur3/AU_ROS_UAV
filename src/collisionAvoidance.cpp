@@ -10,7 +10,7 @@ is already setup along with a dummy version of how the service request would wor
 #include <time.h>
 #include <vector>
 #include "Plane.h"
-#include "best_cost_grid.h"
+#include "best_cost.h"
 
 //ROS headers
 #include "ros/ros.h"

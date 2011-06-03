@@ -67,9 +67,21 @@ void Plane::setFinalDestination(double lon, double lat)
 	finalDestination.setLat(lat);
 }
 
+void Plane::setFinalDestination(int x, int y)
+{
+	finalDestination.setX(x);
+	finalDestination.setY(y);
+}
+
 Position Plane::getFinalDestination()
 {
 	return finalDestination;
+}
+
+void Plane::setDestination(int x, int y)
+{
+	destination.setX(x);
+	destination.setY(y);
 }
 
 double Plane::getBearing()

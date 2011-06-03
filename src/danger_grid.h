@@ -41,7 +41,6 @@ using namespace std;
 
 const double PI = 2*acos(0.0);// pi
 const double RADtoDEGREES = 180/PI;//Conversion factor from Radians to Degrees
-const double DEGREEStoRAD = PI/180;//Conversion factor from Degrees to Radians
 
 class danger_grid
 {

@@ -69,8 +69,8 @@ public:
     Position(double upperLeftLongitude, double upperLeftLatitude, double lonwidth, double latwidth, double longitude, double latitude);
     Position(double upperLeftLongitude, double upperLeftLatitude, double lonwidth, 
              double latwidth, double longitude, double latitude, double resolution_to_use);
-	Position(double upperLeftLongitude, double upperLeftLatitude, double lonwidth, double latwidth, int x, int y);
-	Position(double upperLeftLongitude, double upperLeftLatitude, double lonwidth, double latwidth, double longitude, double latitude, int x, int y);
+	Position(double upperLeftLongitude, double upperLeftLatitude, double lonwidth, double latwidth, int x, int y, double resolution);
+	Position(double upperLeftLongitude, double upperLeftLatitude, double lonwidth, double latwidth, double longitude, double latitude, int x, int y, double resolution );
 };
 
 void Position::setLat(double l)
@@ -171,14 +171,14 @@ Position::Position(double upperLeftLongitude, double upperLeftLatitude, // THOMA
 }
 
 Position::Position(double upperLeftLongitude, double upperLeftLatitude,
-                   double lonwidth, double latwidth, int x1, int y1)
+                   double lonwidth, double latwidth, int x1, int y1, double res)
 {
 	top_left_long=upperLeftLongitude;
 	top_left_lat=upperLeftLatitude;
 	lonWidth=lonwidth;
 	latWidth=latwidth;
 
-  resolution = -1.0;
+  resolution = res;
     
   set_up_grid_parms();
   
