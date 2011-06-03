@@ -29,6 +29,7 @@ double res;
 int planeNum;
 //where the planes are
 vector<Plane> planes();
+//a map. the index in the array is the planeid the value is the location of the plane's info in the planes vector
 int planesMap[];
 
 
@@ -40,46 +41,58 @@ void makeField();
 //this function is run everytime new telemetry information from any plane is recieved
 void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 {
-	//TODO:Make this function do something useful, aka an avoidance algorithm
 	ROS_INFO("Received update #[%lld]", msg->currentWaypointIndex);
-		//this will be replaced by students to do more than just send a string
 		std::stringstream ss;
 		ss << "Sending service request " << count++;
+		
+		//sets up the service that will ask the coordinator for the current plane's goal
 		AU_UAV_ROS::findGoal goal;
+		//sets up the service that will tell the coordinator the new waypoint
+		AU_UAV_ROS::GoToWaypoint srv;
+		
+		int planeId=msg->planeID;//limits the amount of indirection
 
-		//wrap the info into positions
+		//wrap the Telemetry info into positions
 		Position current(upperLeftLon,upperLeftLat,lonWidth,latWidth,msg->currentLongitude,msg->currentLatitude,res);
 		Position next(upperLeftLon,upperLeftLat,lonWidth,latWidth,msg->destLongitude,msg->destLatitude,res);
 
-		//create the intial plane 
-		if(planesMap[msg->planeID]==-1)
+		//create the intial plane if there is no plane in the vector yet
+		if(planesMap[planeId]==-1)
 		{
-			planesMap[msg->planeID]=planes.size();
-			planes.push_back(Plane(msg->planeID,current,next));
+			planesMap[planeId]=planes.size();//the location in the vector where the plane will go
+			planes.push_back(Plane(planeId,current,next));//pushes back the new plane
 		}
-		//update the plane
-		planes[planesMap[msg->planeID]].update(current,next,msg->targetBearing, msg->groundSpeed);
+		
+		//update the plane with the new telemetry data
+		planes[planesMap[planeId]].update(current,next,msg->targetBearing, msg->groundSpeed);
 
-		goal.request.planeId=msg->planeID;
-		goal.request.isAvoidanceWaypoint=false;
-		goal.request.positionInQueue=0;
-
-		findGoal.call(goal);
-		planes[planesMap[msg->planeId]].setFinalDestination(goal.response.longitude,goal.response.latitude)
+		//fill the service with the required info
+		goal.request.planeId=planeId;
+		goal.request.isAvoidanceWaypoint=false;//ask matt if this is how it works
+		goal.request.positionInQueue=0;//ask about this too
+	
+		//call the service. the catching might be excessive but i doubt that it takes much time
+		if(findGoal.call(goal))
+			ROS_INFO("Got the destination");
+		else
+			ROS_ERROR("Failed to receive the destination");
+		//fill the plane's final destination in
+		planes[planesMap[planeId]].setFinalDestination(goal.response.longitude,goal.response.latitude)
 
 		int avoidTehCrash[2];
-		A-Star(best_cost_grid(planes,10,10,10,planesMap[msg->planeId]),avoidTehCrash);
+		//this is where all the magic happens
+		A-Star(/*replace with bester cost*/best_cost_grid(planes,/*find the xwidth*/10,/*find the ywidth*/10,res,planesMap[planeId]),avoidTehCrash);
+		//thats right only one line of magic, don't bother to look at the 1000+ lines behind the curtain 
 
-		//dummying up a service request for the REU students to see
-		AU_UAV_ROS::GoToWaypoint srv;
-		srv.request.planeID = msg->planeID;
+		//fill the service with the new waypoint info
+		srv.request.planeID = planeId;
 		srv.request.latitude = avoidTehCrash[1];//fix with maptools
 		srv.request.longitude = avoidTehCrash[0];//fix with maptools
 		srv.request.altitude = goal.response.altitude;//? not sure if this is allowed but hey i like cheating
 		
 		//these settings mean it is an avoidance maneuver waypoint AND to clear the avoidance queue
 		srv.request.isAvoidanceManeuver = true;
-		srv.request.isNewQueue = true;
+		srv.request.isNewQueue = true;//not sure if we want to clear it, i think we do
 
 		//check to make sure the client call worked (regardless of return values from service)
 		if(client.call(srv))
@@ -88,6 +101,7 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 		}
 		else
 		{
+			//client.call(srv); //we might want to call it again to try and force the data through
 			ROS_ERROR("Did not receive response");
 		}
 }
@@ -95,17 +109,16 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 int main(int argc, char **argv)
 {
 	//standard ROS startup
-	makeField();
 	ros::init(argc, argv, "collisionAvoidance");
 	ros::NodeHandle n;
 	
-	//subscribe to telemetry outputs and create client for the avoid collision service
+	//setup the required data for our stuff
+	makeField();
+	
+	//subscribe to telemetry outputs and create client for the avoid collision service and the goal giving service
 	ros::Subscriber sub = n.subscribe("telemetry", 1000, telemetryCallback);
 	client = n.serviceClient<AU_UAV_ROS::GoToWaypoint>("go_to_waypoint");
 	findGoal = n.serviceClient<AU_UAV_ROS::RequestWaypointInfo>("request_waypoint_info");
-	
-	//random seed for if statement in telemetryCallback, remove when collision avoidance work begins
-	srand(time(NULL));
 	
 	//initialize counting
 	count = 0;
@@ -118,6 +131,7 @@ int main(int argc, char **argv)
 
 void makeField()
 {
+	//get all the data. ?do we need more
 	cout<<"Upperleftlon:";
 	cin>>upperLeftLon;
 	cout<<"Upperleftlat";
@@ -134,4 +148,4 @@ void makeField()
 	for(int i=0; i<planeNum; i++)
 		planesMap[i]=-1;
 }
-
+//150 lines :)

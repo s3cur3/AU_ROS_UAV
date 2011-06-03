@@ -74,6 +74,20 @@ public:
               double height, double resolution );
   
   /**
+   * The constructor for the danger grid, used to set this up as a simplified best
+   * cost grid.
+   * @param set_of_aircraft A vector array containing the aircraft that need to
+   * be considered
+   * @param width The width of the airspace (our x dimension)
+   * @param height The height of the airspace (our y dimension)
+   * @param resolution The resolution to be used in the map
+   * @param goal_x The x coordinate for the goal square
+   * @param goal_y The y coordinate for the goal square
+   */
+  danger_grid( vector< Plane > & set_of_aircraft, double width,
+               double height, double resolution, int goal_x, int goal_y );
+  
+  /**
    * Return the danger rating of a square
    * @param x_pos the x position of the square in question
    * @param y_pos the y position of the square in question
@@ -180,6 +194,17 @@ private:
                    int x, int y, double danger);//places the data into the estimate struct
   void dangerRecurse(estimate e, int destination[], vector<estimate> &theFuture);
   
+  /**
+   * Modifies the map to store the cost of the path which begins at each square and
+   * takes a straight line to the goal, effectively creating a simplified version of
+   * a best cost grid.
+   * Tyler is adding this here to avoid using a "wrapper" for the straight-line
+   * heuristic.
+   * @param goal_x The x coordinate for the goal
+   * @param goal_y The y coordinate for the goal
+   */
+  void calculate_costs( unsigned int goal_x, unsigned int goal_y );
+  
   unsigned int look_ahead;
   unsigned int look_behind; // the number of seconds to consider in the past
   
@@ -240,6 +265,31 @@ danger_grid::danger_grid( vector< Plane > & set_of_aircraft, double width,
   
   // Do all the work -- calculate the danger rating for all squares at all times
   fill_danger_space();
+}
+
+danger_grid::danger_grid( vector< Plane > & set_of_aircraft, double width,
+                         double height, double resolution, int goal_x, int goal_y )
+{
+  look_ahead = DEFAULT_LOOK_AHEAD;
+  look_behind = 2;
+  aircraft = set_of_aircraft;
+  
+  overlayed.push_back( map( width, height, resolution ) );
+  
+  for( unsigned int i = 0; i <= (look_ahead + look_behind); i++ )
+  {
+    map set_up( width, height, resolution );
+    danger_space.push_back( set_up );
+  } // danger_space is now a set of maps, with one map for each second in time that
+  // we will work with.
+  
+  // Set up the danger ratings
+  set_danger_scale( );
+  
+  // Do all the work -- calculate the danger rating for all squares at all times
+  fill_danger_space();
+  
+  calculate_costs( goal_x, goal_y );
 }
 
 void danger_grid::fill_danger_space()
@@ -624,6 +674,28 @@ void danger_grid::dump_est( vector< estimate > dump_me )
     cout << " y = " << (*crnt_est).y << endl;
     cout << " d = " << (*crnt_est).danger << endl;
     ++i;
+  }
+}
+
+void danger_grid::calculate_costs( unsigned int goal_x, unsigned int goal_y )
+{  // This calculation clearly has room for speed improvements
+  unsigned int width = get_width_in_squares();
+  unsigned int height = get_height_in_squares();
+  double danger_adjust = ( width + height ) / 4;
+  
+  for( unsigned int crnt_x = 0; crnt_x <  width; crnt_x++ )
+  {
+    for( unsigned int crnt_y = 0; crnt_y < height; crnt_y++ )
+    {
+      for( unsigned int crnt_t = 0; crnt_t < look_ahead; crnt_t++ )
+      {
+        double crnt_danger = danger_space[ crnt_t ].get_danger_at( crnt_x, crnt_y );
+        double dist = sqrt( (crnt_x - goal_x)*(crnt_x - goal_x) + 
+                           (crnt_y - goal_y)*(crnt_y - goal_y) );
+        danger_space[crnt_t].set_danger_at( crnt_x, crnt_y,
+                                 danger_adjust * crnt_danger + dist );
+      }
+    }
   }
 }
 
