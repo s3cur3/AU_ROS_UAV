@@ -1,5 +1,5 @@
 //
-//  bc_grid_experiment_tester.cpp
+//  best_cost_tester.cpp
 //  AU_UAV_ROS
 //
 //  Created by Tyler Young on 5/31/11.
@@ -116,33 +116,33 @@ int main()
   
   cout << "Here, width is " << width_of_field << " and height is " << height_of_field << endl;
   
-  bc_grid_experiment bc( test_set, width_of_field, height_of_field, resolution, 2 );
-  bc_grid_experiment bc1( test_set1, width_of_field, height_of_field, resolution, 2 );
-  bc_grid_experiment bc2( test_set2, width_of_field, height_of_field, resolution, 2 );
-  bc_grid_experiment bc3( test_set3, width_of_field, height_of_field, resolution, 2 );
-  bc_grid_experiment bc4( test_set4, width_of_field, height_of_field, resolution, 2 );
-  bc_grid_experiment bc5( test_set5, width_of_field, height_of_field, resolution, 2 );
-  bc_grid_experiment bc6( test_set6, width_of_field, height_of_field, resolution, 2 );
-  bc_grid_experiment bc7( test_set7, width_of_field, height_of_field, resolution, 2 );
-  bc_grid_experiment bc8( test_set8, width_of_field, height_of_field, resolution, 2 );
-  bc_grid_experiment bc9( test_set9, width_of_field, height_of_field, resolution, 2 );
-  bc_grid_experiment bc10( test_set10, width_of_field, height_of_field, resolution, 2 );
-  bc_grid_experiment bc11( test_set11, width_of_field, height_of_field, resolution, 2 );
-  bc_grid_experiment bc12( test_set12, width_of_field, height_of_field, resolution, 2 );
-  bc_grid_experiment bc13( test_set13, width_of_field, height_of_field, resolution, 2 );
-  bc_grid_experiment bc14( test_set14, width_of_field, height_of_field, resolution, 2 );
-  bc_grid_experiment bc15( test_set15, width_of_field, height_of_field, resolution, 2 );
-  bc_grid_experiment bc16( test_set16, width_of_field, height_of_field, resolution, 2 );
-  bc_grid_experiment bc17( test_set17, width_of_field, height_of_field, resolution, 2 );
-  bc_grid_experiment bc18( test_set18, width_of_field, height_of_field, resolution, 2 );
-  bc_grid_experiment bc19( test_set19, width_of_field, height_of_field, resolution, 2 );
+  best_cost bc( test_set, width_of_field, height_of_field, resolution, 2 );
+  best_cost bc1( test_set1, width_of_field, height_of_field, resolution, 2 );
+  best_cost bc2( test_set2, width_of_field, height_of_field, resolution, 2 );
+  best_cost bc3( test_set3, width_of_field, height_of_field, resolution, 2 );
+  best_cost bc4( test_set4, width_of_field, height_of_field, resolution, 2 );
+  best_cost bc5( test_set5, width_of_field, height_of_field, resolution, 2 );
+  best_cost bc6( test_set6, width_of_field, height_of_field, resolution, 2 );
+  best_cost bc7( test_set7, width_of_field, height_of_field, resolution, 2 );
+  best_cost bc8( test_set8, width_of_field, height_of_field, resolution, 2 );
+  best_cost bc9( test_set9, width_of_field, height_of_field, resolution, 2 );
+  best_cost bc10( test_set10, width_of_field, height_of_field, resolution, 2 );
+  best_cost bc11( test_set11, width_of_field, height_of_field, resolution, 2 );
+  best_cost bc12( test_set12, width_of_field, height_of_field, resolution, 2 );
+  best_cost bc13( test_set13, width_of_field, height_of_field, resolution, 2 );
+  best_cost bc14( test_set14, width_of_field, height_of_field, resolution, 2 );
+  best_cost bc15( test_set15, width_of_field, height_of_field, resolution, 2 );
+  best_cost bc16( test_set16, width_of_field, height_of_field, resolution, 2 );
+  best_cost bc17( test_set17, width_of_field, height_of_field, resolution, 2 );
+  best_cost bc18( test_set18, width_of_field, height_of_field, resolution, 2 );
+  best_cost bc19( test_set19, width_of_field, height_of_field, resolution, 2 );
 
   
-  bc.dump( 0 );
+  //bc.dump( 0 );
   
-  bc.dump( 1 );
+  //bc.dump( 1 );
   
-  bc.dump( 5 );
+  //bc.dump( 5 );
  
   seconds = time(NULL);
   cout << "End time:   " << seconds << endl;

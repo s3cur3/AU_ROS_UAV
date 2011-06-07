@@ -64,7 +64,7 @@ struct coord
   }
 };
 
-class bc_grid_experiment
+class best_cost
 {
 public:
   /**
@@ -81,9 +81,20 @@ public:
    * @param plane_id The index of the plane for which we are generating the best 
    *                 cost grid
    */
-  bc_grid_experiment( vector< Plane > & set_of_aircraft, double width, double height,
+  best_cost( vector< Plane > & set_of_aircraft, double width, double height,
                       double resolution, unsigned int plane_id );
    
+  /**
+   * The overloaded ( ) operator. Allows simple access to the cost rating of a
+   * given square at a specified number of seconds in the future.
+   * @param x The x location of the square in question
+   * @param y The y location of the square in question
+   * @param time The number of seconds in the future for which we need the danger
+   *             rating.
+   * @return the cost of the (estimated) best path from the square to the goal
+   */
+  double operator()( unsigned int x, unsigned int y, int time ) const;
+  
   /**
    * Output the map at a given time; for troubleshooting only
    * @param time The time, in seconds, whose map should be output
@@ -91,6 +102,13 @@ public:
   void dump( int time ) const;
   
 private:  
+  /**
+   * Calculates a straight path from the starting position to the goal,
+   * and calculates the best cost for the grid squares along that path as the 
+   * starting point for the cost minimization step.
+   */
+  void initialize_path();
+  
   /**
    * Calculate the minimum cost for each square of the grid at all times; loop until
    * no more squares may update the cost of their neighbors.
@@ -127,7 +145,7 @@ private:
   double danger_threshold;
 };
 
-bc_grid_experiment::bc_grid_experiment( vector< Plane > & set_of_aircraft,
+best_cost::best_cost( vector< Plane > & set_of_aircraft,
                                       double width, double height, double resolution, 
                                       unsigned int plane_id)
 {
@@ -142,10 +160,6 @@ bc_grid_experiment::bc_grid_experiment( vector< Plane > & set_of_aircraft,
   goal.x = set_of_aircraft[ plane_id ].getFinalDestination().getX();
   goal.y = set_of_aircraft[ plane_id ].getFinalDestination().getY();
   
-  n_secs = bc->get_time_in_secs();
-  n_sqrs_w = bc->get_width_in_squares();
-  n_sqrs_h = bc->get_height_in_squares();
-  
   // The "map cost" array, a very sparse representation of our airspace which notes
   // the likelihood of encountering an aircraft at each square at each time.
   // This is consulted when calculating the best cost from a given square.
@@ -155,16 +169,95 @@ bc_grid_experiment::bc_grid_experiment( vector< Plane > & set_of_aircraft,
   // square at each time to the goal square. Initializes each square with the 
   // following simple heuristic:
   //      cost( node n ) = mc( n ) + (weighing factor) * distance( from n to goal )
-  bc = new danger_grid( set_of_aircraft, width, height, resolution, goal.x, goal.y );
+  bc = new danger_grid( mc );
+  bc->calculate_distance_costs( goal.x, goal.y );
+  
+  n_secs = bc->get_time_in_secs();
+  n_sqrs_w = bc->get_width_in_squares();
+  n_sqrs_h = bc->get_height_in_squares();
   
   initialize_to_do_index();
+
+  // Create a starting point for the minimization step
+  initialize_path();
 
   // Do the real work of the class //
   minimize_cost();
 }
 
+void best_cost::initialize_path( )
+{
+  // Initialize the best cost at the goal to 0 for all times
+  for( int t = 0; t < n_secs; t++ )
+    bc->set_danger_at( goal.x, goal.y, t, 0.0);
+  
+  // Find the squares which lie in the straight line between BC_start and BC_goal
+  int dx = goal.x - start.x;
+  int dy = start.y - goal.y; // since origin is at top left
+  int x_moves_rem = abs( dx ); // remaining x moves until we reach goal's x
+  int y_moves_rem = abs( dy );
+  bool move_up = ( dy > 0 ? true : false );
+  bool move_right = ( dx > 0 ? true : false );
+  
+  int x_to_set, y_to_set;
+  unsigned int moves_since_dag = 0;
+  const bool more_x = x_to_set > y_to_set;
+  unsigned int dag_to_straight_ratio;
+  if( x_moves_rem == 0 )
+    dag_to_straight_ratio = y_moves_rem;
+  else if( y_moves_rem == 0 )
+    dag_to_straight_ratio = x_moves_rem;
+  else
+    dag_to_straight_ratio = more_x ? x_moves_rem/y_moves_rem : y_moves_rem/x_moves_rem;
+  
+  double danger_adjust = ( n_sqrs_w + n_sqrs_h ) / 4;
+  while( x_moves_rem > 0 || y_moves_rem > 0 ) // 1 or more moves req'd to reach goal
+  {
+    if( moves_since_dag >= dag_to_straight_ratio )
+    {
+      // make a diagonal move
+      if( x_moves_rem != 0 ) // there are one or more x moves remaining, so . . .
+        --x_moves_rem;      // we'll use one
+      if( y_moves_rem != 0 )
+        --y_moves_rem;
+      moves_since_dag = 0;
+    }
+    else if( more_x )
+    {
+      if( x_moves_rem != 0 ) // there are one or more x moves remaining, so . . .
+        --x_moves_rem;      // we'll use one
+      moves_since_dag++;
+    }
+    else
+    {
+      if( y_moves_rem != 0 )
+        --y_moves_rem;
+      moves_since_dag++;
+    }
+    
+    // Values depend on direction of movement
+    x_to_set = ( move_right ? start.x + x_moves_rem : start.x - x_moves_rem );
+    y_to_set = ( move_up ? start.y - y_moves_rem : start.y + y_moves_rem );
+    
+    // Calculate starting-place heuristic for this square using the MC (danger) grid
+    // and the straight-line distance to the goal
+    for( int t = n_secs; t >= 0; t-- )
+    {
+      double danger = (*mc)( x_to_set, y_to_set, t );
+      double dist = sqrt( (x_to_set - goal.x)*(x_to_set - goal.x) + 
+                         (y_to_set - goal.y)*(y_to_set - goal.y) );
+      bc->set_danger_at( x_to_set, y_to_set, t,
+                        danger_adjust * danger + dist );
+      // This (x, y, t) coordinate can change the best cost of its neighbors; check later
+      to_do.push_back( coord( x_to_set, y_to_set, t ) );
+      in_to_do[ x_to_set ][ y_to_set ][ t ] = true;
+    }
+  }
+  
+  danger_threshold = (*bc)( start.x, start.y, start.t );
+}
 
-void bc_grid_experiment::minimize_cost()
+void best_cost::minimize_cost()
 {
   // Increase the travel cost to search a smaller area
   // 0.05 gives almost no penalty to added distance
@@ -216,7 +309,7 @@ void bc_grid_experiment::minimize_cost()
     
     // for each neighbor j of the node i . . .
     for( vector< coord >::const_iterator j = neighbors.begin(); j != neighbors.end(); ++j )
-    {
+    {         // This could be threaded ////////////////////////////////////////////////////////////////
       // The cost to check is the (current) best cost of i plus the danger cost of j
       // plus the cost of traversing the distance; note the higher travel cost for
       // squares tagged 'd' (indicating they are 'd'iagonals to the node i).
@@ -240,8 +333,8 @@ void bc_grid_experiment::minimize_cost()
   }
 }
 
-void bc_grid_experiment::initialize_to_do_index()
-{  
+void best_cost::initialize_to_do_index()
+{  // This could be threaded ////////////////////////////////////////////////////////////////
   in_to_do.resize( n_sqrs_w );
   for( unsigned int x = 0; x < n_sqrs_w; x++ )
   {
@@ -255,7 +348,12 @@ void bc_grid_experiment::initialize_to_do_index()
   }
 }
 
-void bc_grid_experiment::dump( int time ) const
+double best_cost::operator()( unsigned int x, unsigned int y, int time ) const
+{
+  return bc->get_danger_at( x, y, time );
+}
+
+void best_cost::dump( int time ) const
 {  
   cout << endl << "Your plane begins at (" << start.x << ", " << start.y << ")" << endl;
   

@@ -5,12 +5,14 @@
 #include "Position.h"
 #include "Plane.h"
 #include "estimate.h"
+#include <time.h>
 
 using namespace std;
 const double PI = 2*acos(0.0);//PI
 const double RADtoDEGREES = 180/PI;//Conversion factor from Radians to Degrees
 const double DEGREEStoRAD = PI/180;//Conversion factor from Degrees to Radians
-int planesMap[];double upperLeftLon;
+//int planesMap[];
+double upperLeftLon;
 	double upperLeftLat;
 	double lonWidth;
 	double latWidth;
@@ -194,7 +196,60 @@ void dangerRecurse(estimate e, int destination[], vector<estimate> &theFuture,do
 }
 
 
+vector< estimate > calculate_future_pos_it(/*Plane & plane*/int x1,int y1,int x2, int y2, double epislon)
+{
+    vector< estimate > theFuture;
+	
+   // Position current=plane.getLocation();
+//	Position destination=plane.getDestination();
+	
+	//distance formula: line to destination
+	//int x1=current.getX(),x2=destination.getX(),y1=current.getY(),y2=destination.getY();
+	int xDistance=fabs((double)x2-x1),yDistance=fabs((double)y2-y1);
+	cout<<xDistance<<yDistance;
+	while((xDistance!=0)||(yDistance!=0))
+	{
+		double distance = sqrt((double)(xDistance*xDistance)+(yDistance*yDistance));
+		//find the angle to the waypoint
+		double angle=(180-RADtoDEGREES*(asin((double)xDistance/(double)distance)));
+		if(y2<y1)
+				angle=(RADtoDEGREES*(asin((double)xDistance/(double)distance)));
+		if((x2-x1)<0)//positive means that the plane is headed to the left aka west
+			angle=(-1)*angle;//the plane goes from -180 to +180
 
+		//find closest straight line
+		double neighbors[2];
+		neighoboringAngles(angle, neighbors[0], neighbors[1]);
+		double closestAngle=0,otherAngle=0;
+		if(fabs(angle-neighbors[0])>=fabs(angle-neighbors[1]))//distance
+			{closestAngle=neighbors[1]; otherAngle=neighbors[0];}
+		else
+			{closestAngle=neighbors[0]; otherAngle=neighbors[1];}
+		
+		//find displacement percentage
+		double danger;
+		if((fabs(angle)>fabs(closestAngle))&&closestAngle!=0)
+			danger=(closestAngle/angle);
+		else if(closestAngle!=0)
+			danger=(angle/closestAngle);
+		else//i hate 0
+		danger=1-(angle/otherAngle);//because you can't use 0 find the inverse of the displacement to the other angel.
+		
+		//place displacement percentage in closest square and then place the remainder in the other square
+		placeDanger(angle, theFuture, closestAngle, otherAngle, x1, y1, danger);
+		//start the branching NOT ANY MORE THIS SHIT IS ITERATIVE!
+		//int dest[2]={x2,y2};//can't pass it without a name :(
+		//if(theFuture.back().danger>epislon)//not sure what to do with this guy
+			//dangerRecurse(theFuture.back(), dest, theFuture,epislon);
+		theFuture.push_back(estimate(-1,-1,-1));
+		//dangerRecurse(theFuture[theFuture.size()-3],dest,theFuture,epislon);
+		x1=theFuture[theFuture.size()-3].x;
+		y1=theFuture[theFuture.size()-3].y;
+		xDistance=fabs((double)x2-x1),yDistance=fabs((double)y2-y1);
+		cout<<"I'm iterative bitches!"<<endl;
+	}
+	return theFuture;
+}
 
 vector< estimate > calculate_future_pos(/*Plane & plane*/int x1,int y1,int x2, int y2, double epislon)
 {
@@ -321,11 +376,13 @@ int main()
   vector<estimate> theFuture3=calculate_future_pos(p3,.3);
 	vector<estimate> theFuture4=calculate_future_pos(p4,.3);
   vector<estimate> theFuture5=calculate_future_pos(p5,.3);*/
-
-/*	vector<estimate> theFuture=calculate_future_pos(7,5,0,1,.3);
-	int grid[10][11];
-	for(int i=0; i<11; i++)
-		for(int j=0; j<10; j++)
+	//time_t start;
+	//start=time(NULL);
+	vector<estimate> theFuture=calculate_future_pos/*_it*/(0,0,35,24,.3);
+	//printf("Time:%0.7f",start-time(NULL));
+	/*int grid[46][42];
+	for(int i=0; i<42; i++)
+		for(int j=0; j<46; j++)
 			grid[j][i]=0;
 	int seconds=1;
 	for(int i=0; i<theFuture.size(); i++)
@@ -387,8 +444,8 @@ int main()
 			seconds++;
 	}
   */
-	/*for(int i=0; i<11; i++)
-	{	for (int j=0; j<10; j++)
+	/*for(int i=0; i<42; i++)
+	{	for (int j=0; j<46; j++)
 			printf( "%1d ", grid[j][i]);
 	cout<<endl;}
 	cout<<endl;
@@ -419,7 +476,7 @@ int main()
 
 
 	//testing of logic in ros cross through
-	
+	/*
 	cout<<"Upperleftlon:";
 	cin>>upperLeftLon;
 	cout<<"Upperleftlat";
@@ -440,6 +497,6 @@ int main()
 		{
 			cout<<"hey";
 		}
-
-	cin.get();
+		*/
+//	cin.get();
 }

@@ -6,7 +6,7 @@
 #include "Position.h"
 
 class Plane // Just a note, Thomas: Tyler was getting a compile error with
-{ // "public" preceding "class Plane"; he removed it.
+{          // "public" preceding "class Plane"; he removed it.
 private:
 	int id;
 	Position current; // a dummy initialization
@@ -21,6 +21,8 @@ private:
 public:
 	void update(Position current, Position destination, double bearing, double speed);
 	void setFinalDestination(double lon, double lat);
+	void setFinalDestination(int x, int y);
+  void setDestination(int x, int y);
 	double getBearing();
 	double getSpeed();
 	int getId();

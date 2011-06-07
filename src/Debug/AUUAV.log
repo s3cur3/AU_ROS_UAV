@@ -1,13 +1,16 @@
-﻿Build started 5/31/2011 2:07:33 PM.
+﻿Build started 6/6/2011 10:35:25 AM.
      1>Project "C:\Users\Trescenzi\Dropbox\Auburn\Code\AU_UAV_stack\AU_UAV_ROS\src\AUUAV.vcxproj" on node 2 (build target(s)).
      1>InitializeBuildStatus:
          Creating "Debug\AUUAV.unsuccessfulbuild" because "AlwaysCreate" was specified.
        ClCompile:
-         c:\Program Files\Microsoft Visual Studio 10.0\VC\bin\CL.exe /c /Zi /nologo /W3 /WX- /Od /Oy- /D WIN32 /D _DEBUG /D _CONSOLE /Gm /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Fo"Debug\\" /Fd"Debug\vc100.pdb" /Gd /TP /analyze- /errorReport:prompt Tester.cpp
+         c:\Program Files\Microsoft Visual Studio 10.0\VC\bin\CL.exe /c /Zi /nologo /W3 /WX- /Od /Oy- /D WIN32 /D _DEBUG /D _CONSOLE /Gm /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /openmp /Fo"Debug\\" /Fd"Debug\vc100.pdb" /Gd /TP /analyze- /errorReport:prompt Tester.cpp
          Tester.cpp
-     1>Tester.cpp(205): warning C4244: 'initializing' : conversion from 'double' to 'int', possible loss of data
-     1>Tester.cpp(205): warning C4244: 'initializing' : conversion from 'double' to 'int', possible loss of data
-     1>Tester.cpp(324): warning C4018: '<' : signed/unsigned mismatch
+     1>Tester.cpp(207): warning C4244: 'initializing' : conversion from 'double' to 'int', possible loss of data
+     1>Tester.cpp(207): warning C4244: 'initializing' : conversion from 'double' to 'int', possible loss of data
+     1>Tester.cpp(247): warning C4244: '=' : conversion from 'double' to 'int', possible loss of data
+     1>Tester.cpp(247): warning C4244: '=' : conversion from 'double' to 'int', possible loss of data
+     1>Tester.cpp(266): warning C4244: 'initializing' : conversion from 'double' to 'int', possible loss of data
+     1>Tester.cpp(266): warning C4244: 'initializing' : conversion from 'double' to 'int', possible loss of data
        ManifestResourceCompile:
          All outputs are up-to-date.
        Link:
@@ -26,4 +29,4 @@
 
 Build succeeded.
 
-Time Elapsed 00:00:11.32
+Time Elapsed 00:00:04.83
