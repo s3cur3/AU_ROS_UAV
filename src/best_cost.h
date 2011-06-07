@@ -149,8 +149,10 @@ best_cost::best_cost( vector< Plane > & set_of_aircraft,
                                       double width, double height, double resolution, 
                                       unsigned int plane_id)
 {
+#ifdef DEBUG
   assert( plane_id < set_of_aircraft.size() );
-
+#endif
+  
   // Set up all the variables relating to the characteristics of our airspace //
   res = resolution;
   
@@ -263,6 +265,8 @@ void best_cost::minimize_cost()
   // 0.05 gives almost no penalty to added distance
   // 1.0 seems to work best for all ranges.
   const double travel_cost = res * 1;
+  // the cost of traversing a diagonal
+  const double dag_travel_cost = SQRT_2 * travel_cost;
   
   while( to_do.size() != 0 )
   {
@@ -312,9 +316,9 @@ void best_cost::minimize_cost()
     {         // This could be threaded ////////////////////////////////////////////////////////////////
       // The cost to check is the (current) best cost of i plus the danger cost of j
       // plus the cost of traversing the distance; note the higher travel cost for
-      // squares tagged 'd' (indicating they are 'd'iagonals to the node i).
+      // squares tagged 'd' (indicating they are 'd'iagonal to the node i).
       double cost = (*bc)( i.x, i.y, i.t ) + (map_weight * (*mc)( j->x, j->y, j->t ))
-                     + ( j->tag == 'd' ? travel_cost * SQRT_2 : travel_cost );
+                     + ( j->tag == 'd' ? dag_travel_cost : travel_cost );
 
       if( cost < (*bc)( j->x, j->y, j->t ) && cost < danger_threshold )
       {
@@ -334,7 +338,7 @@ void best_cost::minimize_cost()
 }
 
 void best_cost::initialize_to_do_index()
-{  // This could be threaded ////////////////////////////////////////////////////////////////
+{
   in_to_do.resize( n_sqrs_w );
   for( unsigned int x = 0; x < n_sqrs_w; x++ )
   {

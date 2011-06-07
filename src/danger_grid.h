@@ -332,29 +332,35 @@ void danger_grid::set_danger_scale( )
 
 double danger_grid::get_danger_at( unsigned int x_pos, unsigned int y_pos, int seconds ) const
 {
+#ifdef DEBUG
   assert( seconds < (int)( danger_space.size() - look_behind ) );
   assert( seconds >= -(int)look_behind );
   assert( x_pos < UINT_MAX && y_pos < UINT_MAX );
+#endif
   return danger_space[ seconds + look_behind ].get_danger_at( x_pos, y_pos );
 }
 
 void danger_grid::add_danger_at( unsigned int x_pos, unsigned int y_pos, int seconds,
                                  double danger )
 {
+#ifdef DEBUG
   assert( seconds < (int)( danger_space.size() - look_behind ) );
   assert( seconds >= -(int)look_behind );
   assert( x_pos < UINT_MAX && y_pos < UINT_MAX );
   assert( danger > -1.0 );
+#endif
   danger_space[ seconds + look_behind ].add_danger_at( x_pos, y_pos, danger );
 }
 
 void danger_grid::set_danger_at( unsigned int x_pos, unsigned int y_pos, int seconds,
                                  double danger )
 {
+#ifdef DEBUG
   assert( seconds < (int)( danger_space.size() - look_behind ) );
   assert( seconds >= -(int)look_behind );
   assert( x_pos < UINT_MAX && y_pos < UINT_MAX );
   assert( danger > -1.0 );
+#endif
   danger_space[ seconds + look_behind ].set_danger_at( x_pos, y_pos, danger );
 }
 
@@ -386,32 +392,6 @@ unsigned int danger_grid::get_time_in_secs() const
 vector< map > danger_grid::get_danger_space() const
 {
   return danger_space;
-}
-
-void danger_grid::dump( int time ) const
-{
-  assert( time + (int)look_behind < (int)( danger_space.size() ) || time == 10000 );
-  
-  if( time == 10000 )
-    overlayed[0].dump();
-  else
-  {
-    // the meat of the dump is performed by the map class
-    danger_space[ time + look_behind ].dump();
-  }
-}
-
-void danger_grid::dump_big_numbers( int time ) const
-{
-  assert( time + (int)look_behind < (int)( danger_space.size() ) || time == 10000 );
-  
-  if( time == 10000 )
-    overlayed[0].dump_big_numbers();
-  else
-  {
-    // the meat of the dump is performed by the map class
-    danger_space[ time + look_behind ].dump_big_numbers();
-  }
 }
 
 vector< estimate > danger_grid::calculate_future_pos( Plane & plane )
@@ -660,7 +640,7 @@ void danger_grid::dump_est( vector< estimate > dump_me )
 }
 
 void danger_grid::calculate_distance_costs( unsigned int goal_x, unsigned int goal_y )
-{  // This calculation clearly has room for speed improvements
+{
   unsigned int width = get_width_in_squares();
   unsigned int height = get_height_in_squares();
   double danger_adjust = ( width + height ) / 4;
@@ -672,12 +652,42 @@ void danger_grid::calculate_distance_costs( unsigned int goal_x, unsigned int go
       for( unsigned int crnt_t = 0; crnt_t < look_ahead; crnt_t++ )
       {
         double crnt_danger = danger_space[ crnt_t ].get_danger_at( crnt_x, crnt_y );
-        double dist = sqrt( (double)(crnt_x - goal_x)*(crnt_x - goal_x) + 
+        double dist = sqrt( (crnt_x - goal_x)*(crnt_x - goal_x) + 
                            (crnt_y - goal_y)*(crnt_y - goal_y) );
         danger_space[crnt_t].set_danger_at( crnt_x, crnt_y,
                                  danger_adjust * crnt_danger + dist );
       }
     }
+  }
+}
+
+void danger_grid::dump( int time ) const
+{
+#ifdef DEBUG
+  assert( time + (int)look_behind < (int)( danger_space.size() ) || time == 10000 );
+#endif
+  
+  if( time == 10000 )
+    overlayed[0].dump();
+  else
+  {
+    // the meat of the dump is performed by the map class
+    danger_space[ time + look_behind ].dump();
+  }
+}
+
+void danger_grid::dump_big_numbers( int time ) const
+{
+#ifdef DEBUG
+  assert( time + (int)look_behind < (int)( danger_space.size() ) || time == 10000 );
+#endif
+  
+  if( time == 10000 )
+    overlayed[0].dump_big_numbers();
+  else
+  {
+    // the meat of the dump is performed by the map class
+    danger_space[ time + look_behind ].dump_big_numbers();
   }
 }
 

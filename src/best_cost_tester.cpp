@@ -11,9 +11,9 @@
 #include "best_cost.h"
 #include "map_tools.h"
 #include <time.h>
-
-
 #include <vector>
+
+#define DEBUG
 
 using namespace std;
 
@@ -138,7 +138,7 @@ int main()
   best_cost bc19( test_set19, width_of_field, height_of_field, resolution, 2 );
 
   
-  //bc.dump( 0 );
+  bc.dump( 0 );
   
   //bc.dump( 1 );
   

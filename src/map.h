@@ -136,9 +136,11 @@ private:
 
 map::map( double width_of_field, double height_of_field, double map_resolution )
 {
+#ifdef DEBUG
   assert( width_of_field > EPSILON );
   assert( height_of_field > EPSILON );
   assert( map_resolution > EPSILON );
+#endif
   
   width = width_of_field;
   height = height_of_field;
@@ -149,8 +151,10 @@ map::map( double width_of_field, double height_of_field, double map_resolution )
                                                   map_resolution );
   squares_high = map_tools::find_height_in_squares( width_of_field, height_of_field,
                                                    map_resolution );
+#ifdef DEBUG
   assert( squares_high != 0 && squares_high < UINT_MAX );
   assert( squares_wide != 0 && squares_wide < UINT_MAX);
+#endif
   
   // This *should* create a 2-d array accessed in [x][y] order
   the_map.resize( squares_wide );
@@ -183,15 +187,19 @@ void map::add_plane_at( unsigned int x_pos, unsigned int y_pos, unsigned int id 
 
 double map::get_danger_at( unsigned int x_pos, unsigned int y_pos ) const
 {
+#ifdef DEBUG
   assert( x_pos < the_map.size() );
   assert( y_pos < the_map[1].size() );
+#endif
   return the_map[ x_pos ][ y_pos ].danger;
 }
 
 void map::add_danger_at( unsigned int x_pos, unsigned int y_pos, double new_danger )
 {
+#ifdef DEBUG
   assert( x_pos < the_map.size() );
   assert( y_pos < the_map[1].size() );
+#endif
   if( the_map[ x_pos ][ y_pos ].danger > EPSILON )
   {
     // Add to the danger rating, don't simply change it
@@ -213,8 +221,10 @@ void map::add_danger_at( unsigned int x_pos, unsigned int y_pos, double new_dang
 
 void map::set_danger_at( unsigned int x_pos, unsigned int y_pos, double new_danger )
 {
+#ifdef DEBUG
   assert( x_pos < the_map.size() );
   assert( y_pos < the_map[1].size() );
+#endif
   
   the_map[ x_pos ][ y_pos ].danger = new_danger;
 

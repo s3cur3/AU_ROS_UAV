@@ -97,8 +97,8 @@ double map_tools::calculate_distance_between_points( double latitude_1, double l
     double earth_radius = 6371000.0; // meters, on average
     double d_lat = to_radians( latitude_2 - latitude_1 );
     double d_long = to_radians( longitude_2 - longitude_1 );
-	double sin_d_lat=sin( d_lat / 2);
-	double sin_d_long=sin( d_long / 2);
+    double sin_d_lat=sin( d_lat / 2);
+    double sin_d_long=sin( d_long / 2);
     double a = ( sin_d_lat * sin_d_lat +
                  cos( to_radians(latitude_1) ) * cos( to_radians(latitude_2) ) * 
                  sin_d_long * sin_d_long );

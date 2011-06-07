@@ -6,7 +6,7 @@
 #define POSITION
 #include <iostream>
 #include "map_tools.h"
-#include <assert.h>
+#include <cassert>
 
 class Position
 {
@@ -78,7 +78,9 @@ void Position::setLat(double l)
   //assert( l >= top_left_lat && l <= top_left_lat + latWidth );
   lat=l;
   y = latToY();
+#ifdef DEBUG
   assert( y >= 0 && y <= h );
+#endif
   //cout << "Set the y to " << y << endl;
 }
 double Position::getLat()
@@ -86,17 +88,24 @@ double Position::getLat()
 
 void Position::setLon(double l)
 {
+#ifdef DEBUG
   assert( l >= top_left_long && l <= top_left_long + lonWidth );
+#endif
+  
   lon=l;
   x = lonToX();
+#ifdef DEBUG
   assert( x >= 0 && x <= w );
+#endif
 }
 double Position::getLon()
 	{return lon;}
 	
 void Position::setX(int l) // TY changed this to accept an int instead of a double, 
 {                           // per the function prototype TC wrote above
+#ifdef DEBUG
   assert( l >= 0 && l <= w );
+#endif
   x=l;
   lon = xToLon();
 }
@@ -105,7 +114,9 @@ int Position::getX() // TY changed this to return an int instead of a double
 	
 void Position::setY(int l) // TY changed this to accept an int instead of a double
 { 
+#ifdef DEBUG
   assert( l >= 0 && l <= h );
+#endif
   y=l;
   lat = yToLat();
 }

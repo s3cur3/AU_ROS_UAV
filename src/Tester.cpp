@@ -7,6 +7,8 @@
 #include "estimate.h"
 #include <time.h>
 
+#define DEBUG
+
 using namespace std;
 const double PI = 2*acos(0.0);//PI
 const double RADtoDEGREES = 180/PI;//Conversion factor from Radians to Degrees
