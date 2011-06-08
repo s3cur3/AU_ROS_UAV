@@ -13,7 +13,6 @@ TODO: is this where we want to take normal flight commands/read a flight plan?
 //ROS headers
 #include "ros/ros.h"
 #include "ros/package.h"
-#include "AU_UAV_ROS/standardDefs.h"
 #include "AU_UAV_ROS/TelemetryUpdate.h"
 #include "AU_UAV_ROS/Command.h"
 #include "AU_UAV_ROS/RequestPlaneID.h"
@@ -21,12 +20,13 @@ TODO: is this where we want to take normal flight commands/read a flight plan?
 #include "AU_UAV_ROS/PlaneCoordinator.h"
 #include "AU_UAV_ROS/LoadPath.h"
 #include "AU_UAV_ROS/RequestWaypointInfo.h"
+#include "AU_UAV_ROS/LoadCourse.h"
 
 //publisher is global so callbacks can access it
 ros::Publisher commandPub;
 
 //coordinator list of UAVs, may want to lengthen this or perhaps change it to a map, not sure
-AU_UAV_ROS::PlaneCoordinator planesArray[100];
+std::map<int, AU_UAV_ROS::PlaneCoordinator> planesArray;
 
 //just a count of the number of planes so far, init to zero
 int numPlanes = 0;
@@ -37,7 +37,10 @@ simple function to make sure that an ID sent to us is known by the coordinator
 */
 bool isValidPlaneID(int id)
 {
-	if(id >= 0 && id < numPlanes) return true;
+	//if the number id is valid
+	//AND we have that id in the map
+	//AND that UAV is active
+	if(id >= 0 && planesArray.find(id) != planesArray.end() && planesArray[id].isActive) return true;
 	else return false;
 }
 
@@ -77,17 +80,50 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 //service to run whenever a new plane enters the arena to tell it the ID number it should use
 bool requestPlaneID(AU_UAV_ROS::RequestPlaneID::Request &req, AU_UAV_ROS::RequestPlaneID::Response &res)
 {
-	//we capped the max number of planes at 100 for now
-	if(numPlanes < 100)
+	//check to see if we've been given an ID
+	if(req.requestedID == -1)
 	{
-		//anything that needs to happen when a plane is instantiated goes here
-		res.planeID = numPlanes++;
-		return true;
+		//we weren't given an ID, so pick the first that's free
+		int id = 0;
+		while(true)
+		{
+			//check if the ID is occupied or inactive
+			if(planesArray.find(id) != planesArray.end() && planesArray[id].isActive)
+			{
+				//this id already exists, increment our id and try again
+				id++;
+			}
+			else
+			{
+				//we found an unused ID, lets steal it
+				planesArray[id] = AU_UAV_ROS::PlaneCoordinator();
+				planesArray[id].isActive = true;
+				numPlanes++;
+				
+				res.planeID = id;
+				return true;
+			}
+		}
+		
+		//not sure how we'd get here, but better to handle it
+		return false;
 	}
 	else
 	{
-		ROS_ERROR("Too many plane IDs for coordinator to handle.\n");
-		return false;
+		//we've been given an ID, check if it's open or inactive
+		if(planesArray.find(req.requestedID) == planesArray.end() || !planesArray[req.requestedID].isActive)
+		{
+			planesArray[req.requestedID] = AU_UAV_ROS::PlaneCoordinator();
+			planesArray[req.requestedID].isActive = true;
+			numPlanes++;
+			res.planeID = req.requestedID;
+			return true;
+		}
+		else
+		{
+			ROS_ERROR("The ID #%d is already taken.\n", req.requestedID);
+			return false;
+		}
 	}
 }
 
@@ -136,7 +172,6 @@ bool loadPathCallback(AU_UAV_ROS::LoadPath::Request &req, AU_UAV_ROS::LoadPath::
 	//check for a valid plane ID sent
 	if(isValidPlaneID(req.planeID))
 	{
-		system("ls");
 		//open our file
 		FILE *fp;
 		fp = fopen((ros::package::getPath("AU_UAV_ROS")+"/paths/"+req.filename).c_str(), "r");
@@ -149,11 +184,10 @@ bool loadPathCallback(AU_UAV_ROS::LoadPath::Request &req, AU_UAV_ROS::LoadPath::
 			bool isAvoidance = false;
 			
 			//while we have something in the file
-			//while(fscanf(fp, "%s", buffer) != EOF)
 			while(fgets(buffer, sizeof(buffer), fp))
 			{
-				//check first character
-				if(buffer[0] == '#')
+				//check first character for comment or if the line is blank
+				if(buffer[0] == '#' || isBlankLine(buffer))
 				{
 					//this line is a comment
 					continue;
@@ -198,6 +232,84 @@ bool loadPathCallback(AU_UAV_ROS::LoadPath::Request &req, AU_UAV_ROS::LoadPath::
 	{
 		ROS_ERROR("Invalid plane ID");	
 		res.error = "Invalid plane ID";
+		return false;
+	}
+}
+
+/*
+loadCourseCallback(...)
+This callback takes a filename and parses that file to load a course into the coordinator. A course in
+this sense would be several paths for multiple UAVs.  We want this so we can test a collision avoidance
+course by preplanning the course.
+*/
+bool loadCourseCallback(AU_UAV_ROS::LoadCourse::Request &req, AU_UAV_ROS::LoadCourse::Response &res)
+{
+	ROS_INFO("Received request: Load course from \"%s\"\n", req.filename.c_str());
+	
+	//open our file
+	FILE *fp;
+	fp = fopen((ros::package::getPath("AU_UAV_ROS")+"/courses/"+req.filename).c_str(), "r");
+	
+	//check for a good file open
+	if(fp != NULL)
+	{
+		char buffer[256];
+		
+		std::map<int, bool> isFirstPoint;
+		bool isAvoidance = false;
+		
+		//while we have something in the file
+		while(fgets(buffer, sizeof(buffer), fp))
+		{
+			//check first character
+			if(buffer[0] == '#' || isBlankLine(buffer))
+			{
+				//this line is a comment
+				continue;
+			}
+			else
+			{
+				//set some invalid defaults
+				int planeID = -1;
+				struct AU_UAV_ROS::waypoint temp;
+				temp.latitude = temp.longitude = temp.altitude = -1000;
+				
+				//TODO: change the parser to create planes that don't exist yet?
+				//parse the string
+				sscanf(buffer, "%d %lf %lf %lf\n", &planeID, &temp.latitude, &temp.longitude, &temp.altitude);
+				ROS_INFO("Loaded %d to %lf %lf %lf", planeID, temp.latitude, temp.longitude, temp.altitude);
+				
+				//check for the invalid defaults
+				if(planeID == -1 || temp.latitude == -1000 || temp.longitude == -1000 || temp.altitude == -1000)
+				{
+					//this means we have a bad file somehow
+					ROS_ERROR("Bad file parse");
+					res.error = "Bad file parse, some points loaded";
+					return false;
+				}
+				
+				//check our map for an entry, if we dont have one then this is the first time
+				//that this plane ID has been referenced so it's true
+				if(isFirstPoint.find(planeID) == isFirstPoint.end())
+				{
+					isFirstPoint[planeID] = true;
+				}
+				
+				//call the goToPoint function for the correct plane
+				planesArray[planeID].goToPoint(temp, isAvoidance, isFirstPoint[planeID]);
+				
+				//only clear the queue with the first point
+				if(isFirstPoint[planeID]) isFirstPoint[planeID] = false;
+			}
+		}
+		
+		//end of file, return
+		return true;
+	}
+	else
+	{
+		ROS_ERROR("Invalid filename or location: %s", req.filename.c_str());
+		res.error = "Invalid filename or location";
 		return false;
 	}
 }
@@ -251,6 +363,7 @@ int main(int argc, char **argv)
 	ros::ServiceServer goToWaypointServer = n.advertiseService("go_to_waypoint", goToWaypoint);
 	ros::ServiceServer loadPathServer = n.advertiseService("load_path", loadPathCallback);
 	ros::ServiceServer requestWaypointInfo = n.advertiseService("request_waypoint_info", requestWaypointInfoCallback);
+	ros::ServiceServer loadCourseServer = n.advertiseService("load_course", loadCourseCallback);
 	commandPub = n.advertise<AU_UAV_ROS::Command>("commands", 1000);
 
 	//Needed for ROS to wait for callbacks

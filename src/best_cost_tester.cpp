@@ -43,7 +43,7 @@ Position randomized_position()
                    longitude, latitude, resolution ) );
 }
 
-vector< Plane > randomized_planes( int num_planes )
+vector< Plane > randomized_planes( natural num_planes )
 {
   vector< Plane > the_planes;
   // The following vars are required to set a plane's position

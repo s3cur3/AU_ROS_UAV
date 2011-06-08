@@ -7,13 +7,18 @@ This will be the primary UI for now just to control the simulator and coordinato
 #include <stdio.h>
 #include <stdlib.h>
 #include <iostream>
+#include <ctype.h>
 
 //ROS headers
 #include "ros/ros.h"
+#include "ros/package.h"
+#include "AU_UAV_ROS/standardDefs.h"
 #include "AU_UAV_ROS/CreateSimulatedPlane.h"
 #include "AU_UAV_ROS/DeleteSimulatedPlane.h"
 #include "AU_UAV_ROS/GoToWaypoint.h"
 #include "AU_UAV_ROS/LoadPath.h"
+#include "AU_UAV_ROS/LoadCourse.h"
+#include "AU_UAV_ROS/SaveFlightData.h"
 
 //services to the simulator
 ros::ServiceClient createSimulatedPlaneClient;
@@ -22,6 +27,90 @@ ros::ServiceClient deleteSimulatedPlaneClient;
 //services to the coordinator
 ros::ServiceClient goToWaypointClient;
 ros::ServiceClient loadPathClient;
+ros::ServiceClient loadCourseClient;
+
+//services to the KMLCreator
+ros::ServiceClient saveFlightDataClient;
+
+/*
+createCourseUAVs(...)
+takes a filename and will parse it to determine how many UAVs there are and create them as needed
+*/
+bool createCourseUAVs(std::string filename)
+{
+	//open our file
+	FILE *fp;
+	fp = fopen((ros::package::getPath("AU_UAV_ROS")+"/courses/"+filename).c_str(), "r");
+	
+	//check for a good file open
+	if(fp != NULL)
+	{
+		char buffer[256];
+		
+		std::map<int, bool> isFirstPoint;
+		
+		while(fgets(buffer, sizeof(buffer), fp))
+		{
+			if(buffer[0] == '#' || isBlankLine(buffer))
+			{
+				//this line is a comment
+				continue;
+			}
+			else
+			{
+				//set some invalid defaults
+				int planeID = -1;
+				struct AU_UAV_ROS::waypoint temp;
+				temp.latitude = temp.longitude = temp.altitude = -1000;
+				
+				//parse the string
+				sscanf(buffer, "%d %lf %lf %lf\n", &planeID, &temp.latitude, &temp.longitude, &temp.altitude);
+				
+				//check for the invalid defaults
+				if(planeID == -1 || temp.latitude == -1000 || temp.longitude == -1000 || temp.altitude == -1000)
+				{
+					//this means we have a bad file somehow
+					ROS_ERROR("Bad file parse");
+					return false;
+				}
+				
+				//check our map for an entry, if we dont have one then this is the first time
+				//that this plane ID has been referenced so it's true
+				if(isFirstPoint.find(planeID) == isFirstPoint.end())
+				{
+					isFirstPoint[planeID] = true;
+					
+					//this is the first time we've seen this ID in the file, attempt to create it
+					AU_UAV_ROS::CreateSimulatedPlane srv;
+					srv.request.startingLatitude = temp.latitude;
+					srv.request.startingLongitude = temp.longitude;
+					srv.request.startingAltitude = temp.altitude;
+					srv.request.startingBearing = 0;
+					srv.request.requestedID = planeID;
+				
+					//send the service request
+					printf("\nRequesting to create new plane with ID #%d...\n", planeID);
+					if(createSimulatedPlaneClient.call(srv))
+					{
+						printf("New plane with ID #%d has been created!\n", srv.response.planeID);
+					}
+					else
+					{
+						ROS_ERROR("Did not receive a response from simulator");
+					}
+				}
+				
+				//only clear the queue with the first point
+				if(isFirstPoint[planeID]) isFirstPoint[planeID] = false;
+			}
+		}
+	}
+	else
+	{
+		ROS_ERROR("Invalid filename or location: %s", filename.c_str());
+		return false;
+	}
+}
 
 /*
 simulatorMenu()
@@ -65,6 +154,7 @@ void simulatorMenu()
 				srv.request.startingLongitude = longitude;
 				srv.request.startingAltitude = altitude;
 				srv.request.startingBearing = bearing;
+				srv.request.requestedID = -1;
 				
 				//send the service request
 				printf("\nRequesting to create new plane...\n");
@@ -133,12 +223,13 @@ void pathMenu()
 	int choice = 0;
 	
 	//loop until the user asks to go back
-	while(choice != 3)
+	while(choice != 4)
 	{
 		printf("\nPath Planning Menu:\n");
 		printf("1-Go to waypoint\n");
 		printf("2-Load path\n");
-		printf("3-Back\n");
+		printf("3-Load course\n");
+		printf("4-Back\n");
 		printf("Choice:");
 		scanf("%d", &choice);
 		system("clear");
@@ -205,8 +296,46 @@ void pathMenu()
 				break;
 			}
 			
-			//we don't have to do anything for the go back case
+			//load a course for our UAVs
 			case 3:
+			{
+				//create the service
+				AU_UAV_ROS::LoadCourse srv;
+				
+				//get the file input
+				char filename[256];
+				char createNewPlanes[256] = "blah";
+				printf("\nEnter the filename:");
+				scanf("%s", filename);
+				
+				//get whether we should create planes or not
+				while(!isValidYesNo(createNewPlanes[0]))
+				{
+					printf("\nDo you want to automatically create any non-existent planes (y/n)?");
+					scanf("%s", createNewPlanes);
+				}
+				
+				//check if we need to create some simulated UAVs
+				if(tolower(createNewPlanes[0]) == 'y')
+				{
+					createCourseUAVs(filename);
+				}
+				
+				srv.request.filename = filename;
+				
+				if(loadCourseClient.call(srv))
+				{
+					printf("Course loaded successfully!\n");
+				}
+				else
+				{
+					ROS_ERROR("Error loading course");
+				}
+				break;
+			}
+			
+			//we don't have to do anything for the go back case
+			case 4:
 			{
 				break;
 			}
@@ -236,17 +365,20 @@ int main(int argc, char **argv)
 	deleteSimulatedPlaneClient = n.serviceClient<AU_UAV_ROS::DeleteSimulatedPlane>("delete_simulated_plane");
 	goToWaypointClient = n.serviceClient<AU_UAV_ROS::GoToWaypoint>("go_to_waypoint");
 	loadPathClient = n.serviceClient<AU_UAV_ROS::LoadPath>("load_path");
+	loadCourseClient = n.serviceClient<AU_UAV_ROS::LoadCourse>("load_course");
+	saveFlightDataClient = n.serviceClient<AU_UAV_ROS::SaveFlightData>("save_flight_data");
 	
 	//set up the menu
 	int choice = 0;
 	
 	//loop until the user asks to quit
-	while(choice != 3)
+	while(choice != 4)
 	{
 		printf("\nStandard Controller Menu:\n");
 		printf("1-Simulator Controls\n");
 		printf("2-Path Planning\n");
-		printf("3-Exit Program\n");
+		printf("3-Save all data\n");
+		printf("4-Exit Program\n");
 		printf("Choice:");
 		scanf("%d", &choice);
 		system("clear");
@@ -264,6 +396,26 @@ int main(int argc, char **argv)
 				break;
 			}
 			case 3:
+			{
+				char filename[256];
+				printf("\nEnter the filename to save to:");
+				scanf("%s", filename);
+				
+				AU_UAV_ROS::SaveFlightData srv;
+				srv.request.filename = filename;
+				
+				if(saveFlightDataClient.call(srv))
+				{
+					printf("Flight data savedsuccessfully!\n");
+				}
+				else
+				{
+					ROS_ERROR("Error loading course");
+				}
+				
+				break;
+			}
+			case 4:
 			{
 				//nothing to do but leave
 				break;

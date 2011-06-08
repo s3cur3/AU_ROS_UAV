@@ -201,9 +201,8 @@ void best_cost::initialize_path( )
   bool move_up = ( dy > 0 ? true : false );
   bool move_right = ( dx > 0 ? true : false );
   
-  int x_to_set, y_to_set;
   unsigned int moves_since_dag = 0;
-  const bool more_x = x_to_set > y_to_set;
+  const bool more_x = x_moves_rem > y_moves_rem;
   unsigned int dag_to_straight_ratio;
   if( x_moves_rem == 0 )
     dag_to_straight_ratio = y_moves_rem;
@@ -238,13 +237,14 @@ void best_cost::initialize_path( )
     }
     
     // Values depend on direction of movement
+    int x_to_set, y_to_set;
     x_to_set = ( move_right ? start.x + x_moves_rem : start.x - x_moves_rem );
     y_to_set = ( move_up ? start.y - y_moves_rem : start.y + y_moves_rem );
     
     // Calculate starting-place heuristic for this square using the MC (danger) grid
     // and the straight-line distance to the goal
     for( int t = n_secs; t >= 0; t-- )
-    {
+    { //              This isn't quite right . . . FIX ME! /////////////////////////////////////////////////////////////////////////////////////////
       double danger = (*mc)( x_to_set, y_to_set, t );
       double dist = sqrt( (x_to_set - goal.x)*(x_to_set - goal.x) + 
                          (y_to_set - goal.y)*(y_to_set - goal.y) );
@@ -323,7 +323,7 @@ void best_cost::minimize_cost()
       if( cost < (*bc)( j->x, j->y, j->t ) && cost < danger_threshold )
       {
         (*bc).set_danger_at( j->x, j->y, j->t, cost );
-                
+
         // If the neighbor isn't in the to-do list . . .
         if( !in_to_do[ j->x ][ j->y ][ j->t ] )
         {

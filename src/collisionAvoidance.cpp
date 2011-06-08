@@ -16,6 +16,7 @@ is already setup along with a dummy version of how the service request would wor
 #include "ros/ros.h"
 #include "AU_UAV_ROS/TelemetryUpdate.h"
 #include "AU_UAV_ROS/GoToWaypoint.h"
+#include "AU_UAV_ROS/RequestWaypointInfo.h"
 
 //ROS service client for calling a service from the coordinator
 ros::ServiceClient client;
@@ -28,13 +29,13 @@ double latWidth;
 double res;
 int planeNum;
 //where the planes are
-vector<Plane> planes();
+vector<Plane> planes;
 //a map. the index in the array is the planeid the value is the location of the plane's info in the planes vector
-int planesMap[];
+int planesMap[12];
 
 
 //keeps count of the number of services requested
-int count;
+int the_count;
 
 
 void makeField();
@@ -43,14 +44,15 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 {
 	ROS_INFO("Received update #[%lld]", msg->currentWaypointIndex);
 		std::stringstream ss;
-		ss << "Sending service request " << count++;
+		ss << "Sending service request " << the_count++;
 		
 		//sets up the service that will ask the coordinator for the current plane's goal
-		AU_UAV_ROS::findGoal goal;
+		AU_UAV_ROS::RequestWaypointInfo goal;
 		//sets up the service that will tell the coordinator the new waypoint
 		AU_UAV_ROS::GoToWaypoint srv;
 		
 		int planeId=msg->planeID;//limits the amount of indirection
+		
 
 		//wrap the Telemetry info into positions
 		Position current(upperLeftLon,upperLeftLat,lonWidth,latWidth,msg->currentLongitude,msg->currentLatitude,res);
@@ -59,15 +61,15 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 		//create the intial plane if there is no plane in the vector yet
 		if(planesMap[planeId]==-1)
 		{
-			planesMap[planeId]=planes.size();//the location in the vector where the plane will go
+			planesMap[planeId]= planes.size();//the location in the vector where the plane will go
 			planes.push_back(Plane(planeId,current,next));//pushes back the new plane
 		}
 		
 		//update the plane with the new telemetry data
 		planes[planesMap[planeId]].update(current,next,msg->targetBearing, msg->groundSpeed);
-
+		Plane currentPlane = planes[planesMap[planeId]];
 		//fill the service with the required info
-		goal.request.planeId=planeId;
+		goal.request.planeID=planeId;
 		goal.request.isAvoidanceWaypoint=false;//ask matt if this is how it works
 		goal.request.positionInQueue=0;//ask about this too
 	
@@ -77,17 +79,18 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 		else
 			ROS_ERROR("Failed to receive the destination");
 		//fill the plane's final destination in
-		planes[planesMap[planeId]].setFinalDestination(goal.response.longitude,goal.response.latitude)
+  planes[planesMap[planeId]].setFinalDestination(goal.response.longitude,goal.response.latitude);
 
-		int avoidTehCrash[2];
+		//int avoidTehCrash[2];
 		//this is where all the magic happens
-		A-Star(/*replace with bester cost*/best_cost_grid(planes,/*find the xwidth*/10,/*find the ywidth*/10,res,planesMap[planeId]),avoidTehCrash);
+		//Pass A* a map and a plane
+		//A-Star(/*replace with bester cost*/best_cost_grid(planes,/*find the xwidth*/10,/*find the ywidth*/10,res,planesMap[planeId]),currentPlane);
 		//thats right only one line of magic, don't bother to look at the 1000+ lines behind the curtain 
 
 		//fill the service with the new waypoint info
 		srv.request.planeID = planeId;
-		srv.request.latitude = avoidTehCrash[1];//fix with maptools
-		srv.request.longitude = avoidTehCrash[0];//fix with maptools
+		srv.request.latitude = currentPlane.getDestination().getLat();//send the new lat
+		srv.request.longitude = currentPlane.getDestination().getLon();//send the new lon
 		srv.request.altitude = goal.response.altitude;//? not sure if this is allowed but hey i like cheating
 		
 		//these settings mean it is an avoidance maneuver waypoint AND to clear the avoidance queue
@@ -97,7 +100,7 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 		//check to make sure the client call worked (regardless of return values from service)
 		if(client.call(srv))
 		{
-			ROS_INFO("Received response from service request %d", (count-1));
+			ROS_INFO("Received response from service request %d", (the_count-1));
 		}
 		else
 		{
@@ -121,7 +124,7 @@ int main(int argc, char **argv)
 	findGoal = n.serviceClient<AU_UAV_ROS::RequestWaypointInfo>("request_waypoint_info");
 	
 	//initialize counting
-	count = 0;
+	the_count = 0;
 
 	//needed for ROS to wait for callbacks
 	ros::spin();	

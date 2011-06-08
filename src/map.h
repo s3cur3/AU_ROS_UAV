@@ -22,6 +22,7 @@
 #include <vector>
 #include <cassert>
 #include <iostream>
+#include <cstdio> // for printf
 #include <math.h> // only for ceil()
 #include "map_tools.h"
 

@@ -2,6 +2,9 @@
 //Header file for the plane class with use in the Auburn REU program 2011
 //Thomas Crescenzi
 
+#ifndef PLANE 
+#define PLANE
+
 #include <iostream>
 #include "Position.h"
 
@@ -226,8 +229,4 @@ Plane::Plane(int newid, Position initial, Position goal )
 	return moving;
 }*/
 		
-	
-
-
-	
-
+#endif
