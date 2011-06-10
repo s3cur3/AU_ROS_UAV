@@ -96,11 +96,18 @@ public:
   double operator()( unsigned int x, unsigned int y, int time ) const;
   
   /**
+   * Same function as ()
+   */
+  double get_pos(unsigned int x, unsigned int y, int time) const;
+    
+  /**
    * Output the map at a given time; for troubleshooting only
    * @param time The time, in seconds, whose map should be output
    */
   void dump( int time ) const;
   
+  // AK: Destructor, combats memory leak issues
+  ~best_cost();
 private:  
   /**
    * Calculates a straight path from the starting position to the goal,
@@ -146,11 +153,17 @@ private:
 };
 
 best_cost::best_cost( vector< Plane > & set_of_aircraft,
-                                      double width, double height, double resolution, 
-                                      unsigned int plane_id)
+                      double width, double height, double resolution, 
+                      unsigned int plane_id)
 {
 #ifdef DEBUG
   assert( plane_id < set_of_aircraft.size() );
+  assert( set_of_aircraft.size() != 0 );
+  assert( set_of_aircraft.size() < 1000000000 );
+  assert( resolution > EPSILON );
+  assert( resolution < height && resolution < width );
+  assert( height / resolution < 1000000 );
+  assert( width / resolution < 1000000 );
 #endif
   
   // Set up all the variables relating to the characteristics of our airspace //
@@ -166,7 +179,7 @@ best_cost::best_cost( vector< Plane > & set_of_aircraft,
   // the likelihood of encountering an aircraft at each square at each time.
   // This is consulted when calculating the best cost from a given square.
   mc = new danger_grid( set_of_aircraft, width, height, resolution );
-  
+    
   // The real meat of this class; stores the cost of the best possible path from each
   // square at each time to the goal square. Initializes each square with the 
   // following simple heuristic:
@@ -182,10 +195,17 @@ best_cost::best_cost( vector< Plane > & set_of_aircraft,
 
   // Create a starting point for the minimization step
   initialize_path();
-
+  
   // Do the real work of the class //
   minimize_cost();
 }
+
+// AK: DESTRUCTOR -- DESTROY mc, bc to release their memory
+best_cost::~best_cost(){
+  delete mc;
+  delete bc;
+}
+
 
 void best_cost::initialize_path( )
 {
@@ -356,6 +376,13 @@ double best_cost::operator()( unsigned int x, unsigned int y, int time ) const
 {
   return bc->get_danger_at( x, y, time );
 }
+
+// AK: Added so A-Star would accept
+double best_cost::get_pos(unsigned int x, unsigned int y, int time) const
+{
+  return bc->get_danger_at(x, y, time);
+}
+
 
 void best_cost::dump( int time ) const
 {  

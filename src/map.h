@@ -25,6 +25,7 @@
 #include <cstdio> // for printf
 #include <math.h> // only for ceil()
 #include "map_tools.h"
+#include <climits>
 
 using namespace std;
 
@@ -111,7 +112,6 @@ public:
    * @param danger the danger to be assigned to this square
    */
   void set_danger_at( unsigned int x_pos, unsigned int y_pos, double danger );
-
   
   unsigned int get_width_in_squares( ) const;
   double get_width_in_meters( ) const;
@@ -141,6 +141,8 @@ map::map( double width_of_field, double height_of_field, double map_resolution )
   assert( width_of_field > EPSILON );
   assert( height_of_field > EPSILON );
   assert( map_resolution > EPSILON );
+  assert( height_of_field / map_resolution < 1000000 );
+  assert( width_of_field / map_resolution < 1000000 );
 #endif
   
   width = width_of_field;
@@ -152,14 +154,15 @@ map::map( double width_of_field, double height_of_field, double map_resolution )
                                                   map_resolution );
   squares_high = map_tools::find_height_in_squares( width_of_field, height_of_field,
                                                    map_resolution );
+
 #ifdef DEBUG
-  assert( squares_high != 0 && squares_high < UINT_MAX );
-  assert( squares_wide != 0 && squares_wide < UINT_MAX);
+  assert( squares_high != 0 && squares_high < (UINT_MAX - 1000) );
+  assert( squares_wide != 0 && squares_wide < (UINT_MAX - 1000) );
 #endif
   
   // This *should* create a 2-d array accessed in [x][y] order
   the_map.resize( squares_wide );
-  
+
   for( unsigned int i = 0; i < the_map.size(); ++i )
     the_map[ i ].resize( squares_high );
   
@@ -168,6 +171,7 @@ map::map( double width_of_field, double height_of_field, double map_resolution )
   {
     for( vector< grid_square >::iterator j = i->begin(); j != i->end(); ++j )
     {
+      assert( i->size() < 1000000 ); // FAIL!!! (Multiplying this number by 10 causes no failure) ////////////////////////////////////
       j->danger = 0;
     }
   }

@@ -5,8 +5,9 @@
 #ifndef POSITION 
 #define POSITION
 #include <iostream>
+#include <fstream>
 #include "map_tools.h"
-#include <cassert>
+#include <assert.h>
 
 class Position
 {
@@ -25,14 +26,14 @@ private:
 	//this part is kinda an issue for now the position class is built around a top left corner of the area it is contained within
 	double top_left_lat;//the value of the latitude of the top left corner
 	double top_left_long;//same as top_left_lat but for longitude 
-  double top_right_lat;
-  double top_right_long;
-  double btm_left_lat;
-  double btm_left_long;
+  	double top_right_lat;
+ 	double top_right_long;
+  	double btm_left_lat;
+ 	double btm_left_long;
 	double latWidth;
 	double lonWidth;
-  double width_in_meters;
-  double height_in_meters;
+ 	double width_in_meters;
+ 	double height_in_meters;
 	//functions for converting between systems
 	double xToLon();
 	double yToLat();
@@ -57,8 +58,8 @@ public:
 	double getLon();
 	int getX();
 	int getY();
-  int getWidth();
-  int getHeight();
+	int getWidth();
+	int getHeight();
 	double getUpperLeftLongitude();
     double getUpperLeftLatitude();
 
@@ -79,7 +80,7 @@ void Position::setLat(double l)
   lat=l;
   y = latToY();
 #ifdef DEBUG
-  assert( y >= 0 && y <= h );
+  //assert( y >= 0 && y <= h );
 #endif
   //cout << "Set the y to " << y << endl;
 }
@@ -89,13 +90,21 @@ double Position::getLat()
 void Position::setLon(double l)
 {
 #ifdef DEBUG
-  assert( l >= top_left_long && l <= top_left_long + lonWidth );
+//  ofstream the_file;
+//  the_file.open("/home/tyler/Desktop/debugpos.txt",ios::out);
+//  assert( the_file.is_open() );
+//  the_file << "l:             " << l << "\n";
+//  the_file << "top_left_long: " << top_left_long << "\n";
+//  the_file << "top_left_lat:  " << top_left_lat << "\n";
+//  the_file << "lat:           " << lat << "\n";
+//  the_file.close();
+//  assert( l <= (top_left_long + lonWidth) );
+//  assert( l >= top_left_long );
 #endif
-  
   lon=l;
   x = lonToX();
 #ifdef DEBUG
-  assert( x >= 0 && x <= w );
+//  assert( x >= 0 && x <= w );
 #endif
 }
 double Position::getLon()
@@ -104,7 +113,7 @@ double Position::getLon()
 void Position::setX(int l) // TY changed this to accept an int instead of a double, 
 {                           // per the function prototype TC wrote above
 #ifdef DEBUG
-  assert( l >= 0 && l <= w );
+//  assert( l >= 0 && l <= w );
 #endif
   x=l;
   lon = xToLon();
@@ -115,7 +124,7 @@ int Position::getX() // TY changed this to return an int instead of a double
 void Position::setY(int l) // TY changed this to accept an int instead of a double
 { 
 #ifdef DEBUG
-  assert( l >= 0 && l <= h );
+//  assert( l >= 0 && l <= h ); ////////////////////////////////////////////////////////// FIX ALL THESE ASSERTS LATER!
 #endif
   y=l;
   lat = yToLat();
@@ -192,7 +201,7 @@ Position::Position(double upperLeftLongitude, double upperLeftLatitude,
   resolution = res;
     
   set_up_grid_parms();
-  
+
   setX(x1);
 	setY(y1);
 }

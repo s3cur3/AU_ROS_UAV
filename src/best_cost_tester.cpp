@@ -25,10 +25,10 @@ using namespace std;
 // If it says "const," it's because it remains constant for our
 // airfield.
 double resolution = 10; // meters per grid square
-const double upper_left_longitude = 85.490363;
+const double upper_left_longitude = -85.490363;
 const double upper_left_latitude = 32.592425;
 const double width_in_degrees_longitude = 0.005002;
-const double height_in_degrees_latitude = 0.003808;
+const double height_in_degrees_latitude = -0.003808;
 
 // for testing only; returns a position whose latitude and longitude are randomized
 Position randomized_position()
@@ -109,7 +109,7 @@ int main()
                                                "meters");
   double height_of_field = 
   map_tools::calculate_distance_between_points( upper_left_latitude, upper_left_longitude,
-                                               upper_left_latitude - 
+                                               upper_left_latitude + 
                                                height_in_degrees_latitude,
                                                upper_left_longitude,
                                                "meters");

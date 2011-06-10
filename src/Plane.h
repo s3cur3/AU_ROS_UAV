@@ -41,12 +41,14 @@ public:
 
 };
 
-void Plane::update(Position newcurrent, Position newdestination, double bare, double speed)
+void Plane::update(Position newcurrent, Position newdestination, double bare, double newspeed)
 {
-	current=newcurrent;
-	destination=newdestination;
+	current.setLon(newcurrent.getLon());
+  current.setLat(newcurrent.getLat());
+	destination.setLon(newdestination.getLon());
+  destination.setLat(newdestination.getLat());
 	bearing=bare;
-	speed=speed;
+	speed=newspeed;
 	
 	if((bearing<22.5&&bearing>=0)||(bearing>337.5&&bearing<=360))
 		direction=0;//north
@@ -127,9 +129,9 @@ Plane::Plane(int newid)
 Plane::Plane(int newid, Position initial, Position goal )
 {
 	id=newid;
-  current = initial;
-  destination = goal;
-  finalDestination = goal;
+  current = Position(initial);
+  destination = Position(goal);
+  finalDestination = Position(goal);
 }
 
 //locationIn takes a time,in seconds, 

@@ -104,8 +104,7 @@ double map_tools::calculate_distance_between_points( double latitude_1, double l
                  sin_d_long * sin_d_long );
     double c = 2 * atan2( sqrt(a), sqrt(1 - a) );
     
-    the_distance = fabs(earth_radius * c);//no reason to make it two lines
-    //the_distance = fabs( the_distance ); // make sure it's positive
+    the_distance = fabs(earth_radius * c); // make sure it's positive
     
     if( units == "feet" )
         return the_distance * 3.28083989501312;

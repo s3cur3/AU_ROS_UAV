@@ -25,6 +25,7 @@
 #include "estimate.h"
 #include "Plane.h"
 #include <math.h>
+#include <climits>
 
 #ifndef DEFAULT_LOOK_AHEAD
 // The default amount of time in the future to "look ahead" when generating the grid;
@@ -244,16 +245,23 @@ danger_grid::danger_grid( vector< Plane > & set_of_aircraft, double width,
   look_ahead = DEFAULT_LOOK_AHEAD;
   look_behind = 2;
   aircraft = set_of_aircraft;
+#ifdef DEBUG
+  assert( set_of_aircraft.size() != 0 );
+  assert( resolution > EPSILON );
+  assert( resolution < height && resolution < width );
+  assert( height / resolution < 1000000 );
+  assert( width / resolution < 1000000 );
+#endif
   
   overlayed.push_back( map( width, height, resolution ) );
-  
+ 
   for( unsigned int i = 0; i <= (look_ahead + look_behind); i++ )
   {
     map set_up( width, height, resolution );
     danger_space.push_back( set_up );
   } // danger_space is now a set of maps, with one map for each second in time that
    // we will work with.
-    
+
   // Set up the danger ratings
   set_danger_scale( );
   
@@ -396,6 +404,7 @@ vector< map > danger_grid::get_danger_space() const
 
 vector< estimate > danger_grid::calculate_future_pos( Plane & plane )
 {
+  
   vector< estimate > theFuture;
   
   Position current=plane.getLocation();
@@ -405,7 +414,8 @@ vector< estimate > danger_grid::calculate_future_pos( Plane & plane )
   int x1=current.getX(),x2=destination.getX(),y1=current.getY(),y2=destination.getY();
   double xDistance=( fabs((double)x2-x1) ),yDistance=( fabs((double)y2-y1) );
   double distance = sqrt((double)(xDistance*xDistance)+(yDistance*yDistance));
-  
+  if(xDistance==0&&yDistance==0)//your there!!!!!!!(hopefully)
+  {return theFuture;}
   //find the angle to the waypoint
   double angle=(180-RADtoDEGREES*(asin((double)xDistance/(double)distance)));
   if(y2<y1)
@@ -446,6 +456,7 @@ vector< estimate > danger_grid::calculate_future_pos( Plane & plane )
 
 void danger_grid::dangerRecurse(estimate e, int destination[], vector<estimate> &theFuture)
 {
+  
   int x1=e.x;
   int y1=e.y;
   int x2=destination[0];
