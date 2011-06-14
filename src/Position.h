@@ -20,8 +20,8 @@ private:
 	double lon;//x
 	double altidue;//just there for kicks
 	//size of the grid or matrix
-	int w;
-	int h;
+	int w;// number of squares wide
+	int h;// squares high
 	//size of the "earth"
 	//this part is kinda an issue for now the position class is built around a top left corner of the area it is contained within
 	double top_left_lat;//the value of the latitude of the top left corner
@@ -119,7 +119,7 @@ void Position::setX(int l) // TY changed this to accept an int instead of a doub
   lon = xToLon();
 }
 int Position::getX() // TY changed this to return an int instead of a double
-	{return x;}
+	{return lonToX();}
 	
 void Position::setY(int l) // TY changed this to accept an int instead of a double
 { 
@@ -130,7 +130,7 @@ void Position::setY(int l) // TY changed this to accept an int instead of a doub
   lat = yToLat();
 }
 int Position::getY() // TY changed this to return an int instead of a double
-	{return y;}
+	{return latToY();}
 
 	
 Position::Position(double upperLeftLongitude, double upperLeftLatitude, 

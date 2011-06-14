@@ -15,6 +15,13 @@
 
 #define DEBUG
 
+// For Tyler's sandbox
+//#include <sstream>
+//#include <time.h>
+//#include <iostream>
+//#include <fstream>
+
+
 using namespace std;
 
 #ifndef natural
@@ -73,6 +80,15 @@ vector< Plane > randomized_planes( natural num_planes )
 // will be called automatically when initializing.
 int main()
 {
+  // Tyler's sandbox:
+/*  stringstream ss( stringstream::out );
+  int planeID = 2;
+  int index = 500;
+  ss << "/mnt/hgfs/Dropbox/school/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/teledata/";
+  ss << planeID << "_" << index << ".txt";
+  string filename = ss.str();
+  cout << filename << endl;*/
+  
   time_t seconds;
   seconds = time(NULL);
   cout << "Start time: " << seconds<<endl;
