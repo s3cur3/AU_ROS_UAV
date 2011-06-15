@@ -16,6 +16,10 @@
 #define EPSILON 0.000001
 #endif
 
+#ifndef OUTPUT_CSV
+#define OUTPUT_CSV
+#endif
+
 #ifndef MAP
 #define MAP
 
@@ -26,6 +30,11 @@
 #include <math.h> // only for ceil()
 #include "map_tools.h"
 #include <climits>
+
+#ifdef OUTPUT_CSV
+#include <fstream>
+#include <sstream>
+#endif
 
 using namespace std;
 
@@ -341,6 +350,50 @@ void map::dump( ) const
    }
    cout << endl;
    }*/
+#ifdef OUTPUT_CSV
+  stringstream ss( stringstream::out );
+  unsigned int time = clock() / (CLOCKS_PER_SEC / 1000);
+  ss << "log/map_output_" << time << ".csv";
+  string filename = ss.str();
+  
+  ofstream csv;
+  csv.open( filename.c_str() );
+  if( csv.is_open() )
+  {
+    csv << "\n" << " Danger ratings:" << "\n";
+    csv << ",";
+    for( unsigned int top_guide = 0; top_guide < the_map.size(); ++top_guide )
+    {
+        csv << top_guide << ",";
+    }
+    csv << "\n";
+    
+    for( unsigned int right_index = 0; right_index < the_map[ 0 ].size(); ++right_index )
+    {
+        csv << right_index << ",";
+      
+      for( unsigned int left_index = 0; left_index < the_map.size(); ++left_index )
+      {
+        if( the_map[ left_index ][ right_index ].danger < EPSILON &&
+           the_map[ left_index ][ right_index ].danger > -EPSILON )
+        {
+          csv << "--,";
+        }
+        else
+        {
+          if( (the_map[ left_index ][ right_index ].danger)*mult - mult > -EPSILON )
+            csv << (the_map[ left_index ][ right_index ].danger) * mult << ",";
+          else
+            csv << (the_map[ left_index ][ right_index ].danger)*mult << ",";
+        }
+      }
+      csv << "\n";
+
+    }
+      csv.close();
+      cout << "Made the file" << endl;
+  }
+#endif
 }
 
 void map::dump_big_numbers( ) const
@@ -383,6 +436,54 @@ void map::dump_big_numbers( ) const
     }
     cout << endl;
   }
+  
+#ifdef OUTPUT_CSV
+  double mult = 10;
+  stringstream ss( stringstream::out );
+  unsigned int time = clock() / (CLOCKS_PER_SEC / 1000);
+  ss << "log/map_output_" << time << ".txt";
+  string filename = ss.str();
+  
+  ofstream csv;
+  csv.open( filename.c_str() );
+  
+  if( csv.is_open() )
+  { 
+    csv << "\n" << " Danger ratings:" << endl;
+    csv << "    ";
+    for( unsigned int top_guide = 0; top_guide < the_map.size(); ++top_guide )
+    {
+      csv << top_guide << ",";
+    }
+    csv << "\n";
+    
+    for( unsigned int right_index = 0; right_index < the_map[ 0 ].size(); ++right_index )
+    {
+      csv << right_index << ",";
+      
+      for( unsigned int left_index = 0; left_index < the_map.size(); ++left_index )
+      {
+        if( the_map[ left_index ][ right_index ].danger < EPSILON &&
+           the_map[ left_index ][ right_index ].danger > -EPSILON )
+        {
+          csv << "--,";
+        }
+        else
+        {
+          if( (the_map[ left_index ][ right_index ].danger)*mult - mult > -EPSILON )
+            csv << (the_map[ left_index ][ right_index ].danger) * mult << ",";
+          else
+            csv << (the_map[ left_index ][ right_index ].danger)*mult << ",";
+        }
+      }
+      csv << "\n";
+
+    }
+      csv.close();
+      
+      cout << "Made the file" << endl;
+  }
+#endif
 }
 
 #endif

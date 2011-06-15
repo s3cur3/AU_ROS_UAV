@@ -311,7 +311,7 @@ int other_main(int startx, int starty, int endx, int endy, int planeid ){
      7: move top right
      8: solution found...no more moves needed.....
   */
-  cout << "Current for " << planeid << ": " << startx << ", " << starty << endl;
+  //cout << "Current for " << planeid << ": " << startx << ", " << starty << endl;
   int moves = 8;
   while(SearchCount < NumSearches)
     {

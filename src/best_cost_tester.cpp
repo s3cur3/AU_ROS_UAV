@@ -15,6 +15,7 @@
 
 #define DEBUG
 
+
 // For Tyler's sandbox
 //#include <sstream>
 //#include <time.h>
@@ -67,6 +68,7 @@ vector< Plane > randomized_planes( natural num_planes )
     destination = randomized_position();
     bearing = (double)( rand() % 360 );
     speed = (double)( rand() % 60 );
+    speed = 30; // don't want to upset the randomness!
     
     the_planes.push_back( Plane(i, new_pos, destination) );
   }

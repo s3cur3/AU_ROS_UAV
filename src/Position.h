@@ -220,9 +220,7 @@ double Position::xToLon()
 
 double Position::yToLat()
 {
-	double lat1=((double)(y)*( latWidth / h)+top_left_lat);
-	 //cout<<lat1<<endl;
-	 return lat1;
+	return ((double)(y)*( latWidth / h)+top_left_lat);
 }
 
 int Position::lonToX()

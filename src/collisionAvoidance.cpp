@@ -13,7 +13,7 @@
 #include <fstream>
 #include <time.h>
 #include "Plane.h"
-#include "best_cost.h"
+#include "best_cost_with_fields.h"
 #include "astar_point.cpp"
 #include "telemetry_data_out.h"
 
@@ -157,32 +157,41 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 	Plane plane = planes[planeId];
 	//update the plane
 	plane.update(current,next,gSpeed,bearing);
+	cout<<"Current location for plane"<<planeId<<" "<<plane.getLocation().getX()<<" "<<plane.getLocation().getY()<<endl;
+	//populate the request for the destination
 	
-	//populate the request for the destination	
 	goal.request.planeID=planeId;
 	goal.request.isAvoidanceWaypoint=false;
 	goal.request.positionInQueue=0;
+	
 	//ask the coordinator nicely
 	if(!findGoal.call(goal))
 		ROS_ERROR("No goal was returned");
+
 	//make sure the goal is a real goal none of those lame "become rich and famous goals" we want something real and reachable by a foam airplane
+
 #if 	defined(Testing) || defined(Outputting)
 	ROS_INFO("The goal of plane \033[22;32m %d returned was \033[22;31m %f,%f",planeId,goal.response.longitude, goal.response.latitude);
 #endif
-	if( /*inside the area*/(goal.response.latitude<upperLeftLat&&goal.response.longitude<upperLeftLon) && goal.response.latitude>0)
+
+	if( /*inside the area*/(goal.response.latitude<upperLeftLat&&goal.response.longitude>upperLeftLon) && goal.response.latitude>0)
 	{
 		plane.setFinalDestination(goal.response.longitude, goal.response.latitude);
+
 #ifdef Testing
 		ROS_INFO("The final destination is:%f,%f",goal.response.longitude,goal.response.latitude);
 #endif
+
 	}
 	//its going nowhere fast
 	else
 	{	
 		plane.setFinalDestination(plane.getLocation().getLon(), plane.getLocation().getLat());
+
 #ifdef Testing
 		ROS_INFO("The final destination does not exist or has been reached");
 #endif
+
 	}
 	
 	
@@ -193,50 +202,61 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
    	int endx=plane.getFinalDestination().getX();
    	int endy=plane.getFinalDestination().getY();
 
-#ifdef Testing
+//#ifdef Testing
 	ROS_INFO("for plane %d\n the startx:%d\n the starty:%d\n the endx:%d\n the endy:%d",planeId,startx,starty,endx,endy);
-#endif	
+//#endif	
 
 	point forSparta;
-	forSparta=astar_point(&best_cost(planes,fieldWidth,fieldHeight,res,planeId),startx,starty,endx,endy,planeId);
+	forSparta=astar_point(&best_cost(&planes,fieldWidth,fieldHeight,res,planeId),startx,starty,endx,endy,planeId);
 	//our code will blot out the sun
 
 #ifdef Outputting
 	ROS_INFO("A* says\033[22;32m:\nx: %d\ny: %d",forSparta.x, forSparta.y);
 #endif
 
-	if(forSparta.x!=-1&&forSparta.y!=-1)
+	if( (forSparta.x!=plane.getLocation().getX()&&forSparta.y!=plane.getLocation().getY())||
+		forSparta.x!=plane.getFinalDestination().getX()&&forSparta.y!=plane.getFinalDestination().getY())
 	{
 		double lon=forSparta.x*( lonWidth / current.getWidth())+upperLeftLon;
 		double lat=forSparta.y*( latWidth / current.getHeight())+upperLeftLat;
+
 		srv.request.planeID = planeId;
 		srv.request.longitude = lon;
 		srv.request.latitude = lat;
 		srv.request.altitude = goal.response.altitude;//? not sure if this is allowed but hey i like cheating
+
 		next.setX(forSparta.x);
 		next.setY(forSparta.y);
+
 		//these settings mean it is an avoidance maneuver waypoint AND to clear the avoidance queue(if there was a new plane)
 		srv.request.isAvoidanceManeuver = true;
 		srv.request.isNewQueue = true;
+
 		ROS_INFO("\033[22;32mCollision detected maunvering to avoid");
+
 		if(!client.call(srv))
 			ROS_ERROR("YOUR SERVICE DIDN'T GO THROUGH YOU GONA CRASH!!!");
+
 		goal.request.planeID=planeId;
 		goal.request.isAvoidanceWaypoint=true;
 		goal.request.positionInQueue=0;
 		findGoal.call(goal);
-		cout<<goal.response.longitude<<" "<<goal.response.latitude<<endl;;
+		cout<<goal.response.longitude<<" "<<goal.response.latitude<<endl;
 		//cin.get();
 	}
 	
 	else
 	{
+		cout<<"Its the same place bro";
 		srv.request.longitude=goal.response.longitude;
 		srv.request.longitude=goal.response.latitude;
+
 		next.setLat(goal.response.latitude);
 		next.setLon(goal.response.longitude);
+
 		if(!client.call(srv))
 			ROS_ERROR("YOUR SERVICE DIDN'T GO THROUGH YOU GONA CRASH!!!\nP.S. this was in the else");
+
 	}
 
 	plane.update(current,next,gSpeed,bearing);
@@ -277,7 +297,7 @@ bool collision(int &one, int &two)
 	 crash[1]==crash[2] || crash[1]==crash[3] || crash[1]==crash[4] ||
  	 crash[0]==crash[1] || crash[0]==crash[2] || crash[0]==crash[3] || crash[0]==crash[4];*/
 
-	if(crash[3]==crash[4])
+	/*if(crash[3]==crash[4])
 	{one=3;two=4;return true;}
 
 	if(crash[2]==crash[3])
@@ -304,7 +324,7 @@ bool collision(int &one, int &two)
 	if(crash[0]==crash[3])
 	{one=0;two=3;return true;}
 	if(crash[0]==crash[2])
-	{one=0;two=2;return true;}
+	{one=0;two=2;return true;}*/
 	if(crash[0]==crash[1])
 	{one=0;two=1;return true;}
 	
