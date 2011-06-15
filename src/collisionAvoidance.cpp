@@ -1,6 +1,6 @@
 //#define Testing
 #define Outputting
-#define collisionTesting
+//#define collisionTesting
 
 //#define TYLERS_PC
 
@@ -140,7 +140,7 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 #endif
 
 	Position next;
-	if(destLat>0&&destLon>0)
+	if(destLat>0&&destLon<0)
 		next = Position(upperLeftLon,upperLeftLat,lonWidth,latWidth,destLon,destLat,res);
 	else
 		next = current;
@@ -158,6 +158,7 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 	//update the plane
 	plane.update(current,next,gSpeed,bearing);
 	cout<<"Current location for plane"<<planeId<<" "<<plane.getLocation().getX()<<" "<<plane.getLocation().getY()<<endl;
+	cout<<"Next location for plane"<<planeId<<" "<<plane.getDestination().getX()<<" "<<plane.getDestination().getY()<<endl;
 	//populate the request for the destination
 	
 	goal.request.planeID=planeId;
@@ -207,16 +208,24 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 //#endif	
 
 	point forSparta;
-	forSparta=astar_point(&best_cost(&planes,fieldWidth,fieldHeight,res,planeId),startx,starty,endx,endy,planeId);
+	best_cost bc = best_cost(&planes,fieldWidth,fieldHeight,res,planeId);
+	forSparta=astar_point(&bc,startx,starty,endx,endy,planeId);
 	//our code will blot out the sun
+	if(the_count>6)
+	{
+	bc.dump(0);
+	cin.get();
+	bc.dump(1);
+	cin.get();
+	}
 
 #ifdef Outputting
 	ROS_INFO("A* says\033[22;32m:\nx: %d\ny: %d",forSparta.x, forSparta.y);
 #endif
 
-	if( (forSparta.x!=plane.getLocation().getX()&&forSparta.y!=plane.getLocation().getY())||
-		forSparta.x!=plane.getFinalDestination().getX()&&forSparta.y!=plane.getFinalDestination().getY())
+	if( (forSparta.x!=startx&&forSparta.y!=starty)&&(forSparta.x!=endx&&forSparta.y!=endy))
 	{
+		
 		double lon=forSparta.x*( lonWidth / current.getWidth())+upperLeftLon;
 		double lat=forSparta.y*( latWidth / current.getHeight())+upperLeftLat;
 
@@ -242,25 +251,10 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 		goal.request.positionInQueue=0;
 		findGoal.call(goal);
 		cout<<goal.response.longitude<<" "<<goal.response.latitude<<endl;
+		plane.update(current,next,gSpeed,bearing);
 		//cin.get();
 	}
-	
-	else
-	{
-		cout<<"Its the same place bro";
-		srv.request.longitude=goal.response.longitude;
-		srv.request.longitude=goal.response.latitude;
 
-		next.setLat(goal.response.latitude);
-		next.setLon(goal.response.longitude);
-
-		if(!client.call(srv))
-			ROS_ERROR("YOUR SERVICE DIDN'T GO THROUGH YOU GONA CRASH!!!\nP.S. this was in the else");
-
-	}
-
-	plane.update(current,next,gSpeed,bearing);
-	
 }
 
 int main(int argc, char **argv)

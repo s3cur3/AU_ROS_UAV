@@ -1,5 +1,5 @@
 //
-//  best_cost.h
+//  best_cost_with_fields.h
 //  AU_UAV_ROS
 //
 //  Created by Tyler Young on 5/31/11.
@@ -15,6 +15,11 @@
 // heuristic than the baseline heuristic:
 //     weighing factor * danger at node n + straight line distance from n to goal,
 // as used in the old best_cost_grid class.
+//
+// Unlike best_cost.h, this class adds a "field" around each aircraft, extending
+// in the direction of the aircraft's travel. This means that when A* works with the
+// grid, there is some cost associated with coming close to another aircraft.
+
 
 #ifndef BC_GRID_EXP
 #define BC_GRID_EXP
@@ -23,10 +28,10 @@
 #define SQRT_2 1.41421356
 
 #include <vector>
-#include "danger_grid.h"
+#include "danger_grid_with_fields.h"
 #include "Position.h"
 #include <math.h>
-
+#include <cstdlib>
 // used to tell the map class that it's okay to have costs greater than 1 associated
 // with squares
 #define LARGE_COSTS 1
@@ -81,8 +86,8 @@ public:
    * @param plane_id The index of the plane for which we are generating the best 
    *                 cost grid
    */
-  best_cost( vector< Plane > & set_of_aircraft, double width, double height,
-                      double resolution, unsigned int plane_id );
+  best_cost( vector< Plane > * set_of_aircraft, double width, double height,
+             double resolution, unsigned int plane_id );
    
   /**
    * The overloaded ( ) operator. Allows simple access to the cost rating of a
@@ -108,6 +113,7 @@ public:
   
   // AK: Destructor, combats memory leak issues
   ~best_cost();
+  
 private:  
   /**
    * Calculates a straight path from the starting position to the goal,
@@ -152,14 +158,14 @@ private:
   double danger_threshold;
 };
 
-best_cost::best_cost( vector< Plane > & set_of_aircraft,
+best_cost::best_cost( vector< Plane > * set_of_aircraft,
                       double width, double height, double resolution, 
                       unsigned int plane_id)
 {
 #ifdef DEBUG
-  assert( plane_id < set_of_aircraft.size() );
-  assert( set_of_aircraft.size() != 0 );
-  assert( set_of_aircraft.size() < 1000000000 );
+  assert( plane_id < set_of_aircraft->size() );
+  assert( set_of_aircraft->size() != 0 );
+  assert( set_of_aircraft->size() < 1000000000 );
   assert( resolution > EPSILON );
   assert( resolution < height && resolution < width );
   assert( height / resolution < 1000000 );
@@ -169,11 +175,11 @@ best_cost::best_cost( vector< Plane > & set_of_aircraft,
   // Set up all the variables relating to the characteristics of our airspace //
   res = resolution;
   
-  start.x = set_of_aircraft[ plane_id ].getLocation().getX();
-  start.y = set_of_aircraft[ plane_id ].getLocation().getY();
+  start.x = (*set_of_aircraft)[ plane_id ].getLocation().getX();
+  start.y = (*set_of_aircraft)[ plane_id ].getLocation().getY();
   
-  goal.x = set_of_aircraft[ plane_id ].getFinalDestination().getX();
-  goal.y = set_of_aircraft[ plane_id ].getFinalDestination().getY();
+  goal.x = (*set_of_aircraft)[ plane_id ].getFinalDestination().getX();
+  goal.y = (*set_of_aircraft)[ plane_id ].getFinalDestination().getY();
   
   // The "map cost" array, a very sparse representation of our airspace which notes
   // the likelihood of encountering an aircraft at each square at each time.
@@ -389,10 +395,10 @@ void best_cost::dump( int time ) const
   cout << endl << "Your plane begins at (" << start.x << ", " << start.y << ")" << endl;
   
   cout << "The MC grid for " << time << endl;
-  mc->dump_big_numbers( time );
+  mc->dump( time );
   
   cout << endl << "The BC grid for " << time << endl;
-  bc->dump( time );
+  bc->dump_big_numbers( time );
 }
 
 #endif

@@ -28,15 +28,15 @@ const double height_in_degrees_latitude = -0.003808;
 
 int main()
 {
-  int seed = 20;
-  natural num_planes = 5;
-  natural num_waypts = 1000;
-  natural min_alt = 250; // These two vars define the altitude range we'll give to
-  natural max_alt = 270; // our aircraft.
+  int seed = 42;
+  natural num_planes = 3;
+  natural num_waypts = 4;
+  natural min_alt = 300; // These two vars define the altitude range we'll give to
+  natural max_alt = 301; // our aircraft.
   
   // The directory in which to save the courses
-  string course_dir = "/Volumes/DATA/Dropbox/school/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/courses/";
-  string name = "a";
+  string course_dir = "/home/trescenzi/Dropbox/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/courses/";
+  string name = "new";
   char defaults;
   
   cout << "Defaults are a random seed of " << seed << ", using " << num_planes << " planes," << endl;
