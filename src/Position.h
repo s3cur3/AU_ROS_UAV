@@ -62,6 +62,7 @@ public:
 	int getHeight();
 	double getUpperLeftLongitude();
     double getUpperLeftLatitude();
+	bool operator==(Position &equal);
 
     Position(double upperLeftLongitude=0.0, double upperLeftLatitude=0.0,
              double lonwidth=0.0, double latwidth=0.0);
@@ -73,6 +74,11 @@ public:
 	Position(double upperLeftLongitude, double upperLeftLatitude, double lonwidth, double latwidth, int x, int y, double resolution);
 	Position(double upperLeftLongitude, double upperLeftLatitude, double lonwidth, double latwidth, double longitude, double latitude, int x, int y, double resolution );
 };
+
+bool Position::operator==(Position &equal)
+{
+	return (y==equal.getY()&&x==equal.getX());//a bit vague
+}
 
 void Position::setLat(double l)
 {

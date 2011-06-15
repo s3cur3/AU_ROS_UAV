@@ -43,6 +43,9 @@ const int DEBUG_MOVE = 0;
 const int movex[10] = {1, 1, 0, -1, -1, -1, 0, 1, 0, 0};
 const int movey[10] = {0, 1, 1, 1, 0, -1, -1, -1, 0, 0};
 int movegoals = 8; // 0 - 7
+
+int s_x = -1;
+int s_y = -1;
 /**
    End user mods
 */
@@ -52,6 +55,7 @@ int movegoals = 8; // 0 - 7
 struct point {
   int x;
   int y;
+  int t;
 } ;
 
 // a_path is the path A* recommends
@@ -87,7 +91,7 @@ public:
   unsigned int y;
   unsigned int timestep; // AK: the timestep that the node is being considered under
 	
-  MapSearchNode() { timestep = x = y = 0; }
+  MapSearchNode() { x = y = 0; timestep = 0;}
   MapSearchNode( unsigned int px, unsigned int py ) { x=px; y=py; }
   MapSearchNode( unsigned int px, unsigned int py, unsigned int t_step) { x=px; y=py; timestep=t_step; } // AK
 
@@ -101,6 +105,7 @@ public:
 
   int getX();
   int getY();
+  int getT();
 
 };
 
@@ -135,6 +140,10 @@ int MapSearchNode::getY(){
   return y;
 }
 
+int MapSearchNode::getT(){
+  return timestep;
+}
+
 // Heuristic is BC (DG+BC) -- since no need to calculate, just choose minimal legal cost
 float MapSearchNode::GoalDistanceEstimate( MapSearchNode &nodeGoal )
 {
@@ -162,13 +171,25 @@ bool MapSearchNode::GetSuccessors( AStarSearch<MapSearchNode> *astarsearch, MapS
 
   int parent_x = -1; 
   int parent_y = -1; 
-  int time_z = -1;
+  int time_z = 0;
 
   if( parent_node )
     {
       parent_x = parent_node->x;
       parent_y = parent_node->y;
-      time_z = parent_node->timestep + 1; // time moves...forward!
+      // out of a thought: what happens if I recalibrate the timestamps to calculate based on position FROM the starting steps?
+      //(s_x, s_y) is starting position of plane
+      // Use our friend, Chebyshev!
+      
+      int opt_xd = abs((int)s_x-(int)x);
+      int opt_yd = abs((int)s_y-(int)y);
+    
+      if (opt_xd > opt_yd)
+	time_z = opt_xd;
+      else
+	time_z = opt_yd;
+      
+      //time_z = parent_node->timestep + 1; // time moves...forward!
       time_z = time_z>19 ? 19 : time_z;
     }
 	
@@ -290,6 +311,7 @@ int other_main(int startx, int starty, int endx, int endy, int planeid ){
      7: move top right
      8: solution found...no more moves needed.....
   */
+  cout << "Current for " << planeid << ": " << startx << ", " << starty << endl;
   int moves = 8;
   while(SearchCount < NumSearches)
     {
@@ -379,6 +401,7 @@ int other_main(int startx, int starty, int endx, int endy, int planeid ){
 	    p.x = node->getX();
 	    p.y = node->getY();
 	    a_path.push(p);
+	    cout << "FIRST" << node->getT() << endl;
 	  }
 
 	  for( ;; )
@@ -399,7 +422,11 @@ int other_main(int startx, int starty, int endx, int endy, int planeid ){
 		point p;
 		p.x = node->getX();
 		p.y = node->getY();
+		p.t = node->getT();
 		a_path.push(p);
+		//cout << node->getT() << ": " << p.x << ", " << p.y << " --> " << bc_grid->get_pos(p.x, p.y, node->getT()) << endl;
+		//cout << "  " << p.x << ", " << p.y+1 << " --> " << bc_grid->get_pos(p.x, p.y+1, node->getT()) << endl;
+		//cout << "  " << p.x << ", " << p.y-1 << " --> " << bc_grid->get_pos(p.x, p.y-1, node->getT()) << endl;
 	      }
 
 	      if (steps == 0){
@@ -548,6 +575,8 @@ int other_main(int startx, int starty, int endx, int endy, int planeid ){
 // Returns the point of divergence between provable optimal path and a-star path
 point astar_point(best_cost *bc, int startx, int starty, int endx, int endy, int planeid)
 {
+  s_x = startx;
+  s_y = starty;
   //  cout << startx << ", " << starty << " to " << endx << ", " << endy << endl;
   while (!a_path.empty()){
     a_path.pop();
@@ -656,9 +685,31 @@ point astar_point(best_cost *bc, int startx, int starty, int endx, int endy, int
       // If the path A* has choosen is not equal to the Bearing heuristic, then
       // an optimal selection was not choosen; probably to avoid a collision
       // NOTE: opt_opt_path is provably optimal, if opt_a_star is not opt_opt_path it is not optimal
-      if (opt_opt_path != opt_a_star){
+      if (opt_opt_path+bc->get_pos(opt.x, opt.y, a_st.t) > opt_a_star+bc->get_pos(a_st.x, a_st.y, a_st.t)){
 	//cout << "DIVERGENCE on " << planeid << " "  << opt_opt_path << " versus " << opt_a_star << " at (" << opt.x << ", " << opt.y << ") vs (" << a_st.x << ", " << a_st.y << ")" << " goal: " << endx << ", " << endy << endl;
-	//getchar();
+	//getchar();	  cout << k <<  " Raw: " << moves << " Plane Start: " << planes[k].getLocation().getX() << ", " << planes[k].getLocation().getY() << " Plane goal: " << p.x << ", " << p.y << " Plane Final: " << planes[k].getFinalDestination().getX() << ", " << planes[k].getFinalDestination().getY() << endl;
+	/**
+	cout << planeid << ": " << a_st.x << ", " << a_st.y << " during " << a_st.t << endl;
+	
+	for (int t = 0; t < 3; t++){
+	  for (int y = 0; y < MAP_HEIGHT; y++){
+	    for (int x = 0; x < MAP_WIDTH; x++){
+	      if (x == move.x && y == move.y)
+		cout << "\033[1;35m"<< round(bc->get_pos(x,y,t)) <<  " \033[0m";
+	      else if (x == startx && y == starty)
+		cout << "\033[1;33mSS \033[0m";
+	      else if (x == endx && y == endy)
+		cout << "\033[1;31mDD \033[0m";
+	      else if (round(bc->get_pos(x, y, t)) < 10)
+		cout << "0" << round(bc->get_pos(x, y, t)) << " ";
+	      else
+		cout << round(bc->get_pos(x, y, t)) << " ";
+	    }
+	    cout << endl;
+	  }
+	  getchar();
+	}
+	*/
 	break;
       }
     }
@@ -671,7 +722,26 @@ point astar_point(best_cost *bc, int startx, int starty, int endx, int endy, int
     move.x = endx;
     move.y = endy;
   }
+  /**
+  for (int y = 0; y < MAP_HEIGHT; y++){
+    for (int x = 0; x < MAP_WIDTH; x++){
+      if (x == move.x && y == move.y)
+	cout << "\033[1;35m"<< round(bc->get_pos(x,y,1)) <<  " \033[0m";
+      else if (x == startx && y == starty)
+	cout << "\033[1;33mSS \033[0m";
+      else if (x == endx && y == endy)
+	cout << "\033[1;31mDD \033[0m";
+      else if (round(bc->get_pos(x, y, 0)) < 10)
+	cout << "0" << round(bc->get_pos(x, y, 1)) << " ";
+      else
+	cout << round(bc->get_pos(x, y, 1)) << " ";
+    }
+    cout << endl;
+  }
+
+  getchar();
   
-  //cout << planeid << " next point: " << move.x << ", " << move.y << endl;
+  cout << planeid << " next point: " << move.x << ", " << move.y << endl;
+  */
   return move;
 }

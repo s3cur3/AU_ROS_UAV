@@ -1,6 +1,8 @@
-#define Testing
+//#define Testing
+#define Outputting
+
 //#define TYLERS_PC
-#define THOMASS_PC
+
 //standard C++ headers
 #include <sstream>
 #include <stdlib.h>
@@ -36,6 +38,10 @@ double fieldHeight;
 
 //where the planes are
 vector<Plane> planes;
+#ifdef collisionTesting
+Position crash[5];
+int crashSize=5;
+#endif
 
 //the number of files written per plane to teledata
 int output_indices[12];
@@ -54,8 +60,14 @@ inline std::string to_string( const T& t )
 
 
 void makeField();
+
+#ifdef collisionTesting
+bool	collision(int &x, int &y);
+#endif
+
 void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 {
+	the_count++;
 	int planeId=msg->planeID;
 	double currentLon=msg->currentLongitude;
 	double currentLat=msg->currentLatitude;
@@ -70,10 +82,6 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 	//print out the tele data for use with x-plane
 	ofstream tele;
 	string path;
-
-#ifdef THOMASS_PC
-	path="/home/Dropbox/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/teledata/";
-#endif
 
 #ifdef TYLERS_PC
   	path = "/mnt/hgfs/Dropbox/school/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/teledata/";
@@ -115,6 +123,21 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 	//make the positions
 	Position current = Position(upperLeftLon,upperLeftLat,lonWidth,latWidth,currentLon,currentLat,res);
 
+
+
+	crash[planeId]=current;
+#ifdef collisionTesting
+	if(the_count>6)
+	{
+		int x=0, int y=0;
+		if(collision(x,y))
+		{	
+			ROS_ERROR("There has been a collision between planes %d and %d at position (%d,%d) at step# %d",x,y,crash[x].getX(),crash[x].getY(),the_count);
+			assert(false);
+		}
+	}
+#endif
+
 	Position next;
 	if(destLat>0&&destLon>0)
 		next = Position(upperLeftLon,upperLeftLat,lonWidth,latWidth,destLon,destLat,res);
@@ -142,7 +165,10 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 	if(!findGoal.call(goal))
 		ROS_ERROR("No goal was returned");
 	//make sure the goal is a real goal none of those lame "become rich and famous goals" we want something real and reachable by a foam airplane
-	if(goal.response.latitude>0&&goal.response.longitude>0)
+#if 	defined(Testing) || defined(Outputting)
+	ROS_INFO("The goal of plane \033[22;32m %d returned was \033[22;31m %f,%f",planeId,goal.response.longitude, goal.response.latitude);
+#endif
+	if( /*inside the area*/(goal.response.latitude<upperLeftLat&&goal.response.longitude<upperLeftLon) && goal.response.latitude>0)
 	{
 		plane.setFinalDestination(goal.response.longitude, goal.response.latitude);
 #ifdef Testing
@@ -174,8 +200,8 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 	forSparta=astar_point(&best_cost(planes,fieldWidth,fieldHeight,res,planeId),startx,starty,endx,endy,planeId);
 	//our code will blot out the sun
 
-#ifdef Testing
-	ROS_INFO("A* says:\nx: %d\ny: %d",forSparta.x, forSparta.y);
+#ifdef Outputting
+	ROS_INFO("A* says\033[22;32m:\nx: %d\ny: %d",forSparta.x, forSparta.y);
 #endif
 
 	if(forSparta.x!=-1&&forSparta.y!=-1)
@@ -185,7 +211,8 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 		srv.request.longitude = lon;
 		srv.request.latitude = lat;
 		srv.request.altitude = goal.response.altitude;//? not sure if this is allowed but hey i like cheating
-
+		next.setLon(lon);
+		next.setLat(lat);
 		//these settings mean it is an avoidance maneuver waypoint AND to clear the avoidance queue(if there was a new plane)
 		srv.request.isAvoidanceManeuver = true;
 		srv.request.isNewQueue = newQueue;
@@ -197,13 +224,19 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 	{
 		srv.request.longitude=goal.response.longitude;
 		srv.request.longitude=goal.response.latitude;
+		next.setLat(goal.response.latitude);
+		next.setLon(goal.response.longitude);
 		if(!client.call(srv))
 			ROS_ERROR("YOUR SERVICE DIDN'T GO THROUGH YOU GONA CRASH!!!\nP.S. this was in the else");
 	}
+
+	plane.update(current,next,gSpeed,bearing);
+	
 }
 
 int main(int argc, char **argv)
 {
+	the_count=0;
 	//standard ROS startup
 	ros::init(argc, argv, "collisionAvoidance");
 	ros::NodeHandle n;
@@ -225,6 +258,51 @@ int main(int argc, char **argv)
 
 	return 0;
 }
+
+#ifdef collisionTesting
+bool collision(int &one, int &two)
+{
+	//longest declertion ever?
+	bool dead = crash[3]==crash[4] ||
+	 crash[2]==crash[3] || crash[2]==crash[4] || 
+	 crash[1]==crash[2] || crash[1]==crash[3] || crash[1]==crash[4] ||
+ 	 crash[0]==crash[1] || crash[0]==crash[2] || crash[0]==crash[3] || crash[0]==crash[4];
+
+	if(crash[3]==crash[4])
+	{one=3;two=4;return true;}
+
+	if(crash[2]==crash[3])
+	{one=2;two=3;return true;}
+	if(crash[2]==crash[4])
+	{one=2;two=4;return true;}
+
+	if(crash[1]==crash[4])
+	{one=1;two=4;return true;}
+	if(crash[1]==crash[3])
+	{one=1;two=3;return true;}
+	if(crash[1]==crash[2])
+	{one=1;two=2;return true;}
+	
+	if(crash[1]==crash[4])
+	{one=1;two=4;return true;}
+	if(crash[1]==crash[3])
+	{one=1;two=3;return true;}
+	if(crash[1]==crash[2])
+	{one=1;two=2;return true;}
+
+	if(crash[0]==crash[4])
+	{one=0;two=4;return true;}
+	if(crash[0]==crash[3])
+	{one=0;two=3;return true;}
+	if(crash[0]==crash[2])
+	{one=0;two=2;return true;}
+	if(crash[0]==crash[1])
+	{one=0;two=1;return true;}
+	
+	return false;
+	
+}
+#endif
 
 void makeField()
 {
