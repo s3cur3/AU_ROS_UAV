@@ -95,7 +95,7 @@ int main()
   
   srand ( 20 );
   
-  natural num_planes = 100;
+  natural num_planes = 20;
   
   vector< Plane > test_set = randomized_planes( num_planes );
   vector< Plane > test_set1 = randomized_planes( num_planes );
@@ -156,9 +156,9 @@ int main()
   
   bc.dump( 0 );
   
-  //bc.dump( 1 );
+  bc.dump( 1 );
   
-  //bc.dump( 5 );
+  bc.dump( 2 );
  
   seconds = time(NULL);
   cout << "End time:   " << seconds << endl;

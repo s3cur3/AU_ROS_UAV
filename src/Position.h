@@ -200,6 +200,7 @@ Position::Position(double upperLeftLongitude, double upperLeftLatitude,
                    double lonwidth, double latwidth, int x1, int y1, double res)
 {
 	top_left_long=upperLeftLongitude;
+	cout<<top_left_long<<endl;
 	top_left_lat=upperLeftLatitude;
 	lonWidth=lonwidth;
 	latWidth=latwidth;
@@ -214,12 +215,14 @@ Position::Position(double upperLeftLongitude, double upperLeftLatitude,
 	
 double Position::xToLon()
 {
-    return ((double)(x) /w)/lonWidth;
+    return ((double)(x)*( lonWidth /w)+top_left_long);
 }
 
 double Position::yToLat()
 {
-	return ((double)(y) /h)/latWidth;
+	double lat1=((double)(y)*( latWidth / h)+top_left_lat);
+	 //cout<<lat1<<endl;
+	 return lat1;
 }
 
 int Position::lonToX()

@@ -1,5 +1,6 @@
 //#define Testing
 #define Outputting
+#define collisionTesting
 
 //#define TYLERS_PC
 
@@ -40,7 +41,7 @@ double fieldHeight;
 vector<Plane> planes;
 #ifdef collisionTesting
 Position crash[5];
-int crashSize=5;
+//int crashSize=5;
 #endif
 
 //the number of files written per plane to teledata
@@ -123,16 +124,16 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 	//make the positions
 	Position current = Position(upperLeftLon,upperLeftLat,lonWidth,latWidth,currentLon,currentLat,res);
 
-
-
-	crash[planeId]=current;
+	
 #ifdef collisionTesting
+	crash[planeId]=current;
 	if(the_count>6)
 	{
-		int x=0, int y=0;
+		int x=0, y=0;
 		if(collision(x,y))
 		{	
-			ROS_ERROR("There has been a collision between planes %d and %d at position (%d,%d) at step# %d",x,y,crash[x].getX(),crash[x].getY(),the_count);
+			ROS_ERROR("There has been a collision between planes %d and %d at position (%d,%d),(%f,%f) at step# %d"
+			,x,y,crash[x].getX(),crash[x].getY(),crash[x].getLat(),crash[x].getLon(),the_count);
 			assert(false);
 		}
 	}
@@ -208,16 +209,24 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 	{
 		double lon=forSparta.x*( lonWidth / current.getWidth())+upperLeftLon;
 		double lat=forSparta.y*( latWidth / current.getHeight())+upperLeftLat;
+		srv.request.planeID = planeId;
 		srv.request.longitude = lon;
 		srv.request.latitude = lat;
 		srv.request.altitude = goal.response.altitude;//? not sure if this is allowed but hey i like cheating
-		next.setLon(lon);
-		next.setLat(lat);
+		next.setX(forSparta.x);
+		next.setY(forSparta.y);
 		//these settings mean it is an avoidance maneuver waypoint AND to clear the avoidance queue(if there was a new plane)
 		srv.request.isAvoidanceManeuver = true;
-		srv.request.isNewQueue = newQueue;
+		srv.request.isNewQueue = true;
+		ROS_INFO("\033[22;32mCollision detected maunvering to avoid");
 		if(!client.call(srv))
 			ROS_ERROR("YOUR SERVICE DIDN'T GO THROUGH YOU GONA CRASH!!!");
+		goal.request.planeID=planeId;
+		goal.request.isAvoidanceWaypoint=true;
+		goal.request.positionInQueue=0;
+		findGoal.call(goal);
+		cout<<goal.response.longitude<<" "<<goal.response.latitude<<endl;;
+		//cin.get();
 	}
 	
 	else
@@ -263,10 +272,10 @@ int main(int argc, char **argv)
 bool collision(int &one, int &two)
 {
 	//longest declertion ever?
-	bool dead = crash[3]==crash[4] ||
+	/*bool dead = crash[3]==crash[4] ||
 	 crash[2]==crash[3] || crash[2]==crash[4] || 
 	 crash[1]==crash[2] || crash[1]==crash[3] || crash[1]==crash[4] ||
- 	 crash[0]==crash[1] || crash[0]==crash[2] || crash[0]==crash[3] || crash[0]==crash[4];
+ 	 crash[0]==crash[1] || crash[0]==crash[2] || crash[0]==crash[3] || crash[0]==crash[4];*/
 
 	if(crash[3]==crash[4])
 	{one=3;two=4;return true;}

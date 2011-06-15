@@ -106,6 +106,17 @@ public:
   void add_danger_at( unsigned int x_pos, unsigned int y_pos, double danger );
 
   /**
+   * Attempt to add to the danger rating of a square if and only if the square
+   * exists. If the square exists, this behaves exactly like add_danger_at(); else,
+   * it does nothing at all.
+   * @param x_pos the x position of the square to set
+   * @param y_pos the y position of the square to set
+   * @param danger the danger to be assigned to this square
+   * @return 1 if the square exists and we added danger, 0 if we did nothing
+   */
+  int safely_add_danger_at( unsigned int x_pos, unsigned int y_pos, double danger );
+  
+  /**
    * Set the danger rating of a square
    * @param x_pos the x position of the square to set
    * @param y_pos the y position of the square to set
@@ -224,6 +235,17 @@ void map::add_danger_at( unsigned int x_pos, unsigned int y_pos, double new_dang
 #endif
 }
 
+int map::safely_add_danger_at( unsigned int x_pos, unsigned int y_pos,
+                                double new_danger )
+{
+  if( x_pos < the_map.size()  && y_pos < the_map[1].size() )
+  {
+    add_danger_at( x_pos, y_pos, new_danger );
+    return 1;
+  }
+  return 0;
+}
+
 void map::set_danger_at( unsigned int x_pos, unsigned int y_pos, double new_danger )
 {
 #ifdef DEBUG
@@ -266,6 +288,7 @@ unsigned int map::get_resolution( ) const
 
 void map::dump( ) const
 {
+  unsigned int mult = 10;
   cout << endl << " Danger ratings:" << endl;
   cout << "    ";
   for( unsigned int top_guide = 0; top_guide < the_map.size(); ++top_guide )
@@ -293,13 +316,10 @@ void map::dump( ) const
       }
       else
       {
-#ifndef SCALE
-#define SCALE 1
-#endif
-        if( (the_map[ left_index ][ right_index ].danger)*SCALE - SCALE > -EPSILON )
-          printf("%3.0f", (the_map[ left_index ][ right_index ].danger)*SCALE );
+        if( (the_map[ left_index ][ right_index ].danger)*mult - mult > -EPSILON )
+          printf("%3.0f", (the_map[ left_index ][ right_index ].danger)*mult );
         else
-          printf( "%2.0f ", (the_map[ left_index ][ right_index ].danger)*SCALE );
+          printf( "%2.0f ", (the_map[ left_index ][ right_index ].danger)*mult );
       }
     }
     cout << endl;
