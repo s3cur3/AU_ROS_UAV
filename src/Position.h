@@ -229,18 +229,14 @@ int Position::lonToX()
                     calculate_distance_between_points( top_left_lat, top_left_long,
                                                        top_left_lat, lon, "meters") ) /
                 resolution );
-  //return (int)(lon * lonWidth * w);
 }
 
 int Position::latToY()
 {
-	/*return (int)( ( map_tools::
-                    calculate_distance_between_points( top_left_lat, top_left_long,
-                                                       lat, top_left_long, "meters") ) /
-               resolution );*/
+
   int the_y = (int)( ( map_tools::
                       calculate_distance_between_points( top_left_lat, top_left_long,
-                                                        lat, top_left_long, "meters") ) /
+                                                         lat, top_left_long, "meters") ) /
                     resolution );
  /* cout << "      The latitude " << lat << " corresponds to y = " << the_y << endl;
   cout << "      Top left lat " << top_left_lat << endl;

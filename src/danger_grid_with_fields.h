@@ -26,27 +26,35 @@
 #include "Plane.h"
 #include <math.h>
 #include <climits>
-
-#ifndef DEFAULT_LOOK_AHEAD
-// The default amount of time in the future to "look ahead" when generating the grid;
-// If the aircraft that you're working with haven't hit their goal by this time, the
-// calculation stops anyway
-#define DEFAULT_LOOK_AHEAD 20
-#endif
-
-#ifndef PLANE_DANGER
-#define PLANE_DANGER 0.98
-#endif
+#include "map_tools.h"
 
 using namespace std;
 
+#ifndef natural
+#define natural unsigned int
+#endif
+
+// The default amount of time in the future to "look ahead" when generating the grid;
+// If the aircraft that you're working with haven't hit their goal by this time, the
+// calculation stops anyway
+static const unsigned int look_ahead = 20;
+// the number of seconds to consider in the past
+static const unsigned int look_behind = 2;
+
+// This is defined in the constructor to be a bit greater than:
+// sqrt( (width in squares)^2 + (height in squares) ^2) 
+static double plane_danger;
+
+#ifndef RADIAN_CONSTANTS
+#define RADIAN_CONSTANTS
 const double PI = 2*acos(0.0);// pi
 const double RADtoDEGREES = 180/PI;//Conversion factor from Radians to Degrees
-
+const double DEGREEStoRAD = PI/180;//Conversion factor from Degrees to Radians
+#endif
 // the amount we'll multiply danger values by when adding the "fuzziness" (the 
 // danger around the predicted squares, to keep other aircraft from coming too
 // close)
-static const double field_weight = 0.5;
+static const double field_weight = 0.7;
 
 class danger_grid
 {
@@ -76,7 +84,7 @@ public:
    * @param resolution The resolution to be used in the map
    */
   danger_grid( vector< Plane > * set_of_aircraft, const double width,
-               const double height, const double resolution );
+               const double height, const double resolution, const natural plane_id );
   
   /**
    * The copy constructor; takes a reference to a danger grid and makes this object
@@ -131,7 +139,6 @@ public:
   unsigned int get_time_in_secs() const;
   vector< map > get_danger_space() const;
   
-  
   /**
    * Modifies the map to store the cost of the path which begins at each square and
    * takes a straight line to the goal, effectively creating a simplified version of
@@ -142,6 +149,20 @@ public:
    * @param goal_y The y coordinate for the goal
    */
   void calculate_distance_costs( unsigned int goal_x, unsigned int goal_y );
+  
+  /**
+   * Modifies the map to store the cost of the path which begins at each square and
+   * takes a straight line to the goal, effectively creating a simplified version of
+   * a best cost grid. Adjusts all existing danger ratings by the danger_adjust 
+   * passed in.
+   * Tyler is adding this here to avoid using a "wrapper" for the straight-line
+   * heuristic.
+   * @param goal_x The x coordinate for the goal
+   * @param goal_y The y coordinate for the goal
+   * @param danger_adjust The amount we multiply a danger rating by
+   */
+  void calculate_distance_costs( unsigned int goal_x, unsigned int goal_y, 
+                                 double danger_adjust );
   
   /**
    * Output the map at a given time; for troubleshooting only
@@ -164,8 +185,11 @@ private:
    * Calculates danger ratings for all squares in all maps of the danger_space
    * (where the danger_space is the set of maps corresponding to each second we are
    * looking ahead and behind).
+   * @param plane_id The ID number of the plane to ignore (that is, the ID of the
+   *                 plane that this DG will be used for; we don't want it avoiding
+   *                 itself!)
    */
-  void fill_danger_space();
+  void fill_danger_space( const natural plane_id );
   
   /**
    * Set up the weighting scheme for danger ratings in the future.
@@ -216,9 +240,6 @@ private:
   void placeDanger(double angle, vector<estimate> &e, double closest, double other,
                    int x, int y, double danger);//places the data into the estimate struct
   void dangerRecurse(estimate e, int destination[], vector<estimate> &theFuture);
-    
-  unsigned int look_ahead;
-  unsigned int look_behind; // the number of seconds to consider in the past
   
   // the weighting applied to danger estimates in the future
   vector< double > danger_ratings;
@@ -235,7 +256,8 @@ private:
 #endif
 };
 
-danger_grid::danger_grid( vector< Plane > & set_of_aircraft, const map the_map )
+/* This isn't ever used...
+ danger_grid::danger_grid( vector< Plane > & set_of_aircraft, const map the_map )
 {
   look_ahead = DEFAULT_LOOK_AHEAD;
   look_behind = 2;
@@ -258,14 +280,14 @@ danger_grid::danger_grid( vector< Plane > & set_of_aircraft, const map the_map )
   set_danger_scale( );
   
   // Do all the work -- calculate the danger rating for all squares at all times
-  fill_danger_space();
+  fill_danger_space( plane_id );
 }
+ */
 
 danger_grid::danger_grid( vector< Plane > * set_of_aircraft, const double width,
-                          const double height, const double resolution )
+                          const double height, const double resolution,
+                          const natural plane_id )
 {
-  look_ahead = DEFAULT_LOOK_AHEAD;
-  look_behind = 2;
   aircraft = set_of_aircraft;
 #ifdef DEBUG
   assert( set_of_aircraft->size() != 0 );
@@ -274,6 +296,10 @@ danger_grid::danger_grid( vector< Plane > * set_of_aircraft, const double width,
   assert( height / resolution < 1000000 );
   assert( width / resolution < 1000000 );
 #endif
+  
+  natural sqrs_wide = map_tools::find_width_in_squares( width, height, resolution );
+  natural sqrs_high = map_tools::find_height_in_squares( width, height, resolution );
+  plane_danger = sqrt( sqrs_wide * sqrs_wide + sqrs_high * sqrs_high ) * 1.35;
   
 #ifdef OVERLAYED
   overlayed.push_back( map( width, height, resolution ) );
@@ -290,24 +316,25 @@ danger_grid::danger_grid( vector< Plane > * set_of_aircraft, const double width,
   set_danger_scale( );
   
   // Do all the work -- calculate the danger rating for all squares at all times
-  fill_danger_space();
+  fill_danger_space( plane_id );
 }
 
 danger_grid::danger_grid( const danger_grid * dg)
-{
-  look_ahead = dg->get_time_in_secs();
-  look_behind = 2;
-  
+{  
   danger_space = dg->get_danger_space();
 }
 
-void danger_grid::fill_danger_space()
+void danger_grid::fill_danger_space( const natural plane_id )
 {
   for( vector< Plane >::iterator current_plane = aircraft->begin();
       current_plane != aircraft->end(); ++current_plane )
   {
-    danger_space[0 + look_behind].add_danger_at((*current_plane).getLocation().getX(),
-                                                (*current_plane).getLocation().getY(), 1.0);
+    if( (*current_plane).getId() != (int)plane_id )
+    {
+      danger_space[0 + look_behind].
+        add_danger_at( (*current_plane).getLocation().getX(),
+                       (*current_plane).getLocation().getY(), 1.0);
+    }
     
 #ifdef OVERLAYED
     overlayed[0].add_danger_at((*current_plane).getLocation().getX(),
@@ -323,161 +350,166 @@ void danger_grid::fill_danger_space()
   for( vector< Plane >::iterator current_plane = aircraft->begin();
       current_plane != aircraft->end(); ++current_plane )
   {
-    // Get the estimated danger for relevant squares in the map at this time
-    est = calculate_future_pos( *current_plane );
-    
-    bearing = name_bearing( (*current_plane).getBearing() );
-    
-    int t = 1; // initialize the counter for steps in time (seconds)
-
-    // For each estimated (x, y, danger) triple . . .
-    for( vector< estimate >::iterator current_est = est.begin();
-        current_est != est.end(); ++current_est )
+    // If this is not the "owner" of the danger grid . . . 
+    if( (*current_plane).getId() != (int)plane_id )
     {
-      if( t <= (int)look_ahead ) // if this estimate is close enough to plan for it . . .
+      // Get the estimated danger for relevant squares in the map at this time
+      est = calculate_future_pos( *current_plane );
+      
+      bearing = name_bearing( (*current_plane).getBearing() );
+      
+      int t = 1; // initialize the counter for steps in time (seconds)
+
+      // For each estimated (x, y, danger) triple . . .
+      for( vector< estimate >::iterator current_est = est.begin();
+          current_est != est.end(); ++current_est )
       {
-        // If these are legal xs and ys, and if the danger is not a "timestamp" divider
-        if( (*current_est).x >= 0 && (*current_est).x <
-            (int)danger_space[0].get_width_in_squares() &&
-            (*current_est).y >= 0 &&
-            (*current_est).y < (int)danger_space[0].get_height_in_squares() &&
-            (*current_est).danger > -(EPSILON) )
+        if( t <= (int)look_ahead ) // if this estimate is close enough to plan for it . . .
         {
-          // Set the danger of the square based on what
-          // calculate_future_pos() found, but scale it according to how
-          // far back in time we're predicting
-          natural time = t + look_behind;
-          natural x = (*current_est).x;
-          natural y = (*current_est).y;
-          double d = (*current_est).danger * adjust_danger(t);
-          
-          danger_space[ time ].add_danger_at(x, y, d );
-          
-          // . . . and then add a bit of "fuzziness" (danger around the predicted
-          // square, so that other planes don't come too close)
-          d *= field_weight; // adjust the danger for these fields
-          switch( bearing )
+          // If these are legal xs and ys, and if the danger is not a "timestamp" divider
+          if( (*current_est).x >= 0 && (*current_est).x <
+              (int)danger_space[0].get_width_in_squares() &&
+              (*current_est).y >= 0 &&
+              (*current_est).y < (int)danger_space[0].get_height_in_squares() &&
+              (*current_est).danger > -(EPSILON) )
           {
-            case N:
-              // straight left
-              danger_space[ time ].safely_add_danger_at( x - 1,   y  , d );
-              // dag left+up
-              danger_space[ time ].safely_add_danger_at( x - 1, y - 1, d );
-              // straight up
-              danger_space[ time ].safely_add_danger_at(   x  , y - 1, d );
-              // dag right+up
-              danger_space[ time ].safely_add_danger_at( x + 1, y - 1, d );
-              // straight right
-              danger_space[ time ].safely_add_danger_at( x + 1,   y  , d );
-              break;
-            case NE:
-              // dag left+up
-              danger_space[ time ].safely_add_danger_at( x - 1, y - 1, d );
-              // straight up
-              danger_space[ time ].safely_add_danger_at(   x  , y - 1, d );
-              // dag right+up
-              danger_space[ time ].safely_add_danger_at( x + 1, y - 1, d );
-              // straight right
-              danger_space[ time ].safely_add_danger_at( x + 1,   y  , d );
-              // dag right+down
-              danger_space[ time ].safely_add_danger_at( x + 1, y + 1, d );
-              break;
-            case E:
-              // straight up
-              danger_space[ time ].safely_add_danger_at(   x  , y - 1, d );
-              // dag right+up
-              danger_space[ time ].safely_add_danger_at( x + 1, y - 1, d );
-              // straight right
-              danger_space[ time ].safely_add_danger_at( x + 1,   y  , d );
-              // dag right+down
-              danger_space[ time ].safely_add_danger_at( x + 1, y + 1, d );
-              // straight down
-              danger_space[ time ].safely_add_danger_at(   x  , y + 1, d );
-              break;
-            case SE:
-              // dag right+up
-              danger_space[ time ].safely_add_danger_at( x + 1, y - 1, d );
-              // straight right
-              danger_space[ time ].safely_add_danger_at( x + 1,   y  , d );
-              // dag right+down
-              danger_space[ time ].safely_add_danger_at( x + 1, y + 1, d );
-              // straight down
-              danger_space[ time ].safely_add_danger_at(   x  , y + 1, d );
-              // dag left+down
-              danger_space[ time ].safely_add_danger_at( x - 1, y + 1, d );
-              break;
-            case S:
-              // straight right
-              danger_space[ time ].safely_add_danger_at( x + 1,   y  , d );
-              // dag right+down
-              danger_space[ time ].safely_add_danger_at( x + 1, y + 1, d );
-              // straight down
-              danger_space[ time ].safely_add_danger_at(   x  , y + 1, d );
-              // dag left+down
-              danger_space[ time ].safely_add_danger_at( x - 1, y + 1, d );
-              // straight left
-              danger_space[ time ].safely_add_danger_at( x - 1,   y  , d );
-              break;
-            case SW:
-              // dag right+down
-              danger_space[ time ].safely_add_danger_at( x + 1, y + 1, d );
-              // straight down
-              danger_space[ time ].safely_add_danger_at(   x  , y + 1, d );
-              // dag left+down
-              danger_space[ time ].safely_add_danger_at( x - 1, y + 1, d );
-              // straight left
-              danger_space[ time ].safely_add_danger_at( x - 1,   y  , d );
-              // dag left+up
-              danger_space[ time ].safely_add_danger_at( x - 1, y - 1, d );
-              break;
-            case W:
-              // straight down
-              danger_space[ time ].safely_add_danger_at(   x  , y + 1, d );
-              // dag left+down
-              danger_space[ time ].safely_add_danger_at( x - 1, y + 1, d );
-              // straight left
-              danger_space[ time ].safely_add_danger_at( x - 1,   y  , d );
-              // dag left+up
-              danger_space[ time ].safely_add_danger_at( x - 1, y - 1, d );
-              // straight up
-              danger_space[ time ].safely_add_danger_at(   x  , y - 1, d );
-              break;
-            case NW:
-              // dag left+down
-              danger_space[ time ].safely_add_danger_at( x - 1, y + 1, d );
-              // straight left
-              danger_space[ time ].safely_add_danger_at( x - 1,   y  , d );
-              // dag left+up
-              danger_space[ time ].safely_add_danger_at( x - 1, y - 1, d );
-              // straight up
-              danger_space[ time ].safely_add_danger_at(   x  , y - 1, d );
-              // dag right+up
-              danger_space[ time ].safely_add_danger_at( x + 1, y - 1, d );
-              break;
+            // Set the danger of the square based on what
+            // calculate_future_pos() found, but scale it according to how
+            // far back in time we're predicting
+            natural time = t + look_behind;
+            natural x = (*current_est).x;
+            natural y = (*current_est).y;
+            double d = (*current_est).danger * adjust_danger( t );
+            
+            danger_space[ time ].add_danger_at( x, y, d );
+            
+            // . . . and then add a bit of "fuzziness" (danger around the predicted
+            // square, so that other planes don't come too close)
+            d *= field_weight; // adjust the danger for these fields
+            switch( bearing )
+            {
+              case N:
+                // straight left
+                danger_space[ time ].safely_add_danger_at( x - 1,   y  , d );
+                // dag left+up
+                danger_space[ time ].safely_add_danger_at( x - 1, y - 1, d );
+                // straight up
+                danger_space[ time ].safely_add_danger_at(   x  , y - 1, d );
+                // dag right+up
+                danger_space[ time ].safely_add_danger_at( x + 1, y - 1, d );
+                // straight right
+                danger_space[ time ].safely_add_danger_at( x + 1,   y  , d );
+                break;
+              case NE:
+                // dag left+up
+                danger_space[ time ].safely_add_danger_at( x - 1, y - 1, d );
+                // straight up
+                danger_space[ time ].safely_add_danger_at(   x  , y - 1, d );
+                // dag right+up
+                danger_space[ time ].safely_add_danger_at( x + 1, y - 1, d );
+                // straight right
+                danger_space[ time ].safely_add_danger_at( x + 1,   y  , d );
+                // dag right+down
+                danger_space[ time ].safely_add_danger_at( x + 1, y + 1, d );
+                break;
+              case E:
+                // straight up
+                danger_space[ time ].safely_add_danger_at(   x  , y - 1, d );
+                // dag right+up
+                danger_space[ time ].safely_add_danger_at( x + 1, y - 1, d );
+                // straight right
+                danger_space[ time ].safely_add_danger_at( x + 1,   y  , d );
+                // dag right+down
+                danger_space[ time ].safely_add_danger_at( x + 1, y + 1, d );
+                // straight down
+                danger_space[ time ].safely_add_danger_at(   x  , y + 1, d );
+                break;
+              case SE:
+                // dag right+up
+                danger_space[ time ].safely_add_danger_at( x + 1, y - 1, d );
+                // straight right
+                danger_space[ time ].safely_add_danger_at( x + 1,   y  , d );
+                // dag right+down
+                danger_space[ time ].safely_add_danger_at( x + 1, y + 1, d );
+                // straight down
+                danger_space[ time ].safely_add_danger_at(   x  , y + 1, d );
+                // dag left+down
+                danger_space[ time ].safely_add_danger_at( x - 1, y + 1, d );
+                break;
+              case S:
+                // straight right
+                danger_space[ time ].safely_add_danger_at( x + 1,   y  , d );
+                // dag right+down
+                danger_space[ time ].safely_add_danger_at( x + 1, y + 1, d );
+                // straight down
+                danger_space[ time ].safely_add_danger_at(   x  , y + 1, d );
+                // dag left+down
+                danger_space[ time ].safely_add_danger_at( x - 1, y + 1, d );
+                // straight left
+                danger_space[ time ].safely_add_danger_at( x - 1,   y  , d );
+                break;
+              case SW:
+                // dag right+down
+                danger_space[ time ].safely_add_danger_at( x + 1, y + 1, d );
+                // straight down
+                danger_space[ time ].safely_add_danger_at(   x  , y + 1, d );
+                // dag left+down
+                danger_space[ time ].safely_add_danger_at( x - 1, y + 1, d );
+                // straight left
+                danger_space[ time ].safely_add_danger_at( x - 1,   y  , d );
+                // dag left+up
+                danger_space[ time ].safely_add_danger_at( x - 1, y - 1, d );
+                break;
+              case W:
+                // straight down
+                danger_space[ time ].safely_add_danger_at(   x  , y + 1, d );
+                // dag left+down
+                danger_space[ time ].safely_add_danger_at( x - 1, y + 1, d );
+                // straight left
+                danger_space[ time ].safely_add_danger_at( x - 1,   y  , d );
+                // dag left+up
+                danger_space[ time ].safely_add_danger_at( x - 1, y - 1, d );
+                // straight up
+                danger_space[ time ].safely_add_danger_at(   x  , y - 1, d );
+                break;
+              case NW:
+                // dag left+down
+                danger_space[ time ].safely_add_danger_at( x - 1, y + 1, d );
+                // straight left
+                danger_space[ time ].safely_add_danger_at( x - 1,   y  , d );
+                // dag left+up
+                danger_space[ time ].safely_add_danger_at( x - 1, y - 1, d );
+                // straight up
+                danger_space[ time ].safely_add_danger_at(   x  , y - 1, d );
+                // dag right+up
+                danger_space[ time ].safely_add_danger_at( x + 1, y - 1, d );
+                break;
+            } // end switch case
+  #ifdef OVERLAYED
+            overlayed[0].add_danger_at((*current_est).x,
+                                       (*current_est).y,
+                                       (*current_est).danger * adjust_danger(t) );
+  #endif
+          } // end if these are legal xs and ys, and if this is not a "timestamp" divider
+          else // this estimate is only a timestamp marker
+          {
+            ++t;
           }
-#ifdef OVERLAYED
-          overlayed[0].add_danger_at((*current_est).x,
-                                     (*current_est).y,
-                                     (*current_est).danger * adjust_danger(t) );
-#endif
-        }
-        else // this estimate is only a timestamp marker
-        {
-          ++t;
-        }
-      }
-    }
-  }
+        } // end if t < look_ahead
+      } // end for each estimated (x, y, danger) triple
+    } // end if this is not the "owner" of the danger grid
+  } // end for each plane in the list
 }
 
 void danger_grid::set_danger_scale( )
 {
   // For now, we aren't scaling anything down
   for( int i = 0; i <= (int)(look_behind + look_ahead + 1); i++ )
-    danger_ratings.push_back( PLANE_DANGER );
+    danger_ratings.push_back( plane_danger );
 }
 
-double danger_grid::get_danger_at( unsigned int x_pos, unsigned int y_pos, int seconds ) const
+double danger_grid::get_danger_at( unsigned int x_pos, unsigned int y_pos,
+                                   int seconds ) const
 {
 #ifdef DEBUG
   assert( seconds < (int)( danger_space.size() - look_behind ) );
@@ -554,7 +586,7 @@ vector< estimate > danger_grid::calculate_future_pos( Plane & plane )
   double xDistance=( fabs((double)x2-x1) ),yDistance=( fabs((double)y2-y1) );
   double distance = sqrt((double)(xDistance*xDistance)+(yDistance*yDistance));
   if(xDistance==0&&yDistance==0)//your there!!!!!!!(hopefully)
-  {cout<<"There was totally an error"; return theFuture;}
+  {return theFuture;}
   //find the angle to the waypoint
   double angle=(180-RADtoDEGREES*(asin((double)xDistance/(double)distance)));
   if(y2<y1)
@@ -816,13 +848,15 @@ void danger_grid::dump_est( vector< estimate > dump_me )
 
 void danger_grid::calculate_distance_costs( unsigned int goal_x, unsigned int goal_y )
 {
-  unsigned int width = get_width_in_squares();
-  unsigned int height = get_height_in_squares();
-  double danger_adjust = ( width + height ) / 4;
-  
-  for( unsigned int crnt_x = 0; crnt_x <  width; crnt_x++ )
+  calculate_distance_costs( goal_x, goal_y, 1.0 );
+}
+
+void danger_grid::calculate_distance_costs( unsigned int goal_x, unsigned int goal_y,
+                                            double danger_adjust)
+{
+  for( unsigned int crnt_x = 0; crnt_x <  get_width_in_squares(); crnt_x++ )
   {
-    for( unsigned int crnt_y = 0; crnt_y < height; crnt_y++ )
+    for( unsigned int crnt_y = 0; crnt_y < get_height_in_squares(); crnt_y++ )
     {
       for( unsigned int crnt_t = 0; crnt_t < look_ahead; crnt_t++ )
       {

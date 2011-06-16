@@ -297,7 +297,7 @@ unsigned int map::get_resolution( ) const
 
 void map::dump( ) const
 {
-  unsigned int mult = 10;
+  unsigned int mult = 1;
   cout << endl << " Danger ratings:" << endl;
   cout << "    ";
   for( unsigned int top_guide = 0; top_guide < the_map.size(); ++top_guide )
@@ -353,7 +353,7 @@ void map::dump( ) const
 #ifdef OUTPUT_CSV
   stringstream ss( stringstream::out );
   unsigned int time = clock() / (CLOCKS_PER_SEC / 1000);
-  ss << "log/map_output_" << time << ".csv";
+  ss << "/Volumes/DATA/Dropbox/school/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/log/map/map_output_" << time << ".csv";
   string filename = ss.str();
   
   ofstream csv;
@@ -377,14 +377,14 @@ void map::dump( ) const
         if( the_map[ left_index ][ right_index ].danger < EPSILON &&
            the_map[ left_index ][ right_index ].danger > -EPSILON )
         {
-          csv << "--,";
+          csv << ",";// leave this square blank
         }
         else
         {
           if( (the_map[ left_index ][ right_index ].danger)*mult - mult > -EPSILON )
-            csv << (the_map[ left_index ][ right_index ].danger) * mult << ",";
+            csv << (int)( (the_map[ left_index ][ right_index ].danger) * mult ) << ",";
           else
-            csv << (the_map[ left_index ][ right_index ].danger)*mult << ",";
+            csv << (int)( (the_map[ left_index ][ right_index ].danger)*mult ) << ",";
         }
       }
       csv << "\n";
@@ -438,10 +438,10 @@ void map::dump_big_numbers( ) const
   }
   
 #ifdef OUTPUT_CSV
-  double mult = 10;
+  double mult = 1.0;
   stringstream ss( stringstream::out );
   unsigned int time = clock() / (CLOCKS_PER_SEC / 1000);
-  ss << "log/map_output_" << time << ".txt";
+  ss << "/Volumes/DATA/Dropbox/school/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/log/map/map_output_" << time << ".csv";
   string filename = ss.str();
   
   ofstream csv;
@@ -471,9 +471,9 @@ void map::dump_big_numbers( ) const
         else
         {
           if( (the_map[ left_index ][ right_index ].danger)*mult - mult > -EPSILON )
-            csv << (the_map[ left_index ][ right_index ].danger) * mult << ",";
+            csv << (int)( (the_map[ left_index ][ right_index ].danger) * mult ) << ",";
           else
-            csv << (the_map[ left_index ][ right_index ].danger)*mult << ",";
+            csv << (int)( (the_map[ left_index ][ right_index ].danger)*mult ) << ",";
         }
       }
       csv << "\n";

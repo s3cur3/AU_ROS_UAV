@@ -99,7 +99,23 @@ int main()
   
   natural num_planes = 20;
   
-  vector< Plane > test_set = randomized_planes( num_planes );
+  //vector< Plane > test_set = randomized_planes( num_planes );
+  
+  vector< Plane > test_set;
+  
+  // The origin
+  Position plane_1_start( upper_left_longitude, upper_left_latitude,
+                          width_in_degrees_longitude, height_in_degrees_latitude,
+                          upper_left_longitude, upper_left_latitude, resolution );
+  // The farthest corner
+  Position plane_1_end(  upper_left_longitude, upper_left_latitude,
+                         width_in_degrees_longitude, height_in_degrees_latitude,
+                         upper_left_longitude + width_in_degrees_longitude - 0.00001,
+                         upper_left_latitude + height_in_degrees_latitude - 0.00001, resolution );
+  
+  test_set.push_back( Plane( 0, plane_1_start, plane_1_end ) );
+  
+  
   vector< Plane > test_set1 = randomized_planes( num_planes );
   vector< Plane > test_set2 = randomized_planes( num_planes );
   vector< Plane > test_set3 = randomized_planes( num_planes );
@@ -134,7 +150,7 @@ int main()
   
   cout << "Here, width is " << width_of_field << " and height is " << height_of_field << endl;
   
-  best_cost bc( &test_set, width_of_field, height_of_field, resolution, 2 );
+  best_cost bc( &test_set, width_of_field, height_of_field, resolution, 0 );
   best_cost bc1( &test_set1, width_of_field, height_of_field, resolution, 2 );
   best_cost bc2( &test_set2, width_of_field, height_of_field, resolution, 2 );
   best_cost bc3( &test_set3, width_of_field, height_of_field, resolution, 2 );
@@ -156,11 +172,11 @@ int main()
   best_cost bc19( &test_set19, width_of_field, height_of_field, resolution, 2 );
 
   
-  bc.dump( 0 );
+  bc1.dump( 0 );
   
-  bc.dump( 1 );
+  bc1.dump( 1 );
   
-  bc.dump( 2 );
+  bc1.dump( 2 );
  
   seconds = time(NULL);
   cout << "End time:   " << seconds << endl;

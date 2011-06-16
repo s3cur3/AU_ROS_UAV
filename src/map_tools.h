@@ -79,7 +79,7 @@ unsigned int map_tools::find_width_in_squares( double width_of_field,
                                                double height_of_field, 
                                                double map_resolution )
 {
-    return (int)( ceil( (double)( width_of_field) / map_resolution ) + 0.1 );
+    return (int)( ceil( (double)(width_of_field) / map_resolution ) + 0.1 );
 }
 
 unsigned int map_tools::find_height_in_squares( double width_of_field, 

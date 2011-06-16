@@ -21,6 +21,8 @@
 // grid, there is some cost associated with coming close to another aircraft.
 
 
+#define DEBUG
+
 #ifndef BC_GRID_EXP
 #define BC_GRID_EXP
 
@@ -32,6 +34,8 @@
 #include "Position.h"
 #include <math.h>
 #include <cstdlib>
+#include "write_to_log.h"
+
 // used to tell the map class that it's okay to have costs greater than 1 associated
 // with squares
 #define LARGE_COSTS 1
@@ -40,7 +44,9 @@ using namespace std;
 
 // The scaling factor for the "danger" rating; effectively, the cost of 
 // conflicting with another aircraft
-static const double map_weight = 40.0;
+static const double map_weight = 1.0;
+
+const string log_path = "/mnt/hgfs/Dropbox/school/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/log/";
 
 struct coord
 {
@@ -185,17 +191,23 @@ best_cost::best_cost( vector< Plane > * set_of_aircraft,
   goal.x = (*set_of_aircraft)[ plane_id ].getFinalDestination().getX();
   goal.y = (*set_of_aircraft)[ plane_id ].getFinalDestination().getY();
   
+#ifdef DEBUG
+  create_log( "Creating BC grid for plane " + to_string( plane_id ), log_path );
+  add_to_log( "Plane's starting loc: (" + to_string( start.x ) + ", " + to_string( start.y ) + ")", log_path );
+  add_to_log( "Plane's goal loc:     (" + to_string( goal.x ) + ", " + to_string( goal.y ) + ")", log_path );
+#endif
+  
   // The "map cost" array, a very sparse representation of our airspace which notes
   // the likelihood of encountering an aircraft at each square at each time.
   // This is consulted when calculating the best cost from a given square.
-  mc = new danger_grid( set_of_aircraft, width, height, resolution );
+  mc = new danger_grid( set_of_aircraft, width, height, resolution, plane_id );
     
   // The real meat of this class; stores the cost of the best possible path from each
   // square at each time to the goal square. Initializes each square with the 
   // following simple heuristic:
   //      cost( node n ) = mc( n ) + (weighing factor) * distance( from n to goal )
   bc = new danger_grid( mc );
-  bc->calculate_distance_costs( goal.x, goal.y );
+  bc->calculate_distance_costs( goal.x, goal.y, 1.0 );
   
   n_secs = bc->get_time_in_secs();
   n_sqrs_w = bc->get_width_in_squares();
@@ -292,9 +304,7 @@ void best_cost::initialize_path( )
 void best_cost::minimize_cost()
 {
   // Increase the travel cost to search a smaller area
-  // 0.05 gives almost no penalty to added distance
-  // 1.0 seems to work best for all ranges.
-  const double travel_cost = res * 1;
+  const double travel_cost = res;
   // the cost of traversing a diagonal
   const double dag_travel_cost = SQRT_2 * travel_cost;
   
@@ -349,7 +359,7 @@ void best_cost::minimize_cost()
       if( cost < (*bc)( j->x, j->y, j->t ) && cost < danger_threshold )
       {
         (*bc).set_danger_at( j->x, j->y, j->t, cost );
-
+        
         // If the neighbor isn't in the to-do list . . .
         if( !in_to_do[ j->x ][ j->y ][ j->t ] )
         {
@@ -398,7 +408,7 @@ void best_cost::dump( int time ) const
   mc->dump( time );
   
   cout << endl << "The BC grid for " << time << endl;
-  bc->dump_big_numbers( time );
+  bc->dump( time );
 }
 
 #endif

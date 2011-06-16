@@ -75,7 +75,8 @@ public:
    * must be consistent across all measurements.
    * @param set_of_aircraft A vector array containing the aircraft that need to
    * be considered
-   * @param width The width of the airspace (our x dimension)
+   * @param width The width of the airspace (our x dimension), in whatever dimensions
+   *              you choose so long as you're consistent across measurements
    * @param height The height of the airspace (our y dimension)
    * @param resolution The resolution to be used in the map
    * @param plane_id The index of the plane for which we are generating the best 

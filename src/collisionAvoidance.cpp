@@ -54,6 +54,8 @@ int planesmade;
 //keeps count of the number of services requested
 int the_count;
 
+#ifndef TO_STRING
+#define TO_STRING
 template <class T>
 inline std::string to_string( const T& t )
 {
@@ -61,6 +63,7 @@ inline std::string to_string( const T& t )
   ss << t;
   return ss.str();
 }
+#endif
 
 
 void makeField();
@@ -126,7 +129,7 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 
 	//intilize everything (else) we need 
 	bool newQueue=false;
-	AU_UAV_ROS::RequestWaypointInfo goal;
+	AU_UAV_ROS::RequestWaypointInfo goalSrv;
 	AU_UAV_ROS::GoToWaypoint srv;
 
 
@@ -170,12 +173,12 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 	cout<<"Next location for plane"<<planeId<<" "<<plane->getDestination().getX()<<" "<<plane->getDestination().getY()<<endl;
 	//populate the request for the destination
 	
-	goal.request.planeID=planeId;
-	goal.request.isAvoidanceWaypoint=false;
-	goal.request.positionInQueue=0;
-	
+	goalSrv.request.planeID=planeId;
+	goalSrv.request.isAvoidanceWaypoint=false;
+	goalSrv.request.positionInQueue=0;
+  	
 	//ask the coordinator nicely
-	if(!findGoal.call(goal))
+	if(!findGoal.call(goalSrv))
 		ROS_ERROR("No goal was returned");
 
 	//make sure the goal is a real goal none of those lame "become rich and famous goals" we want something real and reachable by a foam airplane
@@ -183,16 +186,16 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 #if 	defined(Testing) || defined(Outputting)
   // TY confirms that the goals are getting set correctly before the first
   // DG output when using Chicken.course
-	ROS_INFO("The goal of plane \033[22;32m %d returned was   \033[22;31m %f,%f",planeId,goal.response.longitude, goal.response.latitude);
+	ROS_INFO("The goal of plane \033[22;32m %d returned was   \033[22;31m %f,%f",planeId,goalSrv.response.longitude, goalSrv.response.latitude);
   ROS_INFO("The current location of plane \033[22;32m %d is \033[22;31m %f,%f", planeId, currentLon, currentLat);
 #endif
 
-	if( /*inside the area*/(goal.response.latitude<upperLeftLat&&goal.response.longitude>upperLeftLon) && goal.response.latitude>0)
+	if( /*inside the area*/(goalSrv.response.latitude<upperLeftLat&&goalSrv.response.longitude>upperLeftLon) && goalSrv.response.latitude>0)
 	{
-		plane->setFinalDestination(goal.response.longitude, goal.response.latitude);
+		plane->setFinalDestination(goalSrv.response.longitude, goalSrv.response.latitude);
 
 #ifdef Testing || defined(Outputting)
-		ROS_INFO("The final destination was set to: %f,%f",goal.response.longitude,goal.response.latitude);
+		ROS_INFO("The final destination was set to: %f,%f",goalSrv.response.longitude,goalSrv.response.latitude);
 #endif
 
 	}
@@ -201,9 +204,9 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 	{	
 		plane->setFinalDestination(plane->getLocation().getLon(), plane->getLocation().getLat());
 
-#ifdef Testing
+//#ifdef Testing
 		ROS_INFO("The final destination does not exist or has been reached");
-#endif
+//#endif
 
 	}
 	
@@ -223,13 +226,6 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 	best_cost bc = best_cost(&planes,fieldWidth,fieldHeight,res,planeId);
 	forSparta=astar_point(&bc,startx,starty,endx,endy,planeId);
 	//our code will blot out the sun
-	if(the_count>6)
-	{
-//    bc.dump(0);
-//    cin.get();
-//    bc.dump(1);
-//    cin.get();
-	}
 
 #ifdef Outputting
 	ROS_INFO("A* says\033[22;32m:\nx: %d\ny: %d",forSparta.x, forSparta.y);
@@ -244,7 +240,7 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 		srv.request.planeID = planeId;
 		srv.request.longitude = lon;
 		srv.request.latitude = lat;
-		srv.request.altitude = goal.response.altitude;//? not sure if this is allowed but hey i like cheating
+		srv.request.altitude = goalSrv.response.altitude;//? not sure if this is allowed but hey i like cheating
 
 		next.setX(forSparta.x);
 		next.setY(forSparta.y);
@@ -258,11 +254,11 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 		if(!client.call(srv))
 			ROS_ERROR("YOUR SERVICE DIDN'T GO THROUGH YOU GONA CRASH!!!");
 
-		goal.request.planeID=planeId;
-		goal.request.isAvoidanceWaypoint=true;
-		goal.request.positionInQueue=0;
-		findGoal.call(goal);
-		cout<<goal.response.longitude<<" "<<goal.response.latitude<<endl;
+		/*goalSrv.request.planeID=planeId;
+		goalSrv.request.isAvoidanceWaypoint=true;
+		goalSrv.request.positionInQueue=0;
+		if(findGoal.call(goalSrv))
+      cout<<goalSrv.response.longitude<<" "<<goalSrv.response.latitude<<endl;*/
 		plane->update(current,next,gSpeed,bearing);
 		//cin.get();
 	}
@@ -351,7 +347,7 @@ void makeField()
  	  the_file >> res;
  	  the_file.close();
 
-	  fieldWidth=
+	  fieldWidth= /* in meters */
 		map_tools::calculate_distance_between_points( upperLeftLat, upperLeftLon,
                                                  upperLeftLat, upperLeftLon + lonWidth,
                                                  "meters");
