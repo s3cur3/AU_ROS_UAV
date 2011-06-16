@@ -38,6 +38,10 @@
 
 using namespace std;
 
+// The scaling factor for the "danger" rating; effectively, the cost of 
+// conflicting with another aircraft
+static const double map_weight = 40.0;
+
 struct coord
 {
   unsigned int x;
@@ -332,10 +336,6 @@ void best_cost::minimize_cost()
     
     if( i.y > 0 )
       neighbors.push_back( coord( i.x, i.y - 1, i.t ) ); // up neighbor
-    
-    // The scaling factor for the "danger" rating; effectively, the cost of 
-    // conflicting with another aircraft
-    const double map_weight = 20.0;
     
     // for each neighbor j of the node i . . .
     for( vector< coord >::const_iterator j = neighbors.begin(); j != neighbors.end(); ++j )

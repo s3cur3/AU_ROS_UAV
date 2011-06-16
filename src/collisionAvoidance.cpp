@@ -1,5 +1,6 @@
 //#define Testing
-#define Outputting
+//#define Outputting
+//#define GODDAMMIT
 //#define collisionTesting
 
 //#define TYLERS_PC
@@ -23,7 +24,9 @@
 #include "AU_UAV_ROS/GoToWaypoint.h"
 #include "AU_UAV_ROS/RequestWaypointInfo.h"
 
-
+#ifndef EPSILON
+#define EPSILON 0.00000001
+#endif
 
 //ROS service client for calling a service from the coordinator
 ros::ServiceClient client;
@@ -79,13 +82,19 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 	double gSpeed=msg->groundSpeed;
 	double bearing=msg->targetBearing;
   
+#ifdef GODDAMMIT
+  // If this doesn't fail immediately, it means the msg from the telemetry update is OK
+  assert( destLat - currentLat > EPSILON || destLat - currentLat < -EPSILON );
+  assert( destLon - currentLon > EPSILON || destLon - currentLon < -EPSILON );
+#endif
+  
 #ifdef Testing
 	//print out the tele data for use with x-plane
 	ofstream tele;
 	string path;
 
 #ifdef TYLERS_PC
-  	path = "/mnt/hgfs/Dropbox/school/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/teledata/";
+  path = "/mnt/hgfs/Dropbox/school/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/teledata/";
 #endif
 
 	path+=to_string(planeId);
@@ -115,7 +124,7 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 	tele.close();
 #endif
 
-	//intilize everything(else) we need 
+	//intilize everything (else) we need 
 	bool newQueue=false;
 	AU_UAV_ROS::RequestWaypointInfo goal;
 	AU_UAV_ROS::GoToWaypoint srv;
@@ -133,7 +142,7 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 		if(collision(x,y))
 		{	
 			ROS_ERROR("There has been a collision between planes %d and %d at position (%d,%d),(%f,%f) at step# %d"
-			,x,y,crash[x].getX(),crash[x].getY(),crash[x].getLat(),crash[x].getLon(),the_count);
+                ,x,y,crash[x].getX(),crash[x].getY(),crash[x].getLat(),crash[x].getLon(),the_count);
 			assert(false);
 		}
 	}
@@ -154,11 +163,11 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 	}
 
 	//prevent the insanity that double []s bring
-	Plane plane = planes[planeId];
+	Plane * plane = &(planes[planeId]);
 	//update the plane
-	plane.update(current,next,gSpeed,bearing);
-	cout<<"Current location for plane"<<planeId<<" "<<plane.getLocation().getX()<<" "<<plane.getLocation().getY()<<endl;
-	cout<<"Next location for plane"<<planeId<<" "<<plane.getDestination().getX()<<" "<<plane.getDestination().getY()<<endl;
+	plane->update(current,next,gSpeed,bearing);
+	cout<<"Current location for plane"<<planeId<<" "<<plane->getLocation().getX()<<" "<<plane->getLocation().getY()<<endl;
+	cout<<"Next location for plane"<<planeId<<" "<<plane->getDestination().getX()<<" "<<plane->getDestination().getY()<<endl;
 	//populate the request for the destination
 	
 	goal.request.planeID=planeId;
@@ -172,22 +181,25 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 	//make sure the goal is a real goal none of those lame "become rich and famous goals" we want something real and reachable by a foam airplane
 
 #if 	defined(Testing) || defined(Outputting)
-	ROS_INFO("The goal of plane \033[22;32m %d returned was \033[22;31m %f,%f",planeId,goal.response.longitude, goal.response.latitude);
+  // TY confirms that the goals are getting set correctly before the first
+  // DG output when using Chicken.course
+	ROS_INFO("The goal of plane \033[22;32m %d returned was   \033[22;31m %f,%f",planeId,goal.response.longitude, goal.response.latitude);
+  ROS_INFO("The current location of plane \033[22;32m %d is \033[22;31m %f,%f", planeId, currentLon, currentLat);
 #endif
 
 	if( /*inside the area*/(goal.response.latitude<upperLeftLat&&goal.response.longitude>upperLeftLon) && goal.response.latitude>0)
 	{
-		plane.setFinalDestination(goal.response.longitude, goal.response.latitude);
+		plane->setFinalDestination(goal.response.longitude, goal.response.latitude);
 
-#ifdef Testing
-		ROS_INFO("The final destination is:%f,%f",goal.response.longitude,goal.response.latitude);
+#ifdef Testing || defined(Outputting)
+		ROS_INFO("The final destination was set to: %f,%f",goal.response.longitude,goal.response.latitude);
 #endif
 
 	}
 	//its going nowhere fast
 	else
 	{	
-		plane.setFinalDestination(plane.getLocation().getLon(), plane.getLocation().getLat());
+		plane->setFinalDestination(plane->getLocation().getLon(), plane->getLocation().getLat());
 
 #ifdef Testing
 		ROS_INFO("The final destination does not exist or has been reached");
@@ -198,14 +210,14 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 	
 	
 	//grab stuff for A*, if thats his real name
-	int startx=plane.getLocation().getX();
-    	int starty=plane.getLocation().getY();
-   	int endx=plane.getFinalDestination().getX();
-   	int endy=plane.getFinalDestination().getY();
-
-//#ifdef Testing
+	int startx=plane->getLocation().getX();
+  int starty=plane->getLocation().getY();
+  int endx=plane->getFinalDestination().getX();
+  int endy=plane->getFinalDestination().getY();
+  
+  //#ifdef Testing
 	ROS_INFO("for plane %d\n the startx:%d\n the starty:%d\n the endx:%d\n the endy:%d",planeId,startx,starty,endx,endy);
-//#endif	
+  //#endif	
 
 	point forSparta;
 	best_cost bc = best_cost(&planes,fieldWidth,fieldHeight,res,planeId);
@@ -213,10 +225,10 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 	//our code will blot out the sun
 	if(the_count>6)
 	{
-	bc.dump(0);
-	cin.get();
-	bc.dump(1);
-	cin.get();
+//    bc.dump(0);
+//    cin.get();
+//    bc.dump(1);
+//    cin.get();
 	}
 
 #ifdef Outputting
@@ -251,7 +263,7 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 		goal.request.positionInQueue=0;
 		findGoal.call(goal);
 		cout<<goal.response.longitude<<" "<<goal.response.latitude<<endl;
-		plane.update(current,next,gSpeed,bearing);
+		plane->update(current,next,gSpeed,bearing);
 		//cin.get();
 	}
 

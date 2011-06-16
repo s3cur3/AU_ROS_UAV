@@ -554,7 +554,7 @@ vector< estimate > danger_grid::calculate_future_pos( Plane & plane )
   double xDistance=( fabs((double)x2-x1) ),yDistance=( fabs((double)y2-y1) );
   double distance = sqrt((double)(xDistance*xDistance)+(yDistance*yDistance));
   if(xDistance==0&&yDistance==0)//your there!!!!!!!(hopefully)
-  {return theFuture;}
+  {cout<<"There was totally an error"; return theFuture;}
   //find the angle to the waypoint
   double angle=(180-RADtoDEGREES*(asin((double)xDistance/(double)distance)));
   if(y2<y1)
