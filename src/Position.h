@@ -53,8 +53,8 @@ public:
 	//the preceding methods can be used interchangebly as setX also sets the longitude and so forth
 	//note there will be some error if using x and y mainly as they only can convert to
   //the longitude and latitude of the top left of their block
-	double getLat();
-	double getLon();
+	double getLat() const;
+	double getLon() const;
 	int getX();
 	int getY();
 	int getWidth();
@@ -92,13 +92,21 @@ void Position::setLat(double l)
   if( x == 46 && y == 42 ) // testing the bottom corner
     cout << "(Lat, lon) at (46, 42) is (" << lat << ", " << lon << ")" << endl;
 #endif
+#ifdef GODDAMMIT
+  assert( lat > 32.5882 );
+  assert( lat < 32.593 );
+  
+  double double_check_lat = getLat();
+  assert( double_check_lat > 32.5882 );
+  assert( double_check_lat < 32.593 );
+#endif
 }
-double Position::getLat()
+double Position::getLat() const
 	{return lat;}
 
 void Position::setLon(double l)
 {
-#ifdef DEBUG
+#if defined (DEBUG) || defined(GODDAMMIT)
 //  ofstream the_file;
 //  the_file.open("/home/tyler/Desktop/debugpos.txt",ios::out);
 //  assert( the_file.is_open() );
@@ -107,7 +115,10 @@ void Position::setLon(double l)
 //  the_file << "top_left_lat:  " << top_left_lat << "\n";
 //  the_file << "lat:           " << lat << "\n";
 //  the_file.close();
+//  cout << "lon sent in is " << l << endl;
+//  cout << "top_left_long + lonWidth == " << top_left_long + lonWidth << endl;
   assert( l <= (top_left_long + lonWidth) );
+  assert( l < -85.484 );
   assert( l >= top_left_long );
 #endif
   lon=l;
@@ -115,8 +126,17 @@ void Position::setLon(double l)
 #ifdef DEBUG
   assert( x >= 0 && x < w );
 #endif
+  
+#ifdef GODDAMMIT
+  assert( lon < -85.484 );
+  assert( lon > -85.4915 );
+  
+  double double_check_lon = getLon();
+  assert( double_check_lon < -85.484 );
+  assert( double_check_lon > -85.4915 );
+#endif
 }
-double Position::getLon()
+double Position::getLon() const
 	{return lon;}
 
 int Position::getX() // TY changed this to return an int instead of a double
@@ -140,6 +160,20 @@ void Position::setXY(int x1, int y1)
 //  cout << "Dist between points " << ( map_tools::calculate_distance_between_points( top_left_lat, top_left_long,
 //                                                        lat, lon, "meters") ) << endl;
 //  cout << endl << endl << "Pos in Position is " << x << ", " << y;
+  
+#ifdef GODDAMMIT
+  assert( lat > 32.5882 );
+  assert( lat < 32.593 );
+  assert( lon < -85.484 );
+  assert( lon > -85.4915 );
+  
+  double double_check_lat = getLat();
+  assert( double_check_lat > 32.5882 );
+  assert( double_check_lat < 32.593 );
+  double double_check_lon = getLon();
+  assert( double_check_lon < -85.484 );
+  assert( double_check_lon > -85.4915 );
+#endif
 }
 Position::Position(double upperLeftLongitude, double upperLeftLatitude, 
                    double lonwidth, double latwidth)
@@ -226,9 +260,13 @@ void Position::xy_to_latlon( double & out_lat, double & out_lon )
     bearing_between_pts = 90 + (RADtoDEGREES * asin( y*resolution / d_from_origin_to_pt ));
   
 //  cout << "In Pos, bearing is " << bearing_between_pts << endl;
-//  map_tools::calculate_point( top_left_lat, top_left_long, 
-//                              d_from_origin_to_pt, bearing_between_pts,
-//                              out_lat, out_lon );
+  map_tools::calculate_point( top_left_lat, top_left_long, 
+                              d_from_origin_to_pt, bearing_between_pts,
+                              out_lat, out_lon );
+#ifdef GODDAMMIT
+  cout << "Calculated lat to be " << out_lat << endl;
+  cout << "Calculated lon to be " << out_lon << endl;
+#endif 
 #ifdef DEBUG
   assert( d_from_origin_to_pt > -EPSILON ); // non-negative
 #endif

@@ -36,8 +36,8 @@ public:
 	void update(Position current, Position destination, double bearing, double speed);
 	void setFinalDestination(double lon, double lat);
 	void setFinalDestination(int x, int y);
-  	void setDestination(int x, int y);
-  	void setDestination(double lon, double lat);
+  void setDestination(int x, int y);
+  void setDestination(double lon, double lat);
 	double getBearing();
 	double getBearingToDest();
 	double getSpeed();
@@ -91,17 +91,52 @@ void Plane::setFinalDestination(double lon, double lat)
 {
 	finalDestination.setLon(lon);
 	finalDestination.setLat(lat);
+  
+#ifdef GODDAMMIT
+  assert( lon < -85.484 );
+  assert( lon > -85.4915 );
+  assert( lat > 32.5882 );
+  assert( lat < 32.593 );
+  
+  double double_check_lon = finalDestination.getLon();
+  double double_check_lat = finalDestination.getLat();
+  assert( double_check_lon < -85.484 );
+  assert( double_check_lon > -85.4915 );
+  assert( double_check_lat > 32.5882 );
+  assert( double_check_lat < 32.593 );
+#endif
 }
 
 void Plane::setDestination(double lon, double lat)
 {
   destination.setLon(lon);
   destination.setLat(lat);
+#ifdef GODDAMMIT
+  assert( lon < -85.484 );
+  assert( lon > -85.4915 );
+  assert( lat > 32.5882 );
+  assert( lat < 32.593 );
+  
+  double double_check_lon = destination.getLon();
+  double double_check_lat = destination.getLat();
+  assert( double_check_lon < -85.484 );
+  assert( double_check_lon > -85.4915 );
+  assert( double_check_lat > 32.5882 );
+  assert( double_check_lat < 32.593 );
+#endif
 }
 
 void Plane::setFinalDestination(int x, int y)
 {
 	finalDestination.setXY(x, y);
+#ifdef GODDAMMIT
+  double double_check_lon = finalDestination.getLon();
+  double double_check_lat = finalDestination.getLat();
+  assert( double_check_lon < -85.484 );
+  assert( double_check_lon > -85.4915 );
+  assert( double_check_lat > 32.5882 );
+  assert( double_check_lat < 32.593 );
+#endif
 }
 
 Position Plane::getFinalDestination()
@@ -112,6 +147,15 @@ Position Plane::getFinalDestination()
 void Plane::setDestination(int x, int y)
 {
 	destination.setXY(x, y);
+  
+#ifdef GODDAMMIT
+  double double_check_lon = destination.getLon();
+  double double_check_lat = destination.getLat();
+  assert( double_check_lon < -85.484 );
+  assert( double_check_lon > -85.4915 );
+  assert( double_check_lat > 32.5882 );
+  assert( double_check_lat < 32.593 );
+#endif
 }
 
 double Plane::getBearing()

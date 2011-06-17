@@ -236,11 +236,12 @@ best_cost::best_cost( vector< Plane > * set_of_aircraft,
   // Do the real work of the class //
   minimize_cost();
   
-  dump( 1 );
+  //dump( 1 );
 }
 
 // AK: DESTRUCTOR -- DESTROY mc, bc to release their memory
-best_cost::~best_cost(){
+best_cost::~best_cost()
+{
   delete mc;
   delete bc;
 }

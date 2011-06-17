@@ -1,6 +1,7 @@
 //#define Testing
 //#define Outputting
-//#define GODDAMMIT
+//#define DEBUG // for now, this should ALWAYS be defined for the sake of rigor
+#define GODDAMMIT
 //#define collisionTesting
 
 //#define TYLERS_PC
@@ -13,7 +14,7 @@
 #include <iostream>
 #include <fstream>
 #include <time.h>
-#include "Plane.h"
+#include "Plane.h" // Changing to Plane.h kills it!
 #include "best_cost_with_fields.h"
 #include "astar_point.cpp"
 #include "telemetry_data_out.h"
@@ -135,6 +136,20 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 
 
 	//make the positions
+#ifdef GODDAMMIT
+//  cout << endl << endl << "upperLeftLat is " << upperLeftLat << endl;
+  assert( upperLeftLon < -85.49 && upperLeftLon > -85.491 );
+  assert( upperLeftLat > 32.592 && upperLeftLat < 32.593 );
+  assert( lonWidth > 0.005 && lonWidth < 0.00501 );
+  assert( latWidth > -0.00381 && latWidth < -0.00380 );
+
+  assert( currentLon < -85.484 );
+  assert( currentLon > -85.4915 );
+  assert( currentLat > 32.5882 );
+  assert( currentLat < 32.593 );
+  
+  assert( res > 9.99 && res < 10.1 );
+#endif
 	Position current = Position(upperLeftLon,upperLeftLat,lonWidth,latWidth,currentLon,currentLat,res);
 
 	
@@ -152,12 +167,42 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 	}
 #endif
 
+  
+#ifdef GODDAMMIT
+  assert( upperLeftLon < -85.49 && upperLeftLon > -85.491 );
+  assert( upperLeftLat > 32.592 && upperLeftLat < 32.593 );
+  assert( lonWidth > 0.005 && lonWidth < 0.00501 );
+  assert( latWidth > -0.00381 && latWidth < -0.00380 );
+  
+  /*
+  assert( destLon < -85.484 );
+  assert( destLon > -85.4915 );
+  assert( destLat > 32.5882 );
+  assert( destLat < 32.593 );
+  */
+   
+  assert( res > 9.99 && res < 10.1 );
+#endif
 	Position next;
 	if(destLat<=upperLeftLat && destLon>=upperLeftLon && destLat>0 && destLon<0)
+  {
 		next = Position(upperLeftLon,upperLeftLat,lonWidth,latWidth,destLon,destLat,res);
+#ifdef GODDAMMIT
+    assert( next.getLon() < -85.484 );
+    assert( next.getLon() > -85.4915 );
+    assert( next.getLat() > 32.5882 );
+    assert( next.getLat() < 32.593 );
+#endif
+  }
 	else
   {
 		next = Position(current);
+#ifdef GODDAMMIT
+    assert( next.getLon() < -85.484 );
+    assert( next.getLon() > -85.4915 );
+    assert( next.getLat() > 32.5882 );
+    assert( next.getLat() < 32.593 );
+#endif
     ROS_INFO("\033[22;31m next is current");
   }
 
@@ -242,7 +287,34 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 		
 		//double lon=forSparta.x*( lonWidth / current.getWidth())+upperLeftLon;//too euclidian for our rounded egg like blue planet
 		//double lat=forSparta.y*( latWidth / current.getHeight())+upperLeftLat;
+#ifdef GODDAMMIT
+    assert( upperLeftLon < -85.49 && upperLeftLon > -85.491 );
+    assert( upperLeftLat > 32.592 && upperLeftLat < 32.593 );
+    assert( lonWidth > 0.005 && lonWidth < 0.00501 );
+    assert( latWidth > -0.00381 && latWidth < -0.00380 );
+    
+    assert( forSparta.x < 47 );
+    assert( forSparta.x >= 0 );
+    assert( forSparta.y < 43 );
+    assert( forSparta.y >= 0 );
+    
+    assert( res > 9.99 && res < 10.1 );
+#endif
   		Position aStar(upperLeftLon,upperLeftLat,lonWidth,latWidth,forSparta.x,forSparta.y,res);
+#ifdef GODDAMMIT
+    cout << ( aStar.getLon() < -85.484 || aStar.getLat() > 32.5882 );
+    cout << "aStar.getLat() == " << aStar.getLat() << endl;
+    cout << "aStar.getLon() == " << aStar.getLon() << endl;
+    cout << "aStar.getX() == " << aStar.getX() << endl;
+    cout << "aStar.getY() == " << aStar.getY() << endl;
+
+    cout << "You set it's (x, y) to (" << forSparta.x << ", " << forSparta.y << ")" << endl;
+    
+    assert( aStar.getLat() > 32.5882 );
+    assert( aStar.getLat() < 32.593 );
+    assert( aStar.getLon() < -85.484 );
+    assert( aStar.getLon() > -85.4915 );
+#endif
 		
 		srv.request.planeID = planeId;
 		srv.request.longitude = aStar.getLon();
@@ -253,7 +325,7 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
     
     
 		next.setLon(aStar.getLon());
-    		next.setLat(aStar.getLat());
+    next.setLat(aStar.getLat());
 
 		//these settings mean it is an avoidance maneuver waypoint AND to clear the avoidance queue(if there was a new plane)
 		srv.request.isAvoidanceManeuver = true;
@@ -345,30 +417,30 @@ bool collision(int &one, int &two)
 	
 }
 #endif
-
+         
 void makeField()
-{
-  	ifstream the_file( "/var/field.txt" );
- 	if ( the_file.is_open() )
-  	{
-  	  the_file >> upperLeftLon;
-  	  the_file >> upperLeftLat;
- 	  the_file >> lonWidth;
- 	  the_file >> latWidth;
- 	  the_file >> res;
- 	  the_file.close();
-
-	  fieldWidth= /* in meters */
-		map_tools::calculate_distance_between_points( upperLeftLat, upperLeftLon,
-                                                 upperLeftLat, upperLeftLon + lonWidth,
-                                                 "meters");
-
+  {
+    ifstream the_file( "/var/field.txt" );
+    if ( the_file.is_open() )
+    {
+      the_file >> upperLeftLon;
+      the_file >> upperLeftLat;
+      the_file >> lonWidth;
+      the_file >> latWidth;
+      the_file >> res;
+      the_file.close();
+      
+      fieldWidth= /* in meters */
+      map_tools::calculate_distance_between_points( upperLeftLat, upperLeftLon,
+                                                   upperLeftLat, upperLeftLon + lonWidth,
+                                                   "meters");
+      
    	  fieldHeight = 
- 		   map_tools::calculate_distance_between_points( upperLeftLat, upperLeftLon,
-                                                 upperLeftLat + latWidth, upperLeftLon,
-                                                 "meters"); 
- 	  
-	 }	
+      map_tools::calculate_distance_between_points( upperLeftLat, upperLeftLon,
+                                                   upperLeftLat + latWidth, upperLeftLon,
+                                                   "meters"); 
+      
+  }	
 
 	else
 	{
