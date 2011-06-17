@@ -153,10 +153,13 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 #endif
 
 	Position next;
-	if(destLat>0&&destLon<0)
+	if(destLat<=upperLeftLat && destLon>=upperLeftLon && destLat>0 && destLon<0)
 		next = Position(upperLeftLon,upperLeftLat,lonWidth,latWidth,destLon,destLat,res);
 	else
-		next = current;
+  {
+		next = Position(current);
+    ROS_INFO("\033[22;31m next is current");
+  }
 
 	//if its a new plane
 	if((int)planes.size()<=planeId)
@@ -191,7 +194,7 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
   ROS_INFO("The current location of plane \033[22;32m %d is \033[22;31m %f,%f", planeId, currentLon, currentLat);
 #endif
 
-	if( /*inside the area*/(goalSrv.response.latitude<upperLeftLat&&goalSrv.response.longitude>upperLeftLon) && goalSrv.response.latitude>0)
+	if( /*inside the area*/(goalSrv.response.latitude<=upperLeftLat&&goalSrv.response.longitude>=upperLeftLon) && goalSrv.response.latitude>0)
 	{
 		plane->setFinalDestination(goalSrv.response.longitude, goalSrv.response.latitude);
 
@@ -214,7 +217,7 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 	
 	
 	//grab stuff for A*, if thats his real name
-	int startx=plane->getLocation().getX();
+  int startx=plane->getLocation().getX();
   int starty=plane->getLocation().getY();
   int endx=plane->getFinalDestination().getX();
   int endy=plane->getFinalDestination().getY();
@@ -225,9 +228,11 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 
 	point forSparta;
 	best_cost bc = best_cost(&planes,fieldWidth,fieldHeight,res,planeId);
+  //if(startx==36&&starty==14&&endx==23&&endy==6)
+   // assert(false);
 	forSparta=astar_point(&bc,startx,starty,endx,endy,planeId);
 	//our code will blot out the sun
-
+ 
 #ifdef Outputting
 	ROS_INFO("A* says\033[22;32m:\nx: %d\ny: %d",forSparta.x, forSparta.y);
 #endif
@@ -237,14 +242,18 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 		
 		//double lon=forSparta.x*( lonWidth / current.getWidth())+upperLeftLon;//too euclidian for our rounded egg like blue planet
 		//double lat=forSparta.y*( latWidth / current.getHeight())+upperLeftLat;
-    Position aStar(upperLeftLon,upperLeftLat,lonWidth,latWidth,forSparta.x,forSparta.y,res);
+  		Position aStar(upperLeftLon,upperLeftLat,lonWidth,latWidth,forSparta.x,forSparta.y,res);
 		
 		srv.request.planeID = planeId;
 		srv.request.longitude = aStar.getLon();
 		srv.request.latitude = aStar.getLat();
 		srv.request.altitude = goalSrv.response.altitude;//? not sure if this is allowed but hey i like cheating
 
-		next.setXY(forSparta.x, forSparta.y);
+    //next.setXY( forSparta.x, forSparta.y );
+    
+    
+		next.setLon(aStar.getLon());
+    		next.setLat(aStar.getLat());
 
 		//these settings mean it is an avoidance maneuver waypoint AND to clear the avoidance queue(if there was a new plane)
 		srv.request.isAvoidanceManeuver = true;
@@ -262,6 +271,7 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
       cout<<goalSrv.response.longitude<<" "<<goalSrv.response.latitude<<endl;*/
 		plane->update(current,next,gSpeed,bearing);
 		//cin.get();
+   
 	}
 
 }

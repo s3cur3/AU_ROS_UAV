@@ -37,6 +37,7 @@ public:
 	void setFinalDestination(double lon, double lat);
 	void setFinalDestination(int x, int y);
   	void setDestination(int x, int y);
+  	void setDestination(double lon, double lat);
 	double getBearing();
 	double getBearingToDest();
 	double getSpeed();
@@ -58,7 +59,7 @@ void Plane::update(Position newcurrent, Position newdestination, double bare, do
 	lastPosition.setLat(current.getLat());
 
 	current.setLon(newcurrent.getLon());
-  	current.setLat(newcurrent.getLat());
+	current.setLat(newcurrent.getLat());
 
 	destination.setLon(newdestination.getLon());
   	destination.setLat(newdestination.getLat());
@@ -90,6 +91,12 @@ void Plane::setFinalDestination(double lon, double lat)
 {
 	finalDestination.setLon(lon);
 	finalDestination.setLat(lat);
+}
+
+void Plane::setDestination(double lon, double lat)
+{
+  destination.setLon(lon);
+  destination.setLat(lat);
 }
 
 void Plane::setFinalDestination(int x, int y)

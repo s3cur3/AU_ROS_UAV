@@ -353,7 +353,8 @@ void map::dump( ) const
 #ifdef OUTPUT_CSV
   stringstream ss( stringstream::out );
   unsigned int time = clock() / (CLOCKS_PER_SEC / 1000);
-  ss << "/Volumes/DATA/Dropbox/school/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/log/map/map_output_" << time << ".csv";
+  string log_path = "/mnt/hgfs/Dropbox/school/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/log/map/";
+  ss << log_path << "map_" << time << ".csv";
   string filename = ss.str();
   
   ofstream csv;

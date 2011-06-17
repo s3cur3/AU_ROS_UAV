@@ -107,29 +107,24 @@ int main()
   Position plane_1_start( upper_left_longitude, upper_left_latitude,
                           width_in_degrees_longitude, height_in_degrees_latitude,
                           0, 0, resolution );
+  Position other_plane_start( upper_left_longitude, upper_left_latitude,
+                         width_in_degrees_longitude, height_in_degrees_latitude,
+                         10, 10, resolution );
   cout << endl << "Pos is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl << endl;
-
-  plane_1_start.setXY( 0, 20 );
-  cout << endl << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl << endl;
-  
-  plane_1_start.setXY( 12, 12 );
-  cout << endl << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl << endl;
-  
-  plane_1_start.setXY( 20, 20 );
-  cout << endl << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl << endl;
-  
-  plane_1_start.setXY( 46, 42 );
-  cout << endl << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl << endl;
   
   // The farthest corner
   Position plane_1_end(  upper_left_longitude, upper_left_latitude,
-                         width_in_degrees_longitude, height_in_degrees_latitude,
-                         upper_left_longitude + width_in_degrees_longitude - 0.00001,
-                         upper_left_latitude + height_in_degrees_latitude + 0.00001, resolution );
+                       width_in_degrees_longitude, height_in_degrees_latitude,
+                       upper_left_longitude + width_in_degrees_longitude - 0.00001,
+                       upper_left_latitude + height_in_degrees_latitude + 0.00001, resolution );
+  Position other_plane_end(  upper_left_longitude, upper_left_latitude,
+                       width_in_degrees_longitude, height_in_degrees_latitude,
+                       20, 40, resolution );
   
   test_set.push_back( Plane( 0, plane_1_start, plane_1_end ) );
-  
-  vector< Plane > test_set1 = randomized_planes( num_planes );
+  test_set.push_back( Plane( 1, other_plane_start, other_plane_end ) );
+  test_set[0].setDestination(5, 5);
+  /*vector< Plane > test_set1 = randomized_planes( num_planes );
   vector< Plane > test_set2 = randomized_planes( num_planes );
   vector< Plane > test_set3 = randomized_planes( num_planes );
   vector< Plane > test_set4 = randomized_planes( num_planes );
@@ -147,7 +142,7 @@ int main()
   vector< Plane > test_set16 = randomized_planes( num_planes );
   vector< Plane > test_set17 = randomized_planes( num_planes );
   vector< Plane > test_set18 = randomized_planes( num_planes );
-  vector< Plane > test_set19 = randomized_planes( num_planes );
+  vector< Plane > test_set19 = randomized_planes( num_planes );*/
   
   double width_of_field = 
   map_tools::calculate_distance_between_points( upper_left_latitude, upper_left_longitude,
@@ -163,7 +158,8 @@ int main()
   
   cout << "Here, width is " << width_of_field << " and height is " << height_of_field << endl;
   
-  best_cost bc( &test_set, width_of_field, height_of_field, resolution, 0 );
+  best_cost bc( &test_set, width_of_field, height_of_field, resolution, 1 );
+  /*
   best_cost bc1( &test_set1, width_of_field, height_of_field, resolution, 2 );
   best_cost bc2( &test_set2, width_of_field, height_of_field, resolution, 2 );
   best_cost bc3( &test_set3, width_of_field, height_of_field, resolution, 2 );
@@ -183,13 +179,14 @@ int main()
   best_cost bc17( &test_set17, width_of_field, height_of_field, resolution, 2 );
   best_cost bc18( &test_set18, width_of_field, height_of_field, resolution, 2 );
   best_cost bc19( &test_set19, width_of_field, height_of_field, resolution, 2 );
+   */
 
   
-  bc1.dump( 0 );
+  bc.dump( 0 );
   
-  bc1.dump( 1 );
+  bc.dump( 5 );
   
-  bc1.dump( 2 );
+  bc.dump( 6 );
  
   seconds = time(NULL);
   cout << "End time:   " << seconds << endl;
