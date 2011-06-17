@@ -159,7 +159,7 @@ double map_tools::calculate_distance_between_points( double latitude_1, double l
 }
 
 double map_tools::matts_calculate_dist_between_pts( double lat1, double long1, 
-                                                   double lat2, double long2 )
+                                                    double lat2, double long2 )
 {
   double deltaLat = to_radians( lat2 - lat1 );
   double deltaLong = to_radians( long2 - long1);

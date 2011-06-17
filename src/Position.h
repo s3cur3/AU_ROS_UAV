@@ -81,13 +81,17 @@ bool Position::operator==(Position &equal)
 
 void Position::setLat(double l)
 {
-  //assert( l >= top_left_lat && l <= top_left_lat + latWidth );
+#ifdef DEBUG
+  assert( l <= top_left_lat );
+  assert( l >= top_left_lat + latWidth );
+#endif
   lat=l;
   y = latToY();
 #ifdef DEBUG
-  //assert( y >= 0 && y <= h );
+  assert( y >= 0 && y < h );
+  if( x == 46 && y == 42 ) // testing the bottom corner
+    cout << "(Lat, lon) at (46, 42) is (" << lat << ", " << lon << ")" << endl;
 #endif
-  //cout << "Set the y to " << y << endl;
 }
 double Position::getLat()
 	{return lat;}
@@ -103,13 +107,13 @@ void Position::setLon(double l)
 //  the_file << "top_left_lat:  " << top_left_lat << "\n";
 //  the_file << "lat:           " << lat << "\n";
 //  the_file.close();
-//  assert( l <= (top_left_long + lonWidth) );
-//  assert( l >= top_left_long );
+  assert( l <= (top_left_long + lonWidth) );
+  assert( l >= top_left_long );
 #endif
   lon=l;
   x = lonToX();
 #ifdef DEBUG
-//  assert( x >= 0 && x <= w );
+  assert( x >= 0 && x < w );
 #endif
 }
 double Position::getLon()
@@ -232,8 +236,17 @@ void Position::xy_to_latlon( double & out_lat, double & out_lon )
 
 int Position::lonToX()
 {
-  return map_tools::matts_calculate_dist_between_pts(top_left_lat, top_left_long,
-                                                     lat, lon ) / resolution;
+#ifdef DEBUG
+  int the_calc = (int)( ( map_tools::
+                         calculate_distance_between_points( top_left_lat, top_left_long,
+                                                            top_left_lat, lon, "meters") ) /
+                       resolution );
+  assert( the_calc >= 0 && the_calc < w );
+#endif
+  return (int)( ( map_tools::
+                 calculate_distance_between_points( top_left_lat, top_left_long,
+                                                   top_left_lat, lon, "meters") ) /
+               resolution );
   /*
 	return (int)( ( map_tools::
                     calculate_distance_between_points( top_left_lat, top_left_long,
@@ -243,15 +256,17 @@ int Position::lonToX()
 
 int Position::latToY()
 {
-
-  return map_tools::matts_calculate_dist_between_pts(top_left_lat, top_left_long,
-                                                     lat, lon ) / resolution;
-  /*
-   int the_y = (int)( ( map_tools::
+#ifdef DEBUG
+  int the_calc = (int)( ( map_tools::
+                         calculate_distance_between_points( top_left_lat, top_left_long,
+                                                           lat, top_left_long, "meters") ) /
+                       resolution );
+  assert( the_calc >= 0 && the_calc < w );
+#endif
+  return (int)( ( map_tools::
                       calculate_distance_between_points( top_left_lat, top_left_long,
-                                                         lat, lon, "meters") ) /
+                                                         lat, top_left_long, "meters") ) /
                      resolution );
-  return the_y;*/
 }
 
 // Needed to create a duplicate of a Position object

@@ -42,7 +42,7 @@ const double height_in_degrees_latitude = -0.003808;
 Position randomized_position()
 {
   double longitude = ( (double)( rand() % 5002 ) / 1000000 ) + upper_left_longitude;
-  double latitude = ( (double)( rand() % 3808 ) / 1000000 ) + upper_left_latitude;
+  double latitude = -( (double)( rand() % 3808 ) / 1000000 ) + upper_left_latitude;
   
   // cout << "Starting long " << longitude << endl << "Starting lat " << latitude << endl;
   
@@ -118,14 +118,14 @@ int main()
   plane_1_start.setXY( 20, 20 );
   cout << endl << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl << endl;
   
-  plane_1_start.setXY( 46, 43 );
+  plane_1_start.setXY( 46, 42 );
   cout << endl << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl << endl;
   
   // The farthest corner
   Position plane_1_end(  upper_left_longitude, upper_left_latitude,
                          width_in_degrees_longitude, height_in_degrees_latitude,
                          upper_left_longitude + width_in_degrees_longitude - 0.00001,
-                         upper_left_latitude + height_in_degrees_latitude - 0.00001, resolution );
+                         upper_left_latitude + height_in_degrees_latitude + 0.00001, resolution );
   
   test_set.push_back( Plane( 0, plane_1_start, plane_1_end ) );
   
