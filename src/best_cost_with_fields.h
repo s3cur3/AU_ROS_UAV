@@ -213,6 +213,21 @@ best_cost::best_cost( vector< Plane > * set_of_aircraft,
   n_sqrs_w = bc->get_width_in_squares();
   n_sqrs_h = bc->get_height_in_squares();
   
+#ifdef DEBUG
+  assert( mc->get_time_in_secs() < 100000 );
+  assert( mc->get_width_in_squares() < 100000 ); 
+  assert( mc->get_height_in_squares() < 100000 ); 
+  
+  assert( n_secs < 100000 );    // sizes larger than this can't be searched in
+  assert( n_sqrs_h < 100000 ); // anything resembling a reasonable amount of time
+  assert( n_sqrs_w < 100000 ); 
+  
+  assert( goal.x < n_sqrs_w );
+  assert( goal.y < n_sqrs_h );
+  assert( start.x < n_sqrs_w );
+  assert( start.y < n_sqrs_h );
+#endif
+  
   initialize_to_do_index();
 
   // Create a starting point for the minimization step

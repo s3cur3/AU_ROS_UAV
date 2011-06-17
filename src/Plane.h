@@ -94,8 +94,7 @@ void Plane::setFinalDestination(double lon, double lat)
 
 void Plane::setFinalDestination(int x, int y)
 {
-	finalDestination.setX(x);
-	finalDestination.setY(y);
+	finalDestination.setXY(x, y);
 }
 
 Position Plane::getFinalDestination()
@@ -105,8 +104,7 @@ Position Plane::getFinalDestination()
 
 void Plane::setDestination(int x, int y)
 {
-	destination.setX(x);
-	destination.setY(y);
+	destination.setXY(x, y);
 }
 
 double Plane::getBearing()
@@ -125,7 +123,7 @@ void Plane::calculateBearing()
 		double lat1=current.getLat()*DEGREEStoRAD;
 	
 		double deltalon=lon1-lon0;
-		double deltalat=lat1-lat0;
+		// double deltalat=lat1-lat0; // don't need this!
 	
 		double y = sin(deltalon)*cos(lat1);
 		double x = cos(lat0)*sin(lat1) - sin(lat0)*cos(lat1)*cos(deltalon);

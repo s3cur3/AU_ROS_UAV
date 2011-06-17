@@ -384,7 +384,7 @@ void map::dump( ) const
           if( (the_map[ left_index ][ right_index ].danger)*mult - mult > -EPSILON )
             csv << (int)( (the_map[ left_index ][ right_index ].danger) * mult ) << ",";
           else
-            csv << (int)( (the_map[ left_index ][ right_index ].danger)*mult ) << ",";
+            csv << int( (the_map[ left_index ][ right_index ].danger)*mult ) << ",";
         }
       }
       csv << "\n";

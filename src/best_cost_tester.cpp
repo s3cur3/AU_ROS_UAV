@@ -106,7 +106,21 @@ int main()
   // The origin
   Position plane_1_start( upper_left_longitude, upper_left_latitude,
                           width_in_degrees_longitude, height_in_degrees_latitude,
-                          upper_left_longitude, upper_left_latitude, resolution );
+                          0, 0, resolution );
+  cout << endl << "Pos is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl << endl;
+
+  plane_1_start.setXY( 0, 20 );
+  cout << endl << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl << endl;
+  
+  plane_1_start.setXY( 12, 12 );
+  cout << endl << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl << endl;
+  
+  plane_1_start.setXY( 20, 20 );
+  cout << endl << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl << endl;
+  
+  plane_1_start.setXY( 46, 43 );
+  cout << endl << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl << endl;
+  
   // The farthest corner
   Position plane_1_end(  upper_left_longitude, upper_left_latitude,
                          width_in_degrees_longitude, height_in_degrees_latitude,
@@ -114,7 +128,6 @@ int main()
                          upper_left_latitude + height_in_degrees_latitude - 0.00001, resolution );
   
   test_set.push_back( Plane( 0, plane_1_start, plane_1_end ) );
-  
   
   vector< Plane > test_set1 = randomized_planes( num_planes );
   vector< Plane > test_set2 = randomized_planes( num_planes );

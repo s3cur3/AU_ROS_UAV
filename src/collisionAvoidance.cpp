@@ -17,6 +17,7 @@
 #include "best_cost_with_fields.h"
 #include "astar_point.cpp"
 #include "telemetry_data_out.h"
+#include "Position.h"
 
 //ROS headers
 #include "ros/ros.h"
@@ -234,16 +235,16 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 	if( (forSparta.x!=startx&&forSparta.y!=starty)&&(forSparta.x!=endx&&forSparta.y!=endy))
 	{
 		
-		double lon=forSparta.x*( lonWidth / current.getWidth())+upperLeftLon;
-		double lat=forSparta.y*( latWidth / current.getHeight())+upperLeftLat;
-
+		//double lon=forSparta.x*( lonWidth / current.getWidth())+upperLeftLon;//too euclidian for our rounded egg like blue planet
+		//double lat=forSparta.y*( latWidth / current.getHeight())+upperLeftLat;
+    Position aStar(upperLeftLon,upperLeftLat,lonWidth,latWidth,forSparta.x,forSparta.y,res);
+		
 		srv.request.planeID = planeId;
-		srv.request.longitude = lon;
-		srv.request.latitude = lat;
+		srv.request.longitude = aStar.getLon();
+		srv.request.latitude = aStar.getLat();
 		srv.request.altitude = goalSrv.response.altitude;//? not sure if this is allowed but hey i like cheating
 
-		next.setX(forSparta.x);
-		next.setY(forSparta.y);
+		next.setXY(forSparta.x, forSparta.y);
 
 		//these settings mean it is an avoidance maneuver waypoint AND to clear the avoidance queue(if there was a new plane)
 		srv.request.isAvoidanceManeuver = true;

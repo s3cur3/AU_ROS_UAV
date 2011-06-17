@@ -216,7 +216,7 @@ private:
    * estimates represent a "spread" of probable locations where the
    * aircraft may be at a given second in the future.
    */
-  vector< estimate > calculate_future_pos( Plane & the_plane );
+  vector< estimate > calculate_future_pos( Plane & the_plane, int & time );
   
   /**
    * Converts a bearing in degrees to a "named" version, for use in deciding which
@@ -239,7 +239,7 @@ private:
   void neighoboringAngles(double angle, double &first, double &second);
   void placeDanger(double angle, vector<estimate> &e, double closest, double other,
                    int x, int y, double danger);//places the data into the estimate struct
-  void dangerRecurse(estimate e, int destination[], vector<estimate> &theFuture);
+  void dangerRecurse(estimate e, int destination[], vector<estimate> &theFuture, int & time);
   
   // the weighting applied to danger estimates in the future
   vector< double > danger_ratings;
@@ -343,6 +343,7 @@ void danger_grid::fill_danger_space( const natural plane_id )
   }
   
   vector< estimate > est;
+  vector< estimate > second_est;
   danger_grid::bearing_t bearing;
   
   // Fill the danger_space for times in the past
@@ -354,7 +355,9 @@ void danger_grid::fill_danger_space( const natural plane_id )
     if( (*current_plane).getId() != (int)plane_id )
     {
       // Get the estimated danger for relevant squares in the map at this time
-      est = calculate_future_pos( *current_plane );
+      int time = 0;
+      est = calculate_future_pos( *current_plane, time );
+      second_est = calculate_future_pos( *current_plane, time );
       
       bearing = name_bearing( (*current_plane).getBearing() );
       
@@ -573,20 +576,31 @@ vector< map > danger_grid::get_danger_space() const
   return danger_space;
 }
 
-vector< estimate > danger_grid::calculate_future_pos( Plane & plane )
+vector< estimate > danger_grid::calculate_future_pos( Plane & plane, int &time )
 {
   
   vector< estimate > theFuture;
-  
-  Position current=plane.getLocation();
-  Position destination=plane.getFinalDestination();
-  
+
+  Position current, destination;
+  if(time==0)//meaning that the plane is now moving towards it's next goal be it an avoidance point or a final destination
+	{
+  	current=plane.getLocation();
+  	destination=plane.getDestination();
+  }
+	else//will always be called twice. if it moving to its final goal the distance will be 0 and it will break out immediatly
+	{
+		destination=plane.getFinalDestination();
+		current=plane.getDestination();  
+	}
+
   //distance formula: line to destination
   int x1=current.getX(),x2=destination.getX(),y1=current.getY(),y2=destination.getY();
   double xDistance=( fabs((double)x2-x1) ),yDistance=( fabs((double)y2-y1) );
   double distance = sqrt((double)(xDistance*xDistance)+(yDistance*yDistance));
-  if(xDistance==0&&yDistance==0)//your there!!!!!!!(hopefully)
+
+  if(xDistance==0&&yDistance==0)//your there!!!!!!!(hopefully) or your next destination was your goal
   {return theFuture;}
+
   //find the angle to the waypoint
   double angle=(180-RADtoDEGREES*(asin((double)xDistance/(double)distance)));
   if(y2<y1)
@@ -618,14 +632,15 @@ vector< estimate > danger_grid::calculate_future_pos( Plane & plane )
   //start the branching
   int dest[2]={x2,y2};//can't pass it without a name :(
   if(theFuture.back().danger>.3)
-    dangerRecurse(theFuture.back(), dest, theFuture);
+    dangerRecurse(theFuture.back(), dest, theFuture, time);
   theFuture.push_back(estimate(0,0,-1));
-  dangerRecurse(theFuture[theFuture.size()-3],dest,theFuture);
+	time++;
+  dangerRecurse(theFuture[theFuture.size()-3],dest,theFuture,time);
   
   return theFuture;
 }
 
-void danger_grid::dangerRecurse(estimate e, int destination[], vector<estimate> &theFuture)
+void danger_grid::dangerRecurse(estimate e, int destination[], vector<estimate> &theFuture,int &time)
 {
   
   int x1=e.x;
@@ -669,11 +684,12 @@ void danger_grid::dangerRecurse(estimate e, int destination[], vector<estimate> 
   
   //brance it up now
   if(theFuture.back().danger>.3)
-    dangerRecurse(theFuture.back(), dest, theFuture);
+    dangerRecurse(theFuture.back(), dest, theFuture, time);
   //add time--still a slight issue as the branches don't exist in time but should not be too major--
+	time++;
   theFuture.push_back(estimate(0,0,-1));
   //default branch
-  dangerRecurse(theFuture[theFuture.size()-3],dest,theFuture);
+  dangerRecurse(theFuture[theFuture.size()-3],dest,theFuture, time);
   
   
 }

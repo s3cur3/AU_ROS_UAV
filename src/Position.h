@@ -35,8 +35,6 @@ private:
  	double width_in_meters;
  	double height_in_meters;
 	//functions for converting between systems
-	double xToLon();
-	double yToLat();
 	int lonToX();
 	int latToY();
     
@@ -47,10 +45,11 @@ private:
   void set_up_grid_parms();
     	
 public:
+  void xy_to_latlon( double & out_lat, double & out_lon );
+  void setXY(int x1, int y1);
+
 	void setLat(double l);
 	void setLon(double l);
-	void setX(int l);
-	void setY(int l);
 	//the preceding methods can be used interchangebly as setX also sets the longitude and so forth
 	//note there will be some error if using x and y mainly as they only can convert to
   //the longitude and latitude of the top left of their block
@@ -115,30 +114,29 @@ void Position::setLon(double l)
 }
 double Position::getLon()
 	{return lon;}
-	
-void Position::setX(int l) // TY changed this to accept an int instead of a double, 
-{                           // per the function prototype TC wrote above
-#ifdef DEBUG
-//  assert( l >= 0 && l <= w );
-#endif
-  x=l;
-  lon = xToLon();
-}
-int Position::getX() // TY changed this to return an int instead of a double
-	{return lonToX();}
-	
-void Position::setY(int l) // TY changed this to accept an int instead of a double
-{ 
-#ifdef DEBUG
-//  assert( l >= 0 && l <= h ); ////////////////////////////////////////////////////////// FIX ALL THESE ASSERTS LATER!
-#endif
-  y=l;
-  lat = yToLat();
-}
-int Position::getY() // TY changed this to return an int instead of a double
-	{return latToY();}
 
-	
+int Position::getX() // TY changed this to return an int instead of a double
+	{return x;}
+
+int Position::getY() // TY changed this to return an int instead of a double
+{return y;}
+
+void Position::setXY(int x1, int y1)
+{
+#ifdef DEBUG
+  assert( y1 >= 0 && y1 <= h );
+  assert( x1 >= 0 && x1 <= w );
+#endif
+  x=x1;
+  y=y1;
+//  cout << "You just set (x,y) to (" << x << ", " << y << ")" << endl;
+//  cout<<lat<<"    "<<lon<<endl;
+  xy_to_latlon( lat, lon );
+//  cout<<lat<<"   "<<lon<<endl;
+//  cout << "Dist between points " << ( map_tools::calculate_distance_between_points( top_left_lat, top_left_long,
+//                                                        lat, lon, "meters") ) << endl;
+//  cout << endl << endl << "Pos in Position is " << x << ", " << y;
+}
 Position::Position(double upperLeftLongitude, double upperLeftLatitude, 
                    double lonwidth, double latwidth)
 {
@@ -159,7 +157,7 @@ Position::Position(double upperLeftLongitude, double upperLeftLatitude,
 	lonWidth=lonwidth;
 	latWidth=latwidth;
   resolution = resolution_to_use;
-    
+  
   set_up_grid_parms();
 }
 
@@ -206,45 +204,54 @@ Position::Position(double upperLeftLongitude, double upperLeftLatitude,
 	latWidth=latwidth;
 
   resolution = res;
-    
+  lat=0;
+  lon=0;
   set_up_grid_parms();
-
-  setX(x1);
-	setY(y1);
+  setXY(x1,y1); // changes latitude and longitude
 }
 	
-double Position::xToLon()
+void Position::xy_to_latlon( double & out_lat, double & out_lon )
 {
-    return ((double)(x)*( lonWidth /w)+top_left_long);
-}
+  double d_from_origin_to_pt = resolution * sqrt( x*x + y*y );
+//  cout << "In pos, dist is " << d_from_origin_to_pt << endl;
 
-double Position::yToLat()
-{
-	return ((double)(y)*( latWidth / h)+top_left_lat);
+  double bearing_between_pts;
+  if( d_from_origin_to_pt == 0 )
+    bearing_between_pts = 0;
+  else
+    bearing_between_pts = 90 + (RADtoDEGREES * asin( y*resolution / d_from_origin_to_pt ));
+  
+//  cout << "In Pos, bearing is " << bearing_between_pts << endl;
+//  map_tools::calculate_point( top_left_lat, top_left_long, 
+//                              d_from_origin_to_pt, bearing_between_pts,
+//                              out_lat, out_lon );
+#ifdef DEBUG
+  assert( d_from_origin_to_pt > -EPSILON ); // non-negative
+#endif
 }
 
 int Position::lonToX()
 {
+  return map_tools::matts_calculate_dist_between_pts(top_left_lat, top_left_long,
+                                                     lat, lon ) / resolution;
+  /*
 	return (int)( ( map_tools::
                     calculate_distance_between_points( top_left_lat, top_left_long,
-                                                       top_left_lat, lon, "meters") ) /
-                resolution );
+                                                       lat, lon, "meters") ) /
+                resolution );*/
 }
 
 int Position::latToY()
 {
 
-  int the_y = (int)( ( map_tools::
+  return map_tools::matts_calculate_dist_between_pts(top_left_lat, top_left_long,
+                                                     lat, lon ) / resolution;
+  /*
+   int the_y = (int)( ( map_tools::
                       calculate_distance_between_points( top_left_lat, top_left_long,
-                                                         lat, top_left_long, "meters") ) /
-                    resolution );
- /* cout << "      The latitude " << lat << " corresponds to y = " << the_y << endl;
-  cout << "      Top left lat " << top_left_lat << endl;
-  cout << "         lat width  " << latWidth << endl;
-  cout << "        top rt lat " << top_left_lat + latWidth << endl;
-  cout << "                 w " << w << endl;*/
-  //return (int)(lat * latWidth * w);
-  return the_y;
+                                                         lat, lon, "meters") ) /
+                     resolution );
+  return the_y;*/
 }
 
 // Needed to create a duplicate of a Position object
@@ -272,7 +279,7 @@ void Position::set_up_grid_parms()
   
   top_right_lat = top_left_lat;
   top_right_long = top_left_long + lonWidth;
-  btm_left_lat = top_left_lat - latWidth;
+  btm_left_lat = top_left_lat + latWidth;
   btm_left_long = top_left_long;
   
   width_in_meters = 
