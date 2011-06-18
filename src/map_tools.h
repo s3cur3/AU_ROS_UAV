@@ -221,8 +221,6 @@ void map_tools::calculate_point( double latitude_1, double longitude_1,
 double map_tools::calculateBearing( double latitude_1, double longitude_1, 
                                     double latitude_2, double longitude_2 )
 {
-  double bearing;
-  
   latitude_1 = to_radians( latitude_1 );
   latitude_2 = to_radians( latitude_2 );
   longitude_1 = to_radians( longitude_1 );
@@ -237,9 +235,7 @@ double map_tools::calculateBearing( double latitude_1, double longitude_1,
 
 double map_tools::calculate_bearing_in_rad( double latitude_1, double longitude_1, 
                                             double latitude_2, double longitude_2 )
-{
-  double bearing;
-  
+{  
   latitude_1 = to_radians( latitude_1 );
   latitude_2 = to_radians( latitude_2 );
   longitude_1 = to_radians( longitude_1 );

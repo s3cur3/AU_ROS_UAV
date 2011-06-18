@@ -88,6 +88,11 @@ public:
                const double height, const double resolution, const natural plane_id );
   
   /**
+   * The destructor for the danger_grid object
+   */
+  ~danger_grid();
+  
+  /**
    * The copy constructor; takes a reference to a danger grid and makes this object
    * a duplicate.
    * @param mc A reference to another danger grid
@@ -102,6 +107,14 @@ public:
    * @return a double containing the square's "danger" rating
    */
   double get_danger_at( unsigned int x_pos, unsigned int y_pos, int seconds ) const;
+  
+  /**
+   * Return the danger cost + distance to goal from a given square
+   * @param x_pos the x position of the square in question
+   * @param y_pos the y position of the square in question
+   * @return a double containing the square's cost (danger + dist. to goal)
+   */
+  double get_dist_cost_at( unsigned int x_pos, unsigned int y_pos ) const;
   
   /**
    * Adds to the danger rating of a square
@@ -139,6 +152,7 @@ public:
   unsigned int get_height_in_squares() const;
   unsigned int get_time_in_secs() const;
   vector< map > get_danger_space() const;
+  double get_res() const;
   
   /**
    * Modifies the map to store the cost of the path which begins at each square and
@@ -265,11 +279,16 @@ private:
   
   // The danger space is a bit strange due to the fact that it's an array of maps,
   // where each position in the array corresponds to a time.
-  vector< map > danger_space;
+  vector< map > * danger_space;
   
 #ifdef OVERLAYED
   vector< map > overlayed; // Used only when dumping output
 #endif
+  
+  double map_res;
+  
+  map * dist_map;
+  bool distance_costs_initialized;
 };
 
 /* This isn't ever used...
@@ -305,6 +324,9 @@ danger_grid::danger_grid( vector< Plane > * set_of_aircraft, const double width,
                           const natural plane_id )
 {
   aircraft = set_of_aircraft;
+  map_res = resolution;
+  distance_costs_initialized = false;
+  
 #ifdef DEBUG
   assert( set_of_aircraft->size() != 0 );
   assert( resolution > EPSILON );
@@ -320,13 +342,11 @@ danger_grid::danger_grid( vector< Plane > * set_of_aircraft, const double width,
 #ifdef OVERLAYED
   overlayed.push_back( map( width, height, resolution ) );
 #endif
- 
-  for( unsigned int i = 0; i <= (look_ahead + look_behind); i++ )
-  {
-    map set_up( width, height, resolution );
-    danger_space.push_back( set_up );
-  } // danger_space is now a set of maps, with one map for each second in time that
-   // we will work with.
+
+  map set_up( width, height, resolution );
+  // Make danger_space a set of maps, with one map for each second in time that
+  // we will work with.
+  danger_space = new vector< map >( look_ahead + look_behind + 1, set_up );
 
   // Set up the danger ratings
   set_danger_scale( );
@@ -337,7 +357,16 @@ danger_grid::danger_grid( vector< Plane > * set_of_aircraft, const double width,
 
 danger_grid::danger_grid( const danger_grid * dg)
 {  
-  danger_space = dg->get_danger_space();
+  danger_space = new vector< map >( dg->get_danger_space() );
+}
+
+danger_grid::~danger_grid()
+{
+  if( distance_costs_initialized )
+  {
+    delete dist_map;
+  }
+  delete danger_space;
 }
 
 void danger_grid::fill_danger_space( const natural plane_id )
@@ -347,7 +376,7 @@ void danger_grid::fill_danger_space( const natural plane_id )
   {
     if( (*current_plane).getId() != (int)plane_id ) // this isn't the owner of the DG
     {
-      danger_space[0 + look_behind].
+      (*danger_space)[0 + look_behind].
         add_danger_at( (*current_plane).getLocation().getX(),
                        (*current_plane).getLocation().getY(), 1.0);
     }
@@ -398,9 +427,9 @@ void danger_grid::fill_danger_space( const natural plane_id )
         {
           // If these are legal xs and ys, and if the danger is not a "timestamp" divider
           if( (*current_est).x >= 0 && (*current_est).x <
-              (int)danger_space[0].get_width_in_squares() &&
+              (int)( (*danger_space)[0].get_width_in_squares() ) &&
               (*current_est).y >= 0 &&
-              (*current_est).y < (int)danger_space[0].get_height_in_squares() &&
+              (*current_est).y < (int)( (*danger_space)[0].get_height_in_squares() ) &&
               (*current_est).danger > -(EPSILON) )
           {
             // Set the danger of the square based on what
@@ -411,7 +440,7 @@ void danger_grid::fill_danger_space( const natural plane_id )
             natural y = (*current_est).y;
             double d = (*current_est).danger * adjust_danger( t );
             
-            danger_space[ time ].add_danger_at( x, y, d );
+            (*danger_space)[ time ].add_danger_at( x, y, d );
             
             // . . . and then add a bit of "fuzziness" (danger around the predicted
             // square, so that other planes don't come too close)
@@ -440,9 +469,9 @@ void danger_grid::fill_danger_space( const natural plane_id )
         {
           // If these are legal xs and ys, and if the danger is not a "timestamp" divider
           if( (*current_est).x >= 0 && (*current_est).x <
-             (int)danger_space[0].get_width_in_squares() &&
+             (int)( (*danger_space)[0].get_width_in_squares() ) &&
              (*current_est).y >= 0 &&
-             (*current_est).y < (int)danger_space[0].get_height_in_squares() &&
+             (*current_est).y < (int)( (*danger_space)[0].get_height_in_squares() ) &&
              (*current_est).danger > -(EPSILON) )
           {
             // Set the danger of the square based on what
@@ -453,7 +482,7 @@ void danger_grid::fill_danger_space( const natural plane_id )
             natural y = (*current_est).y;
             double d = (*current_est).danger * adjust_danger( t );
             
-            danger_space[ time ].add_danger_at( x, y, d );
+            (*danger_space)[ time ].add_danger_at( x, y, d );
             
             // . . . and then add a bit of "fuzziness" (danger around the predicted
             // square, so that other planes don't come too close)
@@ -486,99 +515,99 @@ void danger_grid::set_danger_field( double bearing, double unweighted_danger,
   {
     case N:
       // straight left
-      danger_space[ time ].safely_add_danger_at( x - 1,   y  , d );
+      (*danger_space)[ time ].safely_add_danger_at( x - 1,   y  , d );
       // dag left+up
-      danger_space[ time ].safely_add_danger_at( x - 1, y - 1, d );
+      (*danger_space)[ time ].safely_add_danger_at( x - 1, y - 1, d );
       // straight up
-      danger_space[ time ].safely_add_danger_at(   x  , y - 1, d );
+      (*danger_space)[ time ].safely_add_danger_at(   x  , y - 1, d );
       // dag right+up
-      danger_space[ time ].safely_add_danger_at( x + 1, y - 1, d );
+      (*danger_space)[ time ].safely_add_danger_at( x + 1, y - 1, d );
       // straight right
-      danger_space[ time ].safely_add_danger_at( x + 1,   y  , d );
+      (*danger_space)[ time ].safely_add_danger_at( x + 1,   y  , d );
       break;
     case NE:
       // dag left+up
-      danger_space[ time ].safely_add_danger_at( x - 1, y - 1, d );
+      (*danger_space)[ time ].safely_add_danger_at( x - 1, y - 1, d );
       // straight up
-      danger_space[ time ].safely_add_danger_at(   x  , y - 1, d );
+      (*danger_space)[ time ].safely_add_danger_at(   x  , y - 1, d );
       // dag right+up
-      danger_space[ time ].safely_add_danger_at( x + 1, y - 1, d );
+      (*danger_space)[ time ].safely_add_danger_at( x + 1, y - 1, d );
       // straight right
-      danger_space[ time ].safely_add_danger_at( x + 1,   y  , d );
+      (*danger_space)[ time ].safely_add_danger_at( x + 1,   y  , d );
       // dag right+down
-      danger_space[ time ].safely_add_danger_at( x + 1, y + 1, d );
+      (*danger_space)[ time ].safely_add_danger_at( x + 1, y + 1, d );
       break;
     case E:
       // straight up
-      danger_space[ time ].safely_add_danger_at(   x  , y - 1, d );
+      (*danger_space)[ time ].safely_add_danger_at(   x  , y - 1, d );
       // dag right+up
-      danger_space[ time ].safely_add_danger_at( x + 1, y - 1, d );
+      (*danger_space)[ time ].safely_add_danger_at( x + 1, y - 1, d );
       // straight right
-      danger_space[ time ].safely_add_danger_at( x + 1,   y  , d );
+      (*danger_space)[ time ].safely_add_danger_at( x + 1,   y  , d );
       // dag right+down
-      danger_space[ time ].safely_add_danger_at( x + 1, y + 1, d );
+      (*danger_space)[ time ].safely_add_danger_at( x + 1, y + 1, d );
       // straight down
-      danger_space[ time ].safely_add_danger_at(   x  , y + 1, d );
+      (*danger_space)[ time ].safely_add_danger_at(   x  , y + 1, d );
       break;
     case SE:
       // dag right+up
-      danger_space[ time ].safely_add_danger_at( x + 1, y - 1, d );
+      (*danger_space)[ time ].safely_add_danger_at( x + 1, y - 1, d );
       // straight right
-      danger_space[ time ].safely_add_danger_at( x + 1,   y  , d );
+      (*danger_space)[ time ].safely_add_danger_at( x + 1,   y  , d );
       // dag right+down
-      danger_space[ time ].safely_add_danger_at( x + 1, y + 1, d );
+      (*danger_space)[ time ].safely_add_danger_at( x + 1, y + 1, d );
       // straight down
-      danger_space[ time ].safely_add_danger_at(   x  , y + 1, d );
+      (*danger_space)[ time ].safely_add_danger_at(   x  , y + 1, d );
       // dag left+down
-      danger_space[ time ].safely_add_danger_at( x - 1, y + 1, d );
+      (*danger_space)[ time ].safely_add_danger_at( x - 1, y + 1, d );
       break;
     case S:
       // straight right
-      danger_space[ time ].safely_add_danger_at( x + 1,   y  , d );
+      (*danger_space)[ time ].safely_add_danger_at( x + 1,   y  , d );
       // dag right+down
-      danger_space[ time ].safely_add_danger_at( x + 1, y + 1, d );
+      (*danger_space)[ time ].safely_add_danger_at( x + 1, y + 1, d );
       // straight down
-      danger_space[ time ].safely_add_danger_at(   x  , y + 1, d );
+      (*danger_space)[ time ].safely_add_danger_at(   x  , y + 1, d );
       // dag left+down
-      danger_space[ time ].safely_add_danger_at( x - 1, y + 1, d );
+      (*danger_space)[ time ].safely_add_danger_at( x - 1, y + 1, d );
       // straight left
-      danger_space[ time ].safely_add_danger_at( x - 1,   y  , d );
+      (*danger_space)[ time ].safely_add_danger_at( x - 1,   y  , d );
       break;
     case SW:
       // dag right+down
-      danger_space[ time ].safely_add_danger_at( x + 1, y + 1, d );
+      (*danger_space)[ time ].safely_add_danger_at( x + 1, y + 1, d );
       // straight down
-      danger_space[ time ].safely_add_danger_at(   x  , y + 1, d );
+      (*danger_space)[ time ].safely_add_danger_at(   x  , y + 1, d );
       // dag left+down
-      danger_space[ time ].safely_add_danger_at( x - 1, y + 1, d );
+      (*danger_space)[ time ].safely_add_danger_at( x - 1, y + 1, d );
       // straight left
-      danger_space[ time ].safely_add_danger_at( x - 1,   y  , d );
+      (*danger_space)[ time ].safely_add_danger_at( x - 1,   y  , d );
       // dag left+up
-      danger_space[ time ].safely_add_danger_at( x - 1, y - 1, d );
+      (*danger_space)[ time ].safely_add_danger_at( x - 1, y - 1, d );
       break;
     case W:
       // straight down
-      danger_space[ time ].safely_add_danger_at(   x  , y + 1, d );
+      (*danger_space)[ time ].safely_add_danger_at(   x  , y + 1, d );
       // dag left+down
-      danger_space[ time ].safely_add_danger_at( x - 1, y + 1, d );
+      (*danger_space)[ time ].safely_add_danger_at( x - 1, y + 1, d );
       // straight left
-      danger_space[ time ].safely_add_danger_at( x - 1,   y  , d );
+      (*danger_space)[ time ].safely_add_danger_at( x - 1,   y  , d );
       // dag left+up
-      danger_space[ time ].safely_add_danger_at( x - 1, y - 1, d );
+      (*danger_space)[ time ].safely_add_danger_at( x - 1, y - 1, d );
       // straight up
-      danger_space[ time ].safely_add_danger_at(   x  , y - 1, d );
+      (*danger_space)[ time ].safely_add_danger_at(   x  , y - 1, d );
       break;
     case NW:
       // dag left+down
-      danger_space[ time ].safely_add_danger_at( x - 1, y + 1, d );
+      (*danger_space)[ time ].safely_add_danger_at( x - 1, y + 1, d );
       // straight left
-      danger_space[ time ].safely_add_danger_at( x - 1,   y  , d );
+      (*danger_space)[ time ].safely_add_danger_at( x - 1,   y  , d );
       // dag left+up
-      danger_space[ time ].safely_add_danger_at( x - 1, y - 1, d );
+      (*danger_space)[ time ].safely_add_danger_at( x - 1, y - 1, d );
       // straight up
-      danger_space[ time ].safely_add_danger_at(   x  , y - 1, d );
+      (*danger_space)[ time ].safely_add_danger_at(   x  , y - 1, d );
       // dag right+up
-      danger_space[ time ].safely_add_danger_at( x + 1, y - 1, d );
+      (*danger_space)[ time ].safely_add_danger_at( x + 1, y - 1, d );
       break;
   } // end switch case
 }
@@ -594,35 +623,35 @@ double danger_grid::get_danger_at( unsigned int x_pos, unsigned int y_pos,
                                    int seconds ) const
 {
 #ifdef DEBUG
-  assert( seconds < (int)( danger_space.size() - look_behind ) );
+  assert( seconds < (int)( danger_space->size() - look_behind ) );
   assert( seconds >= -(int)look_behind );
   assert( x_pos < UINT_MAX && y_pos < UINT_MAX );
 #endif
-  return danger_space[ seconds + look_behind ].get_danger_at( x_pos, y_pos );
+  return (*danger_space)[ seconds + look_behind ].get_danger_at( x_pos, y_pos );
 }
 
 void danger_grid::add_danger_at( unsigned int x_pos, unsigned int y_pos, int seconds,
                                  double danger )
 {
 #ifdef DEBUG
-  assert( seconds < (int)( danger_space.size() - look_behind ) );
+  assert( seconds < (int)( danger_space->size() - look_behind ) );
   assert( seconds >= -(int)look_behind );
   assert( x_pos < UINT_MAX && y_pos < UINT_MAX );
   assert( danger > -1.0 );
 #endif
-  danger_space[ seconds + look_behind ].add_danger_at( x_pos, y_pos, danger );
+  (*danger_space)[ seconds + look_behind ].add_danger_at( x_pos, y_pos, danger );
 }
 
 void danger_grid::set_danger_at( unsigned int x_pos, unsigned int y_pos, int seconds,
                                  double danger )
 {
 #ifdef DEBUG
-  assert( seconds < (int)( danger_space.size() - look_behind ) );
+  assert( seconds < (int)( danger_space->size() - look_behind ) );
   assert( seconds >= -(int)look_behind );
   assert( x_pos < UINT_MAX && y_pos < UINT_MAX );
   assert( danger > -1.0 );
 #endif
-  danger_space[ seconds + look_behind ].set_danger_at( x_pos, y_pos, danger );
+  (*danger_space)[ seconds + look_behind ].set_danger_at( x_pos, y_pos, danger );
 }
 
 double danger_grid::adjust_danger( int seconds ) const
@@ -637,12 +666,12 @@ double danger_grid::operator()( unsigned int x, unsigned int y, int time ) const
 
 unsigned int danger_grid::get_width_in_squares() const
 {
-  return danger_space[ 0 ].get_width_in_squares();
+  return (*danger_space)[ 0 ].get_width_in_squares();
 }
 
 unsigned int danger_grid::get_height_in_squares() const
 {
-  return danger_space[ 0 ].get_height_in_squares();
+  return (*danger_space)[ 0 ].get_height_in_squares();
 }
 
 unsigned int danger_grid::get_time_in_secs() const
@@ -650,9 +679,14 @@ unsigned int danger_grid::get_time_in_secs() const
   return look_ahead;
 }
 
+double danger_grid::get_res() const
+{
+  return (*danger_space)[ 0 ].get_resolution();
+}
+
 vector< map > danger_grid::get_danger_space() const
 {
-  return danger_space;
+  return (*danger_space);
 }
 
 vector< estimate > danger_grid::calculate_future_pos( Plane & plane, int &time )
@@ -947,28 +981,63 @@ void danger_grid::calculate_distance_costs( unsigned int goal_x, unsigned int go
 }
 
 void danger_grid::calculate_distance_costs( unsigned int goal_x, unsigned int goal_y,
-                                            double danger_adjust)
+                                            double danger_adjust )
 {
+  // This will store the cost of travelling from each square to the goal
+  dist_map = new map( get_width_in_squares() * get_res(), get_height_in_squares() * get_res(),
+                      get_res() );
+  
+  for( unsigned int crnt_x = 0; crnt_x <  get_width_in_squares(); crnt_x++ )
+  {
+    for( unsigned int crnt_y = 0; crnt_y < get_height_in_squares(); crnt_y++ )
+    {
+      dist_map->set_danger_at(crnt_x, crnt_y, sqrt( (crnt_x - goal_x)*(crnt_x - goal_x) + 
+                         (crnt_y - goal_y)*(crnt_y - goal_y) ) );
+    }
+  }
+  
+  distance_costs_initialized = true;
+  
+  vector< map > * old_danger_space = danger_space;
+  danger_space = new vector< map >( look_ahead + look_behind + 1, (*dist_map) );
+  
   for( unsigned int crnt_x = 0; crnt_x <  get_width_in_squares(); crnt_x++ )
   {
     for( unsigned int crnt_y = 0; crnt_y < get_height_in_squares(); crnt_y++ )
     {
       for( unsigned int crnt_t = 0; crnt_t < look_ahead; crnt_t++ )
       {
-        double crnt_danger = danger_space[ crnt_t ].get_danger_at( crnt_x, crnt_y );
-        double dist = sqrt( (crnt_x - goal_x)*(crnt_x - goal_x) + 
-                           (crnt_y - goal_y)*(crnt_y - goal_y) );
-        danger_space[crnt_t].set_danger_at( crnt_x, crnt_y,
-                                 danger_adjust * crnt_danger + dist );
+        double crnt_danger = (*old_danger_space)[ crnt_t ].get_danger_at( crnt_x, crnt_y );
+        if( crnt_danger > EPSILON )
+        {
+          (*danger_space)[crnt_t].set_danger_at( crnt_x, crnt_y,
+                                             danger_adjust * crnt_danger + 
+                                             dist_map->get_danger_at( crnt_x, crnt_y ) );
+        }
       }
     }
   }
+  delete old_danger_space;
+}
+
+double danger_grid::get_dist_cost_at( unsigned int x_pos, unsigned int y_pos ) const
+{
+  if( distance_costs_initialized )
+  {
+    return dist_map->get_danger_at(x_pos, y_pos);
+  }
+#ifdef DEBUG
+  else
+  {
+    assert( false );
+  }
+#endif
 }
 
 void danger_grid::dump( int time ) const
 {
 #ifdef DEBUG
-  assert( time + (int)look_behind < (int)( danger_space.size() ) || time == 10000 );
+  assert( time + (int)look_behind < (int)( danger_space->size() ) || time == 10000 );
 #endif
   
   if( time == 10000 )
@@ -980,14 +1049,14 @@ void danger_grid::dump( int time ) const
   else
   {
     // the meat of the dump is performed by the map class
-    danger_space[ time + look_behind ].dump();
+    (*danger_space)[ time + look_behind ].dump();
   }
 }
 
 void danger_grid::dump_big_numbers( int time ) const
 {
 #ifdef DEBUG
-  assert( time + (int)look_behind < (int)( danger_space.size() ) || time == 10000 );
+  assert( time + (int)look_behind < (int)( danger_space->size() ) || time == 10000 );
 #endif
   
   if( time == 10000 )
@@ -999,7 +1068,7 @@ void danger_grid::dump_big_numbers( int time ) const
   else
   {
     // the meat of the dump is performed by the map class
-    danger_space[ time + look_behind ].dump_big_numbers();
+    (*danger_space)[ time + look_behind ].dump_big_numbers();
   }
 }
 

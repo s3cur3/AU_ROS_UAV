@@ -310,10 +310,8 @@ void best_cost::initialize_path( )
     for( int t = n_secs; t >= 0; t-- )
     { //              This isn't quite right . . . FIX ME! /////////////////////////////////////////////////////////////////////////////////////////
       double danger = (*mc)( x_to_set, y_to_set, t );
-      double dist = sqrt( (x_to_set - goal.x)*(x_to_set - goal.x) + 
-                         (y_to_set - goal.y)*(y_to_set - goal.y) );
-      bc->set_danger_at( x_to_set, y_to_set, t,
-                        danger_adjust * danger + dist );
+      bc->set_danger_at( x_to_set, y_to_set, t, danger_adjust * danger +
+                         bc->get_dist_cost_at( x_to_set, y_to_set ) );
       // This (x, y, t) coordinate can change the best cost of its neighbors; check later
       to_do.push_back( coord( x_to_set, y_to_set, t ) );
       in_to_do[ x_to_set ][ y_to_set ][ t ] = true;

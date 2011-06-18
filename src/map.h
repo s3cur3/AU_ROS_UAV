@@ -81,9 +81,6 @@ public:
    */
   map( double width_of_field, double height_of_field, double map_resolution );
   
-  // Destructor
-  ~map( );
-  
   /**
    * Return IDs of all aircraft in a given (x,y) square
    * @param x_pos the x position of the square in question
@@ -201,8 +198,6 @@ map::map( double width_of_field, double height_of_field, double map_resolution )
     }
   }
 }
-
-map::~map( ) { }
 
 vector< unsigned int > map::get_planes_at( unsigned int x_pos, unsigned int y_pos ) const
 {
