@@ -61,11 +61,6 @@ public:
   void xy_to_latlon( double & out_lat, double & out_lon );
   void setXY(int x1, int y1);
   void setLatLon( double latitude, double longitude );
-
-	/*
-  void setLat(double l);
-	void setLon(double l);
-  */
   
 	//the preceding methods can be used interchangebly as setX also sets the longitude and so forth
 	//note there will be some error if using x and y mainly as they only can convert to
@@ -96,75 +91,8 @@ bool Position::operator==(Position &equal)
 	return (y==equal.getY()&&x==equal.getX());//a bit vague
 }
 
-/*
-void Position::setLat(double l)
-{
-#ifdef DEBUG
-  if( l >= top_left_lat || l <= top_left_lat + latWidth )
-  {
-    printf("WTF is wrong with you? You can't set the latitude to %2.8f \n", l );
-    printf("   Your lat needs to be between %2.8f and %2.8f\n", top_left_lat + latWidth, top_left_lat );
-  }
-  assert( l <= top_left_lat + EPSILON );
-  assert( l >= top_left_lat + latWidth - EPSILON );
-#endif
-  
-  lat=l;
-  y = latToY();
-  
-#ifdef DEBUG
-  assert( y >= 0 && y < h );
-  if( x == 46 && y == 42 ) // testing the bottom corner
-    cout << "(Lat, lon) at (46, 42) is (" << lat << ", " << lon << ")" << endl;
-#endif
-#ifdef GODDAMMIT
-  assert( lat > 32.5882 );
-  assert( lat < 32.593 );
-  
-  double double_check_lat = getLat();
-  assert( double_check_lat > 32.5882 );
-  assert( double_check_lat < 32.593 );
-#endif
-}
-*/
-
 double Position::getLat() const
 	{return lat;}
-
-/*
-void Position::setLon(double l)
-{
-#if defined (DEBUG) || defined(GODDAMMIT)
-//  ofstream the_file;
-//  the_file.open("/home/tyler/Desktop/debugpos.txt",ios::out);
-//  assert( the_file.is_open() );
-//  the_file << "l:             " << l << "\n";
-//  the_file << "top_left_long: " << top_left_long << "\n";
-//  the_file << "top_left_lat:  " << top_left_lat << "\n";
-//  the_file << "lat:           " << lat << "\n";
-//  the_file.close();
-//  cout << "lon sent in is " << l << endl;
-//  cout << "top_left_long + lonWidth == " << top_left_long + lonWidth << endl;
-  assert( l <= (top_left_long + lonWidth) );
-  assert( l < -85.484 );
-  assert( l >= top_left_long );
-#endif
-  lon=l;
-  x = lonToX();
-#ifdef DEBUG
-  assert( x >= 0 && x < w );
-#endif
-  
-#ifdef GODDAMMIT
-  assert( lon < -85.484 );
-  assert( lon > -85.4915 );
-  
-  double double_check_lon = getLon();
-  assert( double_check_lon < -85.484 );
-  assert( double_check_lon > -85.4915 );
-#endif
-}
-*/
 
 double Position::getLon() const
 	{return lon;}
@@ -352,36 +280,7 @@ void Position::latLonToXY( int & out_x, int & out_y)
   double d_from_origin = map_tools::calculate_distance_between_points(
                                                   top_left_lat, top_left_long,
                                                   lat, lon, "meters");
-  double bearing;
-  
-//  if( d_from_origin == 0 )
-//  {
-//    bearing = 0;
-//  }
-//  else
-//  {
-//    cout << "Calculated bearing is " << map_tools::calculateBearing( top_left_lat, top_left_long,
-//                                                                    lat, lon ) << endl;
-//    bearing = map_tools::calculateBearing( top_left_lat, top_left_long,
-//                                           lat, lon );
-//    if( bearing < 0 )
-//      bearing = 360 + bearing;
-//    bearing = 90 - bearing;
-//    cout << "Modified bearing is " << bearing << endl; 
-//  }
-//  
-//  double bearing_in_rad = bearing * DEGREEStoRAD;
-//  cout <<  "Bearing in rad is " << bearing_in_rad << endl; 
-//  
-//  if( bearing >= -45 )
-//  {
-//#ifdef DEBUG
-//    assert( bearing < 0.1 );
-//    assert( bearing > -91 );
-//#endif
-//    out_x = (int)( ( cos( bearing_in_rad ) * d_from_origin ) / resolution );
-//    out_y = -(int)( ( sin( bearing_in_rad ) * d_from_origin ) / resolution );
-//  }
+  double bearing; // in radians!
 
   if( d_from_origin == 0 )
   {
@@ -402,9 +301,6 @@ void Position::latLonToXY( int & out_x, int & out_y)
 #endif
     out_x = (int)( (int)(cos( bearing ) * d_from_origin + 0.5) / resolution );
     out_y = -(int)( (int)(sin( bearing ) * d_from_origin - 0.5) / resolution );
-  
-  if( out_x == 19 && out_y == 20 )
-    assert( false );
   
 #ifdef DEBUG
   assert( out_x < w );
