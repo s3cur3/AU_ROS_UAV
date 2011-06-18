@@ -12,6 +12,15 @@
 #include <iostream>
 #include <sstream>
 #include <fstream>
+#include <iomanip>
+
+std::string double_to_text(const double & d)
+{
+  std::stringstream ss;
+  ss << std::setprecision( std::numeric_limits<double>::digits10+2);
+  ss << d;
+  return ss.str();
+}
 
 using namespace std;
 
@@ -35,7 +44,8 @@ int main()
   natural max_alt = 301; // our aircraft.
   
   // The directory in which to save the courses
-  string course_dir = "/home/trescenzi/Dropbox/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/courses/";
+  string course_dir = "/Volumes/DATA/Dropbox/school/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/courses/";
+  //string course_dir = "/home/trescenzi/Dropbox/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/courses/";
   string name = "new";
   char defaults;
   
@@ -102,7 +112,10 @@ int main()
   course_file << "#     Random seed " << seed << "\n";
   course_file << "#     Number of planes " << num_planes << "\n";
   course_file << "#     Number of waypoints " << num_waypts << "\n";
-  course_file << "#     Altitude between " << min_alt << " and " << max_alt << "\n\n";
+  course_file << "#     Altitude between " << min_alt << " and " << max_alt << "\n";
+  course_file << "#  \n";
+  course_file << "#     Latitude between " << double_to_text(upper_left_latitude + height_in_degrees_latitude) << " and " << double_to_text(upper_left_latitude) << "\n";
+  course_file << "#     Latitude between " << double_to_text(upper_left_longitude) << " and " << double_to_text(upper_left_longitude + width_in_degrees_longitude) << "\n\n";
 
   
   // Vars to use in randomizing
@@ -112,26 +125,28 @@ int main()
   
   // Write the starting positions
   course_file << "# Starting positions:" << "\n";
-  course_file << "#ID\t\tLat\tLong\t\tAlt\n";
+  course_file << "#ID\t\tLat\t\t\tLong\t\t\tAlt\n";
   for( natural id = 0; id < num_planes; id++ )
   {
-    longitude = upper_left_longitude + ( (double)( rand() % 5002 ) / 1000000 );
-    latitude = upper_left_latitude - ( (double)( rand() % 3808 ) / 1000000 );
+    longitude = upper_left_longitude + ( (double)( rand() % 5001999 ) / 1000000000 );
+    latitude = upper_left_latitude - ( (double)( rand() % 3807999 ) / 1000000000 );
     altitude = min_alt + rand() % (max_alt - min_alt);
-    course_file << id << "\t\t" << latitude << "\t" << longitude << "\t" << altitude << "\n";
+    course_file << id << "\t\t" << double_to_text(latitude) << "\t" <<
+    double_to_text(longitude) << "\t" << altitude << "\n";
   }
   
   // Write the rest of the paths
   for( natural id = 0; id < num_planes; id++ )
   {
     course_file << "\n# Plane ID == " << id << "\n";
-    course_file << "#ID\t\tLat\tLong\t\tAlt\n";
+    course_file << "#ID\t\tLat\t\t\tLong\t\t\tAlt\n";
     for( natural crnt_waypt = 0; crnt_waypt < num_waypts; crnt_waypt++ )
     {
       longitude = upper_left_longitude + ( (double)( rand() % 5002 ) / 1000000 );
       latitude = upper_left_latitude - ( (double)( rand() % 3808 ) / 1000000 );
       altitude = min_alt + rand() % (max_alt - min_alt);
-      course_file << id << "\t\t" << latitude << "\t" << longitude << "\t" << altitude << "\n";
+      course_file << id << "\t\t" << double_to_text(latitude) << "\t" <<
+      double_to_text(longitude) << "\t" << altitude << "\n";
     }
   }
   

@@ -40,6 +40,10 @@
 // with squares
 #define LARGE_COSTS 1
 
+#ifndef EPSILON
+#define EPSILON 0.000001
+#endif
+
 using namespace std;
 
 // The scaling factor for the "danger" rating; effectively, the cost of 

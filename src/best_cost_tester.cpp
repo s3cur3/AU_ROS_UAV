@@ -108,9 +108,160 @@ int main()
                           width_in_degrees_longitude, height_in_degrees_latitude,
                           0, 0, resolution );
   Position other_plane_start( upper_left_longitude, upper_left_latitude,
-                         width_in_degrees_longitude, height_in_degrees_latitude,
-                         10, 10, resolution );
+                              width_in_degrees_longitude, height_in_degrees_latitude,
+                              10, 10, resolution );
   cout << endl << "Pos is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl << endl;
+  
+  cout << "Setting to ( 46, 0 ) via lat-lon" << endl;
+  plane_1_start.setLatLon( upper_left_latitude, upper_left_longitude + width_in_degrees_longitude  - 0.00001 );
+  cout << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl << endl;
+  
+  cout << "Setting to ( 0, 42 ) via lat-lon" << endl;
+  plane_1_start.setLatLon( 32.588625, -85.490364 );
+  cout << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl << endl;
+  
+  cout << "Setting to ( 46, 42 ) via lat-lon" << endl;
+  plane_1_start.setLatLon( upper_left_latitude + height_in_degrees_latitude, 
+                           upper_left_longitude + width_in_degrees_longitude );
+  cout << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl << endl;
+  
+  cout << "Setting to ( 12, 12 )" << endl;
+  plane_1_start.setXY( 12, 12 );
+  cout << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl;
+  
+  cout << "The TRUE test! Setting ( 12, 12 )'s lat/lon to itself." << endl;
+  plane_1_start.setLatLon( plane_1_start.getLat(), plane_1_start.getLon() );
+  cout << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl << endl;
+  
+  cout << "Setting to ( 19, 19 )" << endl;
+  plane_1_start.setXY( 19, 19 );
+  cout << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl;
+  
+  cout << "The TRUE test! Setting ( 19, 19 )'s lat/lon to itself." << endl;
+  plane_1_start.setLatLon( plane_1_start.getLat(), plane_1_start.getLon() );
+  cout << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl << endl;
+  
+  cout << "Setting to ( 20, 20 )" << endl;
+  plane_1_start.setXY( 20, 20 );
+  cout << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl;
+  cout << "The TRUE test! Setting ( 20, 20 )'s lat/lon to itself." << endl;
+  plane_1_start.setLatLon( plane_1_start.getLat(), plane_1_start.getLon() );
+  cout << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl << endl;
+  
+  cout << "Setting to ( 20, 21 )" << endl;
+  plane_1_start.setXY( 20, 21 );
+  cout << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl;
+  cout << "The TRUE test! Setting ( 20, 21 )'s lat/lon to itself." << endl;
+  plane_1_start.setLatLon( plane_1_start.getLat(), plane_1_start.getLon() );
+  cout << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl << endl;
+  
+  cout << "Setting to ( 21, 21 )" << endl;
+  plane_1_start.setXY( 21, 21 );
+  cout << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl;
+  cout << "The TRUE test! Setting ( 21, 21 )'s lat/lon to itself." << endl;
+  plane_1_start.setLatLon( plane_1_start.getLat(), plane_1_start.getLon() );
+  cout << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl << endl;
+  
+  cout << "Setting to ( 30, 30 )" << endl;
+  plane_1_start.setXY( 30, 30 );
+  cout << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl;
+  cout << "The TRUE test! Setting ( 30, 30 )'s lat/lon to itself." << endl;
+  plane_1_start.setLatLon( plane_1_start.getLat(), plane_1_start.getLon() );
+  cout << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl << endl;
+  
+  cout << "Setting to ( 20, 19 )" << endl;
+  plane_1_start.setXY( 20, 19 );
+  cout << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl;
+  cout << "The TRUE test! Setting (" << plane_1_start.getX() << ", " << plane_1_start.getY() << ")'s lat/lon to itself." << endl;
+  plane_1_start.setLatLon( plane_1_start.getLat(), plane_1_start.getLon() );
+  cout << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl << endl;
+  
+  cout << "Setting to ( 20, 18 )" << endl;
+  plane_1_start.setXY( 20, 18 );
+  cout << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl;
+  cout << "The TRUE test! Setting (" << plane_1_start.getX() << ", " << plane_1_start.getY() << ")'s lat/lon to itself." << endl;
+  plane_1_start.setLatLon( plane_1_start.getLat(), plane_1_start.getLon() );
+  cout << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl << endl;
+  
+  cout << "Setting to ( 20, 22 )" << endl;
+  plane_1_start.setXY( 20, 22 );
+  cout << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl;
+  cout << "The TRUE test! Setting (" << plane_1_start.getX() << ", " << plane_1_start.getY() << ")'s lat/lon to itself." << endl;
+  plane_1_start.setLatLon( plane_1_start.getLat(), plane_1_start.getLon() );
+  cout << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl << endl;
+  
+  cout << "Setting to ( 20, 23 )" << endl;
+  plane_1_start.setXY( 20, 23 );
+  cout << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl;
+  cout << "The TRUE test! Setting (" << plane_1_start.getX() << ", " << plane_1_start.getY() << ")'s lat/lon to itself." << endl;
+  plane_1_start.setLatLon( plane_1_start.getLat(), plane_1_start.getLon() );
+  cout << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl << endl;
+  
+  cout << "Setting to ( 19, 23 )" << endl;
+  plane_1_start.setXY( 19, 23 );
+  cout << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl;
+  cout << "The TRUE test! Setting (" << plane_1_start.getX() << ", " << plane_1_start.getY() << ")'s lat/lon to itself." << endl;
+  plane_1_start.setLatLon( plane_1_start.getLat(), plane_1_start.getLon() );
+  cout << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl << endl;
+  
+  cout << "Setting to ( 19, 31 )" << endl;
+  plane_1_start.setXY( 19, 31 );
+  cout << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl;
+  cout << "The TRUE test! Setting (" << plane_1_start.getX() << ", " << plane_1_start.getY() << ")'s lat/lon to itself." << endl;
+  plane_1_start.setLatLon( plane_1_start.getLat(), plane_1_start.getLon() );
+  cout << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl << endl;
+  
+  cout << "Setting to ( 5, 31 )" << endl;
+  plane_1_start.setXY( 5, 31 );
+  cout << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl;
+  cout << "The TRUE test! Setting (" << plane_1_start.getX() << ", " << plane_1_start.getY() << ")'s lat/lon to itself." << endl;
+  plane_1_start.setLatLon( plane_1_start.getLat(), plane_1_start.getLon() );
+  cout << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl << endl;
+  
+  cout << "Setting to ( 33, 3 )" << endl;
+  plane_1_start.setXY( 33, 3 );
+  cout << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl;
+  cout << "The TRUE test! Setting (" << plane_1_start.getX() << ", " << plane_1_start.getY() << ")'s lat/lon to itself." << endl;
+  plane_1_start.setLatLon( plane_1_start.getLat(), plane_1_start.getLon() );
+  cout << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl << endl;
+  
+  cout << "Setting to ( 34, 41 )" << endl;
+  plane_1_start.setXY( 34, 41 );
+  cout << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl;
+  cout << "The TRUE test! Setting (" << plane_1_start.getX() << ", " << plane_1_start.getY() << ")'s lat/lon to itself." << endl;
+  plane_1_start.setLatLon( plane_1_start.getLat(), plane_1_start.getLon() );
+  cout << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl << endl;
+  
+  cout << "Setting to ( 34, 42 )" << endl;
+  plane_1_start.setXY( 34, 42 );
+  cout << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl;
+  cout << "The TRUE test! Setting (" << plane_1_start.getX() << ", " << plane_1_start.getY() << ")'s lat/lon to itself." << endl;
+  plane_1_start.setLatLon( plane_1_start.getLat(), plane_1_start.getLon() );
+  cout << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl << endl;
+  
+  cout << "Setting to ( 24, 1 )" << endl;
+  plane_1_start.setXY( 24, 1 );
+  cout << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl;
+  cout << "The TRUE test! Setting (" << plane_1_start.getX() << ", " << plane_1_start.getY() << ")'s lat/lon to itself." << endl;
+  plane_1_start.setLatLon( plane_1_start.getLat(), plane_1_start.getLon() );
+  cout << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl << endl;
+  
+  cout << "Setting to ( 46, 42 )" << endl;
+  plane_1_start.setXY( 46, 42 );
+  cout << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl << endl;
+  
+  cout << "The TRUE test! Setting ( 46, 42 )'s lat/lon to itself." << endl;
+  plane_1_start.setLatLon( plane_1_start.getLat(), plane_1_start.getLon() );
+  cout << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl << endl;
+  
+  cout << "Setting to ( 0, 0 )" << endl;
+  plane_1_start.setXY( 0, 0 );
+  cout << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl << endl;
+  
+  cout << "The TRUE test! Setting ( 0, 0 )'s lat/lon to itself." << endl;
+  plane_1_start.setLatLon( plane_1_start.getLat(), plane_1_start.getLon() );
+  cout << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl << endl;
+  
   
   // The farthest corner
   Position plane_1_end(  upper_left_longitude, upper_left_latitude,
@@ -181,12 +332,13 @@ int main()
   best_cost bc19( &test_set19, width_of_field, height_of_field, resolution, 2 );
    */
 
-  
+  /*
   bc.dump( 0 );
   
   bc.dump( 5 );
   
   bc.dump( 6 );
+   */
  
   seconds = time(NULL);
   cout << "End time:   " << seconds << endl;

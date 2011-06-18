@@ -31,6 +31,11 @@
 #include "map_tools.h"
 #include <climits>
 
+#ifdef DEBUG
+#include "write_to_log.h"
+const string output_path = "/mnt/hgfs/Dropbox/school/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/log/map/";
+#endif
+
 #ifdef OUTPUT_CSV
 #include <fstream>
 #include <sstream>
@@ -213,6 +218,10 @@ void map::add_plane_at( unsigned int x_pos, unsigned int y_pos, unsigned int id 
 double map::get_danger_at( unsigned int x_pos, unsigned int y_pos ) const
 {
 #ifdef DEBUG
+  if( x_pos >= the_map.size() || y_pos >= the_map[1].size() )
+  {
+    cout << "WTF is wrong with you?! You can't get the danger at (" << x_pos << ", " << y_pos << ")!" << endl;
+  }
   assert( x_pos < the_map.size() );
   assert( y_pos < the_map[1].size() );
 #endif
@@ -353,8 +362,7 @@ void map::dump( ) const
 #ifdef OUTPUT_CSV
   stringstream ss( stringstream::out );
   unsigned int time = clock() / (CLOCKS_PER_SEC / 1000);
-  string log_path = "/mnt/hgfs/Dropbox/school/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/log/map/";
-  ss << log_path << "map_" << time << ".csv";
+  ss << output_path << "map_" << time << ".csv";
   string filename = ss.str();
   
   ofstream csv;

@@ -9,9 +9,14 @@
 #include "Position.h"
 #include <math.h>
 
+#ifndef GODDAMMIT
+#define GODDAMMIT
+#endif
+
 #ifndef RADIAN_CONSTANTS
 #define RADIAN_CONSTANTS
 const double PI = 2*acos(0.0);// pi
+const double TWO_PI = 2*PI;
 const double RADtoDEGREES = 180/PI;//Conversion factor from Radians to Degrees
 const double DEGREEStoRAD = PI/180;//Conversion factor from Degrees to Radians
 #endif
@@ -55,14 +60,11 @@ public:
 
 void Plane::update(Position newcurrent, Position newdestination, double bare, double newspeed)
 {
-	lastPosition.setLon(current.getLon());
-	lastPosition.setLat(current.getLat());
+	lastPosition.setLatLon( current.getLat(), current.getLon() );
+  
+	current.setLatLon( newcurrent.getLat(), newcurrent.getLon() );
 
-	current.setLon(newcurrent.getLon());
-	current.setLat(newcurrent.getLat());
-
-	destination.setLon(newdestination.getLon());
-  	destination.setLat(newdestination.getLat());
+	destination.setLatLon( newdestination.getLat(), newdestination.getLon() );
 
 	bearingToDest=bare;
 	speed=newspeed;
@@ -89,8 +91,7 @@ void Plane::update(Position newcurrent, Position newdestination, double bare, do
 
 void Plane::setFinalDestination(double lon, double lat)
 {
-	finalDestination.setLon(lon);
-	finalDestination.setLat(lat);
+	finalDestination.setLatLon(lat, lon);
   
 #ifdef GODDAMMIT
   assert( lon < -85.484 );
@@ -109,8 +110,8 @@ void Plane::setFinalDestination(double lon, double lat)
 
 void Plane::setDestination(double lon, double lat)
 {
-  destination.setLon(lon);
-  destination.setLat(lat);
+  destination.setLatLon( lat, lon);
+
 #ifdef GODDAMMIT
   assert( lon < -85.484 );
   assert( lon > -85.4915 );
@@ -141,6 +142,14 @@ void Plane::setFinalDestination(int x, int y)
 
 Position Plane::getFinalDestination()
 {
+#ifdef GODDAMMIT
+  double double_check_lon = finalDestination.getLon();
+  double double_check_lat = finalDestination.getLat();
+  assert( double_check_lon < -85.484 );
+  assert( double_check_lon > -85.4915 );
+  assert( double_check_lat > 32.5882 );
+  assert( double_check_lat < 32.593 );
+#endif
 	return finalDestination;
 }
 

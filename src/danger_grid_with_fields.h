@@ -48,6 +48,7 @@ static double plane_danger;
 #ifndef RADIAN_CONSTANTS
 #define RADIAN_CONSTANTS
 const double PI = 2*acos(0.0);// pi
+const double TWO_PI = 2*PI;
 const double RADtoDEGREES = 180/PI;//Conversion factor from Radians to Degrees
 const double DEGREEStoRAD = PI/180;//Conversion factor from Degrees to Radians
 #endif

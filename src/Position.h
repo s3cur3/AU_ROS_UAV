@@ -9,6 +9,18 @@
 #include "map_tools.h"
 #include <assert.h>
 
+#ifndef EPSILON
+#define EPSILON 0.000001
+#endif
+
+#ifndef RADIAN_CONSTANTS
+#define RADIAN_CONSTANTS
+const double PI = 2*acos(0.0);// pi
+const double TWO_PI = 2*PI;
+const double RADtoDEGREES = 180/PI;//Conversion factor from Radians to Degrees
+const double DEGREEStoRAD = PI/180;//Conversion factor from Degrees to Radians
+#endif
+
 class Position
 {
 private:
@@ -26,15 +38,16 @@ private:
 	//this part is kinda an issue for now the position class is built around a top left corner of the area it is contained within
 	double top_left_lat;//the value of the latitude of the top left corner
 	double top_left_long;//same as top_left_lat but for longitude 
-  	double top_right_lat;
+  double top_right_lat;
  	double top_right_long;
-  	double btm_left_lat;
+  double btm_left_lat;
  	double btm_left_long;
 	double latWidth;
 	double lonWidth;
  	double width_in_meters;
  	double height_in_meters;
 	//functions for converting between systems
+  void latLonToXY( int & out_x, int & out_y);
 	int lonToX();
 	int latToY();
     
@@ -47,9 +60,13 @@ private:
 public:
   void xy_to_latlon( double & out_lat, double & out_lon );
   void setXY(int x1, int y1);
+  void setLatLon( double latitude, double longitude );
 
-	void setLat(double l);
+	/*
+  void setLat(double l);
 	void setLon(double l);
+  */
+  
 	//the preceding methods can be used interchangebly as setX also sets the longitude and so forth
 	//note there will be some error if using x and y mainly as they only can convert to
   //the longitude and latitude of the top left of their block
@@ -79,14 +96,22 @@ bool Position::operator==(Position &equal)
 	return (y==equal.getY()&&x==equal.getX());//a bit vague
 }
 
+/*
 void Position::setLat(double l)
 {
 #ifdef DEBUG
-  assert( l <= top_left_lat );
-  assert( l >= top_left_lat + latWidth );
+  if( l >= top_left_lat || l <= top_left_lat + latWidth )
+  {
+    printf("WTF is wrong with you? You can't set the latitude to %2.8f \n", l );
+    printf("   Your lat needs to be between %2.8f and %2.8f\n", top_left_lat + latWidth, top_left_lat );
+  }
+  assert( l <= top_left_lat + EPSILON );
+  assert( l >= top_left_lat + latWidth - EPSILON );
 #endif
+  
   lat=l;
   y = latToY();
+  
 #ifdef DEBUG
   assert( y >= 0 && y < h );
   if( x == 46 && y == 42 ) // testing the bottom corner
@@ -101,9 +126,12 @@ void Position::setLat(double l)
   assert( double_check_lat < 32.593 );
 #endif
 }
+*/
+
 double Position::getLat() const
 	{return lat;}
 
+/*
 void Position::setLon(double l)
 {
 #if defined (DEBUG) || defined(GODDAMMIT)
@@ -136,8 +164,17 @@ void Position::setLon(double l)
   assert( double_check_lon > -85.4915 );
 #endif
 }
+*/
+
 double Position::getLon() const
 	{return lon;}
+
+void Position::setLatLon( double latitude, double longitude )
+{
+  lon = longitude;
+  lat = latitude;
+  latLonToXY( x, y );
+}
 
 int Position::getX() // TY changed this to return an int instead of a double
 	{return x;}
@@ -211,8 +248,10 @@ Position::Position(double upperLeftLongitude, double upperLeftLatitude,
     
   set_up_grid_parms();
   
+  /*
   setLon(longitude);
-	setLat(latitude);
+	setLat(latitude); */
+  setLatLon( latitude, longitude );
 }
 
 Position::Position(double upperLeftLongitude, double upperLeftLatitude, // THOMAS: This is the only constructor I'm using.
@@ -228,15 +267,16 @@ Position::Position(double upperLeftLongitude, double upperLeftLatitude, // THOMA
     
   set_up_grid_parms();
   
+  /*
   setLon(longitude);
-	setLat(latitude);
+	setLat(latitude); */
+  setLatLon( latitude, longitude );
 }
 
 Position::Position(double upperLeftLongitude, double upperLeftLatitude,
                    double lonwidth, double latwidth, int x1, int y1, double res)
 {
 	top_left_long=upperLeftLongitude;
-	cout<<top_left_long<<endl;
 	top_left_lat=upperLeftLatitude;
 	lonWidth=lonwidth;
 	latWidth=latwidth;
@@ -305,6 +345,73 @@ int Position::latToY()
                       calculate_distance_between_points( top_left_lat, top_left_long,
                                                          lat, top_left_long, "meters") ) /
                      resolution );
+}
+
+void Position::latLonToXY( int & out_x, int & out_y)
+{
+  double d_from_origin = map_tools::calculate_distance_between_points(
+                                                  top_left_lat, top_left_long,
+                                                  lat, lon, "meters");
+  double bearing;
+  
+//  if( d_from_origin == 0 )
+//  {
+//    bearing = 0;
+//  }
+//  else
+//  {
+//    cout << "Calculated bearing is " << map_tools::calculateBearing( top_left_lat, top_left_long,
+//                                                                    lat, lon ) << endl;
+//    bearing = map_tools::calculateBearing( top_left_lat, top_left_long,
+//                                           lat, lon );
+//    if( bearing < 0 )
+//      bearing = 360 + bearing;
+//    bearing = 90 - bearing;
+//    cout << "Modified bearing is " << bearing << endl; 
+//  }
+//  
+//  double bearing_in_rad = bearing * DEGREEStoRAD;
+//  cout <<  "Bearing in rad is " << bearing_in_rad << endl; 
+//  
+//  if( bearing >= -45 )
+//  {
+//#ifdef DEBUG
+//    assert( bearing < 0.1 );
+//    assert( bearing > -91 );
+//#endif
+//    out_x = (int)( ( cos( bearing_in_rad ) * d_from_origin ) / resolution );
+//    out_y = -(int)( ( sin( bearing_in_rad ) * d_from_origin ) / resolution );
+//  }
+
+  if( d_from_origin == 0 )
+  {
+    bearing = 0;
+  }
+  else
+  {
+    bearing = map_tools::calculate_bearing_in_rad( top_left_lat, top_left_long,
+                                                   lat, lon );
+    if( bearing < 0 )
+      bearing = TWO_PI + bearing;
+    bearing = PI/2 - bearing;
+  }
+  
+#ifdef DEBUG
+    assert( bearing < 0.001 );
+    assert( bearing > -PI/2 - 0.01 );
+#endif
+    out_x = (int)( (int)(cos( bearing ) * d_from_origin + 0.5) / resolution );
+    out_y = -(int)( (int)(sin( bearing ) * d_from_origin - 0.5) / resolution );
+  
+  if( out_x == 19 && out_y == 20 )
+    assert( false );
+  
+#ifdef DEBUG
+  assert( out_x < w );
+  assert( out_y < h );
+  assert( out_x >= 0 );
+  assert( out_y >= 0 );
+#endif
 }
 
 // Needed to create a duplicate of a Position object

@@ -1,6 +1,6 @@
 //#define Testing
 //#define Outputting
-//#define DEBUG // for now, this should ALWAYS be defined for the sake of rigor
+#define DEBUG // for now, this should ALWAYS be defined for the sake of rigor
 #define GODDAMMIT
 //#define collisionTesting
 
@@ -87,11 +87,13 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 	double gSpeed=msg->groundSpeed;
 	double bearing=msg->targetBearing;
   
+  /*
 #ifdef GODDAMMIT
   // If this doesn't fail immediately, it means the msg from the telemetry update is OK
   assert( destLat - currentLat > EPSILON || destLat - currentLat < -EPSILON );
   assert( destLon - currentLon > EPSILON || destLon - currentLon < -EPSILON );
 #endif
+   */
   
 #ifdef Testing
 	//print out the tele data for use with x-plane
@@ -241,6 +243,12 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 
 	if( /*inside the area*/(goalSrv.response.latitude<=upperLeftLat&&goalSrv.response.longitude>=upperLeftLon) && goalSrv.response.latitude>0)
 	{
+#ifdef GODDAMMIT
+    assert( goalSrv.response.longitude < -85.484 );
+    assert( goalSrv.response.longitude > -85.4915 );
+    assert( goalSrv.response.latitude > 32.5882 );
+    assert( goalSrv.response.latitude < 32.593 );
+#endif
 		plane->setFinalDestination(goalSrv.response.longitude, goalSrv.response.latitude);
 
 #ifdef Testing || defined(Outputting)
@@ -251,6 +259,12 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 	//its going nowhere fast
 	else
 	{	
+#ifdef GODDAMMIT
+    assert( plane->getLocation().getLon() < -85.484 );
+    assert( plane->getLocation().getLon() > -85.4915 );
+    assert( plane->getLocation().getLat() > 32.5882 );
+    assert( plane->getLocation().getLat() < 32.593 );
+#endif
 		plane->setFinalDestination(plane->getLocation().getLon(), plane->getLocation().getLat());
 
 //#ifdef Testing
@@ -266,19 +280,42 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
   int starty=plane->getLocation().getY();
   int endx=plane->getFinalDestination().getX();
   int endy=plane->getFinalDestination().getY();
+#ifdef GODDAMMIT
+  assert( startx < 47 );
+  assert( startx > 0);
+  assert( starty > 0 );
+  assert( starty < 43 );
+  assert( endx < 47 );
+  assert( endx > 0);
+  assert( endy > 0 );
+  assert( endy < 43 );
+#endif
   
   //#ifdef Testing
 	ROS_INFO("for plane %d\n the startx:%d\n the starty:%d\n the endx:%d\n the endy:%d",planeId,startx,starty,endx,endy);
-  //#endif	
+  //#endif
+  
+#ifdef GODDAMMIT
+  assert( startx < 47 );
+  assert( startx > 0);
+  assert( starty > 0 );
+  assert( starty < 43 );
+  assert( endx < 47 );
+  assert( endx > 0);
+  assert( endy > 0 );
+  assert( endy < 43 );
+#endif
 
 	point forSparta;
 	best_cost bc = best_cost(&planes,fieldWidth,fieldHeight,res,planeId);
+  ROS_INFO("Created bc, going into A*");
   //if(startx==36&&starty==14&&endx==23&&endy==6)
    // assert(false);
+
 	forSparta=astar_point(&bc,startx,starty,endx,endy,planeId);
 	//our code will blot out the sun
  
-#ifdef Outputting
+#if defined(Outputting) || defined(GODDAMMIT)
 	ROS_INFO("A* says\033[22;32m:\nx: %d\ny: %d",forSparta.x, forSparta.y);
 #endif
 
