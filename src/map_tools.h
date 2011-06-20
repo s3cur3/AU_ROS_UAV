@@ -173,43 +173,43 @@ void map_tools::calculate_point( double latitude_1, double longitude_1,
                                  double & out_latitude_2, double & out_longitude_2 )
 {
   double ang_dist_in_rad = (distance_in_meters / earth_radius);
-#ifdef GODDAMMIT
+#ifdef DEBUG_MT
   cout << "ADiR " << ang_dist_in_rad << endl;
 #endif
   double bearing_in_rad = to_radians(bearing_in_deg);
-#ifdef GODDAMMIT
+#ifdef DEBUG_MT
   cout << "Bear " << bearing_in_rad << endl;
 #endif
 
   latitude_1 = to_radians( latitude_1 );
-#ifdef GODDAMMIT
+#ifdef DEBUG_MT
   cout << "Lat 1 " << latitude_1 << endl;
 #endif
   longitude_1 = to_radians( longitude_1 );
-#ifdef GODDAMMIT
+#ifdef DEBUG_MT
   cout << "Lon 1 " << longitude_1 << endl;
 #endif
   out_latitude_2 = to_radians( out_latitude_2 );
-#ifdef GODDAMMIT
+#ifdef DEBUG_MT
   cout << "Lat2 " << out_latitude_2 << endl;
 #endif
   
   out_latitude_2 = asin( (sin(latitude_1) * cos( ang_dist_in_rad )) + 
                          (cos(latitude_1) * sin( ang_dist_in_rad ) * 
                          cos( bearing_in_rad )) );
-#ifdef GODDAMMIT
+#ifdef DEBUG_MT
   cout << "Lat2 " << out_latitude_2<< endl;
 #endif
   
   out_longitude_2 = to_radians( out_longitude_2 );
-#ifdef GODDAMMIT
+#ifdef DEBUG_MT
   cout << "Lon 2 " << out_longitude_2 << endl;
 #endif
   
   out_longitude_2 = longitude_1 +
     atan2( sin(bearing_in_rad) * sin(ang_dist_in_rad) * cos(latitude_1), 
            cos(ang_dist_in_rad)- (sin(latitude_1) * sin(out_latitude_2)) );
-#ifdef GODDAMMIT
+#ifdef DEBUG_MT
   cout << "Lon 2" << out_longitude_2 << endl;
 #endif
 

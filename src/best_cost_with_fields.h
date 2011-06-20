@@ -125,6 +125,13 @@ public:
    */
   void dump( int time ) const;
   
+  /**
+   * Output the map to a CSV file, whose path is specified in the map class.
+   * For troubleshooting only
+   * @param time The time, in seconds, whose map should be output
+   */
+  void dump_csv( int time ) const;
+  
   // AK: Destructor, combats memory leak issues
   ~best_cost();
   
@@ -239,8 +246,6 @@ best_cost::best_cost( vector< Plane > * set_of_aircraft,
   
   // Do the real work of the class //
   minimize_cost();
-  
-  //dump( 1 );
 }
 
 // AK: DESTRUCTOR -- DESTROY mc, bc to release their memory
@@ -429,6 +434,12 @@ void best_cost::dump( int time ) const
   
   cout << endl << "The BC grid for " << time << endl;
   bc->dump( time );
+}
+
+void best_cost::dump_csv( int time ) const
+{
+  mc->dump_csv( time );
+  bc->dump_csv( time );
 }
 
 #endif

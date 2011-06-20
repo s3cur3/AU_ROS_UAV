@@ -31,10 +31,10 @@
 #include "map_tools.h"
 #include <climits>
 
-#ifdef DEBUG
+#ifdef OUTPUT_CSV
 #include "write_to_log.h"
-const string output_path = "/Volumes/DATA/Dropbox/school/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/log/map/";
-//const string output_path = "/mnt/hgfs/Dropbox/school/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/log/map/";
+//const string output_path = "/Volumes/DATA/Dropbox/school/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/log/map/";
+const string output_path = "/mnt/hgfs/Dropbox/school/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/log/map/";
 #endif
 
 #ifdef OUTPUT_CSV
@@ -148,6 +148,8 @@ public:
   void dump( ) const;
 
   void dump_big_numbers( ) const;
+  
+  void dump_csv( ) const;
 
 private:
   vector< vector< grid_square > > the_map; // a 2-D vector array of grid squares
@@ -358,7 +360,7 @@ void map::dump( ) const
 #ifdef OUTPUT_CSV
   stringstream ss( stringstream::out );
   unsigned int time = clock() / (CLOCKS_PER_SEC / 1000);
-  ss << output_path << "map_" << time << ".csv";
+  ss << output_path << "map_output_" << time << ".csv";
   string filename = ss.str();
   
   ofstream csv;
@@ -443,10 +445,16 @@ void map::dump_big_numbers( ) const
   }
   
 #ifdef OUTPUT_CSV
+  dump_csv();
+  #endif
+}
+
+void map::dump_csv( ) const
+{
   double mult = 1.0;
   stringstream ss( stringstream::out );
-  unsigned int time = clock() / (CLOCKS_PER_SEC / 1000);
-  ss << "/Volumes/DATA/Dropbox/school/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/log/map/map_output_" << time << ".csv";
+  unsigned long time = clock() / (CLOCKS_PER_SEC / 1000);
+  ss << output_path << "map_output_" << time << ".csv";
   string filename = ss.str();
   
   ofstream csv;
@@ -482,13 +490,12 @@ void map::dump_big_numbers( ) const
         }
       }
       csv << "\n";
-
-    }
-      csv.close();
       
-      cout << "Made the file" << endl;
+    }
+    csv.close();
+    
+    cout << "Made the file" << endl;
   }
-#endif
 }
 
 #endif

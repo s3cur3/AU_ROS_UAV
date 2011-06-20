@@ -231,6 +231,9 @@ void Position::xy_to_latlon( double & out_lat, double & out_lon )
   map_tools::calculate_point( top_left_lat, top_left_long, 
                               d_from_origin_to_pt, bearing_between_pts,
                               out_lat, out_lon );
+  
+  out_lat += (latWidth / (2 * getHeight() ) );
+  out_lon += (lonWidth / (2 * getWidth() ) );
 #ifdef GODDAMMIT
   cout << "Calculated lat to be " << out_lat << endl;
   cout << "Calculated lon to be " << out_lon << endl;
@@ -282,7 +285,7 @@ void Position::latLonToXY( int & out_x, int & out_y)
                                                   lat, lon, "meters");
   double bearing; // in radians!
 
-  if( d_from_origin == 0 )
+  if( d_from_origin > -EPSILON && d_from_origin < EPSILON )
   {
     bearing = 0;
   }

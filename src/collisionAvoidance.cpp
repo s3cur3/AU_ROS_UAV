@@ -1,7 +1,7 @@
 #define Testing
-//#define Outputting
+#define Outputting
 #define DEBUG // for now, this should ALWAYS be defined for the sake of rigor
-#define GODDAMMIT
+//#define GODDAMMIT
 //#define collisionTesting
 
 #define TYLERS_PC
@@ -95,6 +95,8 @@ bool	collision(int &x, int &y);
 
 void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 {
+  bool next_is_current = false;
+  
 	the_count++;
 	int planeId=msg->planeID;
 	double currentLon=msg->currentLongitude;
@@ -193,26 +195,19 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 #endif
 
   
-#ifdef GODDAMMIT
+#ifdef DEBUG
   assert( upperLeftLon < -85.49 && upperLeftLon > -85.491 );
   assert( upperLeftLat > 32.592 && upperLeftLat < 32.593 );
   assert( lonWidth > 0.005 && lonWidth < 0.00501 );
   assert( latWidth > -0.00381 && latWidth < -0.00380 );
   
-  /*
-  assert( destLon < -85.484 );
-  assert( destLon > -85.4915 );
-  assert( destLat > 32.5882 );
-  assert( destLat < 32.593 );
-  */
-   
   assert( res > 9.99 && res < 10.1 );
 #endif
 	Position next;
 	if(destLat<=upperLeftLat && destLon>=upperLeftLon && destLat>0 && destLon<0)
   {
 		next = Position(upperLeftLon,upperLeftLat,lonWidth,latWidth,destLon,destLat,res);
-#ifdef GODDAMMIT
+#ifdef DEBUG
     assert( next.getLon() < -85.484 );
     assert( next.getLon() > -85.4915 );
     assert( next.getLat() > 32.5882 );
@@ -222,7 +217,8 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 	else
   {
 		next = Position(current);
-#ifdef GODDAMMIT
+    next_is_current = true;
+#ifdef DEBUG
     assert( next.getLon() < -85.484 );
     assert( next.getLon() > -85.4915 );
     assert( next.getLat() > 32.5882 );
@@ -243,8 +239,14 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 	Plane * plane = &(planes[planeId]);
 	//update the plane
 	plane->update(current,next,gSpeed,bearing);
-	cout<<"Current location for plane"<<planeId<<" "<<plane->getLocation().getX()<<" "<<plane->getLocation().getY()<<endl;
-	cout<<"Next location for plane"<<planeId<<" "<<plane->getDestination().getX()<<" "<<plane->getDestination().getY()<<endl;
+#ifdef DEBUG
+  if( planeId == 0 )
+  {
+    cout<<"Current location for plane"<<planeId<<" "<<plane->getLocation().getX()<<" "<<plane->getLocation().getY()<<endl;
+    printf("   Which is %f, %f \n", plane->getLocation().getLon(), plane->getLocation().getLat() );
+    cout<<"Next location for plane"<<planeId<<" "<<plane->getDestination().getX()<<" "<<plane->getDestination().getY()<<endl;
+  }
+#endif
 	//populate the request for the destination
 	
 	goalSrv.request.planeID=planeId;
@@ -260,13 +262,18 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 #if 	defined(Testing) || defined(Outputting)
   // TY confirms that the goals are getting set correctly before the first
   // DG output when using Chicken.course
-	ROS_INFO("The goal of plane \033[22;32m %d returned was   \033[22;31m %f,%f",planeId,goalSrv.response.longitude, goalSrv.response.latitude);
-  ROS_INFO("The current location of plane \033[22;32m %d is \033[22;31m %f,%f", planeId, currentLon, currentLat);
+  if( planeId == 0 )
+  {
+    ROS_INFO("The goal of plane \033[22;32m %d returned was   \033[22;31m %f,%f",
+             planeId,goalSrv.response.longitude, goalSrv.response.latitude);
+    ROS_INFO("The current location of plane \033[22;32m %d is \033[22;31m %f,%f", 
+             planeId, currentLon, currentLat);
+  }
 #endif
 
 	if( /*inside the area*/(goalSrv.response.latitude<=upperLeftLat&&goalSrv.response.longitude>=upperLeftLon) && goalSrv.response.latitude>0)
 	{
-#ifdef GODDAMMIT
+#ifdef DEBUG
     assert( goalSrv.response.longitude < -85.484 );
     assert( goalSrv.response.longitude > -85.4915 );
     assert( goalSrv.response.latitude > 32.5882 );
@@ -275,14 +282,17 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 		plane->setFinalDestination(goalSrv.response.longitude, goalSrv.response.latitude);
 
 #ifdef Testing || defined(Outputting)
-		ROS_INFO("The final destination was set to: %f,%f",goalSrv.response.longitude,goalSrv.response.latitude);
+    if( planeId == 0 )
+    {
+      ROS_INFO("The final destination is: %f,%f",goalSrv.response.longitude,goalSrv.response.latitude);
+    }
 #endif
 
 	}
 	//its going nowhere fast
 	else
 	{	
-#ifdef GODDAMMIT
+#ifdef DEBUG
     assert( plane->getLocation().getLon() < -85.484 );
     assert( plane->getLocation().getLon() > -85.4915 );
     assert( plane->getLocation().getLat() > 32.5882 );
@@ -291,7 +301,10 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 		plane->setFinalDestination(plane->getLocation().getLon(), plane->getLocation().getLat());
 
 //#ifdef Testing
-		ROS_INFO("The final destination does not exist or has been reached");
+    if( planeId == 0 )
+    {
+      ROS_INFO("The final destination does not exist or has been reached");
+    }
 //#endif
 
 	}
@@ -303,7 +316,7 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
   int starty=plane->getLocation().getY();
   int endx=plane->getFinalDestination().getX();
   int endy=plane->getFinalDestination().getY();
-#ifdef GODDAMMIT
+#ifdef DEBUG
   assert( startx < 47 );
   assert( startx >= 0);
   assert( starty >= 0 );
@@ -314,40 +327,41 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
   assert( endy < 43 );
 #endif
   
-  //#ifdef Testing
-	ROS_INFO("for plane %d\n the startx:%d\n the starty:%d\n the endx:%d\n the endy:%d",planeId,startx,starty,endx,endy);
-  //#endif
-  
-#ifdef GODDAMMIT
-  assert( startx < 47 );
-  assert( startx >= 0);
-  assert( starty >= 0 );
-  assert( starty < 43 );
-  assert( endx < 47 );
-  assert( endx >= 0);
-  assert( endy >= 0 );
-  assert( endy < 43 );
-#endif
+  #ifdef DEBUG
+  if( planeId == 0 )
+  {
+    ROS_INFO("for plane %d\n the startx:%d\n the starty:%d\n the endx:%d\n the endy:%d\n end lat: %f \n end lon %f",
+             planeId,startx,starty,endx,endy, plane->getFinalDestination().getLat(), 
+             plane->getFinalDestination().getLon() );
+  }
+  #endif
 
 	point forSparta;
-	best_cost bc = best_cost(&planes,fieldWidth,fieldHeight,res,planeId);
-  ROS_INFO("Created bc, going into A*");
-  //if(startx==36&&starty==14&&endx==23&&endy==6)
-   // assert(false);
-
+  best_cost bc = best_cost(&planes,fieldWidth,fieldHeight,res,planeId);
+  
+#ifdef DEBUG
+  bc.dump_csv( 0 );
+  bc.dump_csv( 1 );
+#endif
+  
+  if( planeId == 0 )
+  {
+    ROS_INFO("Created bc, going into A*");
+  }
+  
 	forSparta=astar_point(&bc,startx,starty,endx,endy,planeId);
 	//our code will blot out the sun
  
 #if defined(Outputting) || defined(GODDAMMIT)
-	ROS_INFO("A* says\033[22;32m:\nx: %d\ny: %d",forSparta.x, forSparta.y);
+  if( planeId == 0 )
+  {
+    ROS_INFO("A* says\033[22;32m:\nx: %d\ny: %d\n",forSparta.x, forSparta.y);
+  }
 #endif
 
-	if( (forSparta.x!=startx&&forSparta.y!=starty)&&(forSparta.x!=endx&&forSparta.y!=endy))
+	if( /*!next_is_current*/ (forSparta.x!=startx&&forSparta.y!=starty)&&(forSparta.x!=endx&&forSparta.y!=endy) )
 	{
-		
-		//double lon=forSparta.x*( lonWidth / current.getWidth())+upperLeftLon;//too euclidian for our rounded egg like blue planet
-		//double lat=forSparta.y*( latWidth / current.getHeight())+upperLeftLat;
-#ifdef GODDAMMIT
+#ifdef DEBUG
     assert( upperLeftLon < -85.49 && upperLeftLon > -85.491 );
     assert( upperLeftLat > 32.592 && upperLeftLat < 32.593 );
     assert( lonWidth > 0.005 && lonWidth < 0.00501 );
@@ -360,16 +374,28 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
     
     assert( res > 9.99 && res < 10.1 );
 #endif
-  		Position aStar(upperLeftLon,upperLeftLat,lonWidth,latWidth,forSparta.x,forSparta.y,res);
-#ifdef GODDAMMIT
-    cout << ( aStar.getLon() < -85.484 || aStar.getLat() > 32.5882 );
-    cout << "aStar.getLat() == " << aStar.getLat() << endl;
-    cout << "aStar.getLon() == " << aStar.getLon() << endl;
-    cout << "aStar.getX() == " << aStar.getX() << endl;
-    cout << "aStar.getY() == " << aStar.getY() << endl;
-
-    cout << "You set it's (x, y) to (" << forSparta.x << ", " << forSparta.y << ")" << endl;
     
+    Position aStar(upperLeftLon,upperLeftLat,lonWidth,latWidth,forSparta.x,forSparta.y,res);
+    
+#ifdef Outputting
+    if( planeId == 0 )
+    {
+      printf( "The avoidance wp was set to: %f, %f\n", aStar.getLon(), aStar.getLat() );
+      printf( "   ...which is: %d, %d\n", aStar.getX(), aStar.getY() );
+    }
+#endif
+    
+#ifdef DEBUG
+    if( planeId != 0 )
+    {
+      cout << ( aStar.getLon() < -85.484 || aStar.getLat() > 32.5882 );
+      cout << "aStar.getLat() == " << aStar.getLat() << endl;
+      cout << "aStar.getLon() == " << aStar.getLon() << endl;
+      cout << "aStar.getX() == " << aStar.getX() << endl;
+      cout << "aStar.getY() == " << aStar.getY() << endl;
+      
+      cout << "You set it's (x, y) to (" << forSparta.x << ", " << forSparta.y << ")" << endl;
+    }
     assert( aStar.getLat() > 32.5882 );
     assert( aStar.getLat() < 32.593 );
     assert( aStar.getLon() < -85.484 );
@@ -389,9 +415,12 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 		//these settings mean it is an avoidance maneuver waypoint AND to clear the avoidance queue(if there was a new plane)
 		srv.request.isAvoidanceManeuver = true;
 		srv.request.isNewQueue = true;
-
-		ROS_INFO("\033[22;32mCollision detected maunvering to avoid");
-
+    
+    if( planeId == 0 )
+    {
+      ROS_INFO("\033[22;32mCollision detected; maneuvering to avoid");
+    }
+    
 		if(!client.call(srv))
 			ROS_ERROR("YOUR SERVICE DIDN'T GO THROUGH YOU GONA CRASH!!!");
 
@@ -404,6 +433,8 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 		//cin.get();
    
 	}
+  
+  cout << "End of callback " << endl << endl;
 
 }
 
