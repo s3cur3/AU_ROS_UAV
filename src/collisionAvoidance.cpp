@@ -1,10 +1,10 @@
-//#define Testing
+#define Testing
 //#define Outputting
 #define DEBUG // for now, this should ALWAYS be defined for the sake of rigor
 #define GODDAMMIT
 //#define collisionTesting
 
-//#define TYLERS_PC
+#define TYLERS_PC
 
 //standard C++ headers
 #include <sstream>
@@ -14,11 +14,15 @@
 #include <iostream>
 #include <fstream>
 #include <time.h>
-#include "Plane.h" // Changing to Plane.h kills it!
+#include "Plane.h"
 #include "best_cost_with_fields.h"
 #include "astar_point.cpp"
 #include "telemetry_data_out.h"
 #include "Position.h"
+
+#ifdef DEBUG
+#include <iomanip>
+#endif
 
 //ROS headers
 #include "ros/ros.h"
@@ -29,6 +33,8 @@
 #ifndef EPSILON
 #define EPSILON 0.00000001
 #endif
+
+using namespace std;
 
 //ROS service client for calling a service from the coordinator
 ros::ServiceClient client;
@@ -67,6 +73,19 @@ inline std::string to_string( const T& t )
 }
 #endif
 
+#ifdef DEBUG
+#ifndef DOUBLE_TO_STRING
+#define DOUBLE_TO_STRING
+std::string double_to_string(const double & d)
+{
+  std::stringstream ss;
+  ss << std::setprecision( std::numeric_limits<double>::digits10+2);
+  ss << d;
+  return ss.str();
+}
+#endif
+#endif
+
 
 void makeField();
 
@@ -95,7 +114,7 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 #endif
    */
   
-#ifdef Testing
+#ifdef DEBUG
 	//print out the tele data for use with x-plane
 	ofstream tele;
 	string path;
@@ -110,25 +129,29 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 	path+=to_string( output_indices[planeId] );
 	path+=".txt";
 	tele.open(path.c_str(), ios::out);
-	
-	unsigned int timestamp = clock() / (CLOCKS_PER_SEC / 1000); // should give ms; be sure to include time.h
-
-	/*stuff to print for x-plane
-	int Plane ID
-	double currentLatitude
-	double currentLongitude
-	double currentAltitude
-	double groundSpeed
-	double destLatitude
-	double destLongitude
-	double targetBearing
-	double Timestamp (in milliseconds, doesn't matter where you start)
-	*/
-	
-	tele <<planeId <<"\n"<< currentLat<<"\n"<<currentLon<<"\n"<<currentAlt<<"\n"<<
-	gSpeed<<"\n"<<destLat<<"\n"<<destLon<<"\n"<<bearing<<"\n"<<timestamp<<endl;
-
-	tele.close();
+	if( tele.is_open() )
+  {
+    unsigned int timestamp = clock() / (CLOCKS_PER_SEC / 1000); // should give ms; be sure to include time.h
+    
+    /*stuff to print for x-plane
+     int Plane ID
+     double currentLatitude
+     double currentLongitude
+     double currentAltitude
+     double groundSpeed
+     double destLatitude
+     double destLongitude
+     double targetBearing
+     double Timestamp (in milliseconds, doesn't matter where you start)
+     */
+    
+    tele << planeId <<"\n"<< double_to_string(currentLat) << "\n" << double_to_string(currentLon);
+    tele << "\n" << currentAlt << "\n" <<	gSpeed << "\n" << double_to_string(destLat);
+    tele << "\n" << double_to_string(destLon) << "\n" << double_to_string(bearing) << "\n";
+    tele << timestamp << "\n";
+    
+    tele.close();
+  }
 #endif
 
 	//intilize everything (else) we need 
@@ -137,9 +160,8 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 	AU_UAV_ROS::GoToWaypoint srv;
 
 
-	//make the positions
-#ifdef GODDAMMIT
-//  cout << endl << endl << "upperLeftLat is " << upperLeftLat << endl;
+	// Make the positions
+#ifdef DEBUG
   assert( upperLeftLon < -85.49 && upperLeftLon > -85.491 );
   assert( upperLeftLat > 32.592 && upperLeftLat < 32.593 );
   assert( lonWidth > 0.005 && lonWidth < 0.00501 );
@@ -152,6 +174,7 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
   
   assert( res > 9.99 && res < 10.1 );
 #endif
+  
 	Position current = Position(upperLeftLon,upperLeftLat,lonWidth,latWidth,currentLon,currentLat,res);
 
 	
@@ -282,12 +305,12 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
   int endy=plane->getFinalDestination().getY();
 #ifdef GODDAMMIT
   assert( startx < 47 );
-  assert( startx > 0);
-  assert( starty > 0 );
+  assert( startx >= 0);
+  assert( starty >= 0 );
   assert( starty < 43 );
   assert( endx < 47 );
-  assert( endx > 0);
-  assert( endy > 0 );
+  assert( endx >= 0);
+  assert( endy >= 0 );
   assert( endy < 43 );
 #endif
   
@@ -297,12 +320,12 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
   
 #ifdef GODDAMMIT
   assert( startx < 47 );
-  assert( startx > 0);
-  assert( starty > 0 );
+  assert( startx >= 0);
+  assert( starty >= 0 );
   assert( starty < 43 );
   assert( endx < 47 );
-  assert( endx > 0);
-  assert( endy > 0 );
+  assert( endx >= 0);
+  assert( endy >= 0 );
   assert( endy < 43 );
 #endif
 
@@ -361,8 +384,7 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
     //next.setXY( forSparta.x, forSparta.y );
     
     
-		next.setLon(aStar.getLon());
-    next.setLat(aStar.getLat());
+		next.setLatLon( aStar.getLat(), aStar.getLon() );
 
 		//these settings mean it is an avoidance maneuver waypoint AND to clear the avoidance queue(if there was a new plane)
 		srv.request.isAvoidanceManeuver = true;

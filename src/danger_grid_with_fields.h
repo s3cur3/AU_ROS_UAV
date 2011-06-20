@@ -526,16 +526,12 @@ void danger_grid::set_danger_field( double bearing, double unweighted_danger,
       (*danger_space)[ time ].safely_add_danger_at( x + 1,   y  , d );
       break;
     case NE:
-      // dag left+up
-      (*danger_space)[ time ].safely_add_danger_at( x - 1, y - 1, d );
       // straight up
       (*danger_space)[ time ].safely_add_danger_at(   x  , y - 1, d );
       // dag right+up
       (*danger_space)[ time ].safely_add_danger_at( x + 1, y - 1, d );
       // straight right
       (*danger_space)[ time ].safely_add_danger_at( x + 1,   y  , d );
-      // dag right+down
-      (*danger_space)[ time ].safely_add_danger_at( x + 1, y + 1, d );
       break;
     case E:
       // straight up
@@ -550,16 +546,12 @@ void danger_grid::set_danger_field( double bearing, double unweighted_danger,
       (*danger_space)[ time ].safely_add_danger_at(   x  , y + 1, d );
       break;
     case SE:
-      // dag right+up
-      (*danger_space)[ time ].safely_add_danger_at( x + 1, y - 1, d );
       // straight right
       (*danger_space)[ time ].safely_add_danger_at( x + 1,   y  , d );
       // dag right+down
       (*danger_space)[ time ].safely_add_danger_at( x + 1, y + 1, d );
       // straight down
       (*danger_space)[ time ].safely_add_danger_at(   x  , y + 1, d );
-      // dag left+down
-      (*danger_space)[ time ].safely_add_danger_at( x - 1, y + 1, d );
       break;
     case S:
       // straight right
@@ -574,16 +566,12 @@ void danger_grid::set_danger_field( double bearing, double unweighted_danger,
       (*danger_space)[ time ].safely_add_danger_at( x - 1,   y  , d );
       break;
     case SW:
-      // dag right+down
-      (*danger_space)[ time ].safely_add_danger_at( x + 1, y + 1, d );
       // straight down
       (*danger_space)[ time ].safely_add_danger_at(   x  , y + 1, d );
       // dag left+down
       (*danger_space)[ time ].safely_add_danger_at( x - 1, y + 1, d );
       // straight left
       (*danger_space)[ time ].safely_add_danger_at( x - 1,   y  , d );
-      // dag left+up
-      (*danger_space)[ time ].safely_add_danger_at( x - 1, y - 1, d );
       break;
     case W:
       // straight down
@@ -598,16 +586,12 @@ void danger_grid::set_danger_field( double bearing, double unweighted_danger,
       (*danger_space)[ time ].safely_add_danger_at(   x  , y - 1, d );
       break;
     case NW:
-      // dag left+down
-      (*danger_space)[ time ].safely_add_danger_at( x - 1, y + 1, d );
       // straight left
       (*danger_space)[ time ].safely_add_danger_at( x - 1,   y  , d );
       // dag left+up
       (*danger_space)[ time ].safely_add_danger_at( x - 1, y - 1, d );
       // straight up
       (*danger_space)[ time ].safely_add_danger_at(   x  , y - 1, d );
-      // dag right+up
-      (*danger_space)[ time ].safely_add_danger_at( x + 1, y - 1, d );
       break;
   } // end switch case
 }

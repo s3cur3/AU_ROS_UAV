@@ -33,7 +33,8 @@
 
 #ifdef DEBUG
 #include "write_to_log.h"
-const string output_path = "/mnt/hgfs/Dropbox/school/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/log/map/";
+const string output_path = "/Volumes/DATA/Dropbox/school/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/log/map/";
+//const string output_path = "/mnt/hgfs/Dropbox/school/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/log/map/";
 #endif
 
 #ifdef OUTPUT_CSV
