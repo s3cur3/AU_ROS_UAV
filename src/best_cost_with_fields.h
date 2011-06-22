@@ -316,6 +316,11 @@ void best_cost::initialize_path( )
     for( int t = n_secs; t >= 0; t-- )
     { //              This isn't quite right . . . FIX ME! /////////////////////////////////////////////////////////////////////////////////////////
       double danger = (*mc)( x_to_set, y_to_set, t );
+      
+#ifdef DEBUG
+      if( x_to_set == goal.x && y_to_set == goal.y )
+        cout << "Why are you trying to change the goal??" << endl;
+#endif
       bc->set_danger_at( x_to_set, y_to_set, t, danger_adjust * danger +
                          bc->get_dist_cost_at( x_to_set, y_to_set ) );
       // This (x, y, t) coordinate can change the best cost of its neighbors; check later
@@ -384,6 +389,10 @@ void best_cost::minimize_cost()
 
       if( cost < (*bc)( j->x, j->y, j->t ) && cost < danger_threshold )
       {
+#ifdef DEBUG
+        if( j->x == goal.x && j->y == goal.y )
+          cout << "Why are you trying to change the goal in the min cost fn??" << endl;
+#endif
         (*bc).set_danger_at( j->x, j->y, j->t, cost );
         
         // If the neighbor isn't in the to-do list . . .

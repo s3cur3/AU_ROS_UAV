@@ -2,7 +2,7 @@
 #define Outputting
 #define DEBUG // for now, this should ALWAYS be defined for the sake of rigor
 //#define GODDAMMIT
-#define collisionTesting
+#define COLLISIONTESTING
 
 #define TYLERS_PC
 
@@ -50,9 +50,10 @@ double fieldHeight;
 
 //where the planes are
 vector<Plane> planes;
-#ifdef collisionTesting
-Position crash[5];
-//int crashSize=5;
+#ifdef COLLISIONTESTING
+vector< point > plane_locs;
+// Position crash[5];
+// int crashSize=5;
 #endif
 
 //the number of files written per plane to teledata
@@ -89,9 +90,13 @@ std::string double_to_string(const double & d)
 
 void makeField();
 
-#ifdef collisionTesting
-bool	collision(int &x, int &y);
-#endif
+/**
+ * Checks a plane's location against all others to see if there is a collision
+ * @param id_to_check The ID of the plane that was just updated; all other planes'
+ *                    locations will be checked against this one
+ * @return TRUE if a collision occurred, FALSE if it's business as usual
+ */
+bool	collision_occurred( int id_to_check );
 
 void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 {
@@ -180,9 +185,28 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 	Position current = Position(upperLeftLon,upperLeftLat,lonWidth,latWidth,currentLon,currentLat,res);
 
 	
-#ifdef collisionTesting
+#ifdef COLLISIONTESTING
+  // if this plane ID is not in the plane_locs vector, increase the size of the
+  // vector to accomodate it
+  while( planeId >= plane_locs.size() )
+  {
+    point dummy;
+    dummy.x = -1;
+    dummy.y = -1;
+    dummy.t = -1;
+    plane_locs.push_back( dummy );
+  }
+  
+  // store the current plane's current location in the vector
+  plane_locs[ planeId ].x = current.getX();
+  plane_locs[ planeId ].y = current.getY();
+  plane_locs[ planeId ].t = 0;
+  
+  assert( !collision_occurred( planeId ) );
+  
+  /*
 	crash[planeId]=current;
-	if(the_count>6)
+	if(the_count > 6)
 	{
 		int x=0, y=0;
 		if(collision(x,y))
@@ -191,7 +215,7 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
                 ,x,y,crash[x].getX(),crash[x].getY(),crash[x].getLat(),crash[x].getLon(),the_count);
 			assert(false);
 		}
-	}
+	}*/
 #endif
 
   
@@ -240,7 +264,7 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 	//update the plane
 	plane->update(current,next,gSpeed,bearing);
 #ifdef DEBUG
-  if( planeId == 0 )
+  if( planeId == 5 )
   {
     cout<<"Current location for plane"<<planeId<<" "<<plane->getLocation().getX()<<" "<<plane->getLocation().getY()<<endl;
     printf("   Which is %f, %f \n", plane->getLocation().getLon(), plane->getLocation().getLat() );
@@ -474,8 +498,24 @@ int main(int argc, char **argv)
 	return 0;
 }
 
-#ifdef collisionTesting
-bool collision(int &one, int &two)
+bool	collision_occurred( int id_to_check )
+{
+  for( unsigned int crnt_id = 0; crnt_id < plane_locs.size(); crnt_id++ )
+  {
+    if( crnt_id != id_to_check && /* this is a different plane */
+        plane_locs[ crnt_id ].x == plane_locs[ id_to_check ].x && /* with the same x pos */
+        plane_locs[ crnt_id ].y == plane_locs[ id_to_check ].y && /* and the same y pos */
+        plane_locs[ crnt_id ].t != -1 /* and it HAS been initialized */)
+    {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+/*
+ bool collision(int &one, int &two)
 {
 	//longest declertion ever?
 	/*bool dead = crash[3]==crash[4] ||
@@ -510,14 +550,13 @@ bool collision(int &one, int &two)
 	if(crash[0]==crash[3])
 	{one=0;two=3;return true;}
 	if(crash[0]==crash[2])
-	{one=0;two=2;return true;}*/
+	{one=0;two=2;return true;}
 	if(crash[0]==crash[1])
 	{one=0;two=1;return true;}
 	
 	return false;
 	
-}
-#endif
+} */
          
 void makeField()
   {

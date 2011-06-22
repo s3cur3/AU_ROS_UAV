@@ -13,6 +13,7 @@
 #include "Plane.h"
 #include <time.h>
 #include <vector>
+#include <iomanip>
 
 #define DEBUG
 
@@ -39,10 +40,20 @@ const double upper_left_latitude = 32.592425;
 const double width_in_degrees_longitude = 0.005002;
 const double height_in_degrees_latitude = -0.003808;
 
+#ifndef DOUBLE_TO_STRING
+#define DOUBLE_TO_STRING
+std::string double_to_string(const double & d)
+{
+  std::stringstream ss;
+  ss << std::setprecision( std::numeric_limits<double>::digits10+2);
+  ss << d;
+  return ss.str();
+}
+#endif
 
 int main()
 {
-  int run = 0;
+  int run = 2;
   
   // The origin
   Position plane_1_start( upper_left_longitude, upper_left_latitude,
@@ -310,4 +321,115 @@ int main()
     plane_1_start.setLatLon( plane_1_start.getLat(), plane_1_start.getLon() );
     cout << "Pos in BC Tester is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl << endl;
   }
+  
+  if( run == 2 )
+  {
+    cout << "Plane 0 start" << endl;
+    cout << "  Setting to ( 0, 40 ) via xy" << endl;
+    plane_1_start.setXY( 0, 40 );
+    cout << "  Pos in BC Tester is " << double_to_string( plane_1_start.getLat() )
+         << ", " << double_to_string( plane_1_start.getLon() ) << endl << endl;
+    
+    
+    cout << "Plane 0 end" << endl;
+    cout << "Setting to ( 40, 0 ) via lat-lon" << endl;
+    plane_1_start.setXY( 40, 0 );
+    cout << "  Pos in BC Tester is " << double_to_string( plane_1_start.getLat() )
+    << ", " << double_to_string( plane_1_start.getLon() ) << endl << endl;
+    
+    cout << "Plane 1 start" << endl;
+    cout << "Setting to ( 42, 20 ) via lat-lon" << endl;
+    plane_1_start.setXY( 42, 20 );
+    cout << "  Pos in BC Tester is " << double_to_string( plane_1_start.getLat() )
+    << ", " << double_to_string( plane_1_start.getLon() ) << endl << endl;
+    
+    cout << "Plane 1 end" << endl;
+    cout << "Setting to ( 40, 20 ) via lat-lon" << endl;
+    plane_1_start.setXY( 40, 20 );
+    cout << "  Pos in BC Tester is " << double_to_string( plane_1_start.getLat() )
+    << ", " << double_to_string( plane_1_start.getLon() ) << endl << endl;
+    
+    cout << "Plane 2 start" << endl;
+    cout << "Setting to ( 38, 22 ) via lat-lon" << endl;
+    plane_1_start.setXY( 38, 22 );
+    cout << "  Pos in BC Tester is " << double_to_string( plane_1_start.getLat() )
+    << ", " << double_to_string( plane_1_start.getLon() ) << endl << endl;
+    
+    cout << "Plane 2 end" << endl;
+    cout << "Setting to ( 20, 40 ) via lat-lon" << endl;
+    plane_1_start.setXY( 20, 40 );
+    cout << "  Pos in BC Tester is " << double_to_string( plane_1_start.getLat() )
+    << ", " << double_to_string( plane_1_start.getLon() ) << endl << endl;
+    
+    cout << "Plane 4 start" << endl;
+    cout << "Setting to ( 40, 40 ) via lat-lon" << endl;
+    plane_1_start.setXY( 40, 40 );
+    cout << "  Pos in BC Tester is " << double_to_string( plane_1_start.getLat() )
+    << ", " << double_to_string( plane_1_start.getLon() ) << endl << endl;
+    
+    cout << "Plane 4 end" << endl;
+    cout << "Setting to ( 0, 0 ) via lat-lon" << endl;
+    plane_1_start.setXY( 0, 0 );
+    cout << "  Pos in BC Tester is " << double_to_string( plane_1_start.getLat() )
+    << ", " << double_to_string( plane_1_start.getLon() ) << endl << endl;
+    
+    cout << "Plane 8 start" << endl;
+    cout << "Setting to ( 1, 40 ) via lat-lon" << endl;
+    plane_1_start.setXY( 1, 40 );
+    cout << "  Pos in BC Tester is " << double_to_string( plane_1_start.getLat() )
+    << ", " << double_to_string( plane_1_start.getLon() ) << endl << endl;
+    
+    cout << "Plane 8 end" << endl;
+    cout << "Setting to ( 39, 0 ) via lat-lon" << endl;
+    plane_1_start.setXY( 39, 0 );
+    cout << "  Pos in BC Tester is " << double_to_string( plane_1_start.getLat() )
+    << ", " << double_to_string( plane_1_start.getLon() ) << endl << endl;
+    
+    cout << "Plane 9 start" << endl;
+    cout << "Setting to ( 41, 1 ) via lat-lon" << endl;
+    plane_1_start.setXY( 41, 1 );
+    cout << "  Pos in BC Tester is " << double_to_string( plane_1_start.getLat() )
+    << ", " << double_to_string( plane_1_start.getLon() ) << endl << endl;
+    
+    cout << "Plane 9 end" << endl;
+    cout << "Setting to ( 0, 39 ) via lat-lon" << endl;
+    plane_1_start.setXY( 0, 39 );
+    cout << "  Pos in BC Tester is " << double_to_string( plane_1_start.getLat() )
+    << ", " << double_to_string( plane_1_start.getLon() ) << endl << endl;
+    
+    cout << "Plane 10 start" << endl;
+    cout << "Setting to ( 10, 15 ) via lat-lon" << endl;
+    plane_1_start.setXY( 10, 15 );
+    cout << "  Pos in BC Tester is " << double_to_string( plane_1_start.getLat() )
+    << ", " << double_to_string( plane_1_start.getLon() ) << endl << endl;
+    
+    cout << "Plane 10 wp" << endl;
+    cout << "Setting to ( 20, 15 ) via lat-lon" << endl;
+    plane_1_start.setXY( 20, 15 );
+    cout << "  Pos in BC Tester is " << double_to_string( plane_1_start.getLat() )
+    << ", " << double_to_string( plane_1_start.getLon() ) << endl << endl;
+    
+    cout << "Plane 10 wp" << endl;
+    cout << "Setting to ( 20, 25 ) via lat-lon" << endl;
+    plane_1_start.setXY( 20, 25 );
+    cout << "  Pos in BC Tester is " << double_to_string( plane_1_start.getLat() )
+    << ", " << double_to_string( plane_1_start.getLon() ) << endl << endl;
+    
+    cout << "Plane 10 wp" << endl;
+    cout << "Setting to ( 10, 25 ) via lat-lon" << endl;
+    plane_1_start.setXY( 10, 25 );
+    cout << "  Pos in BC Tester is " << double_to_string( plane_1_start.getLat() )
+    << ", " << double_to_string( plane_1_start.getLon() ) << endl << endl;
+  }
 }
+
+
+
+
+
+
+
+
+
+
+
