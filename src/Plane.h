@@ -62,9 +62,9 @@ void Plane::update(Position newcurrent, Position newdestination, double bare, do
 {
 	lastPosition.setLatLon( current.getLat(), current.getLon() );
   
-	current.setLatLon( newcurrent.getLat(), newcurrent.getLon() );
+	current = newcurrent; //.setLatLon( newcurrent.getLat(), newcurrent.getLon() );
 
-	destination.setLatLon( newdestination.getLat(), newdestination.getLon() );
+	destination = newdestination;//.setLatLon( newdestination.getLat(), newdestination.getLon() );
 
 	bearingToDest=bare;
 	speed=newspeed;

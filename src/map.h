@@ -149,7 +149,7 @@ public:
 
   void dump_big_numbers( ) const;
   
-  void dump_csv( ) const;
+  void dump_csv( string prefix ) const;
 
 private:
   vector< vector< grid_square > > the_map; // a 2-D vector array of grid squares
@@ -445,11 +445,11 @@ void map::dump_big_numbers( ) const
   }
   
 #ifdef OUTPUT_CSV
-  dump_csv();
-  #endif
+  dump_csv( "" );
+#endif
 }
 
-void map::dump_csv( ) const
+void map::dump_csv( string prefix ) const
 {
   double mult = 1.0;
   stringstream ss( stringstream::out );
@@ -462,8 +462,9 @@ void map::dump_csv( ) const
   
   if( csv.is_open() )
   { 
+    csv << prefix << "," << endl;
     csv << "\n" << " Danger ratings:" << endl;
-    csv << "    ";
+    csv << ",";
     for( unsigned int top_guide = 0; top_guide < the_map.size(); ++top_guide )
     {
       csv << top_guide << ",";

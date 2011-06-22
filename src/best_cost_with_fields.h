@@ -131,6 +131,7 @@ public:
    * @param time The time, in seconds, whose map should be output
    */
   void dump_csv( int time ) const;
+  void dump_csv( int time, string prefix ) const;
   
   // AK: Destructor, combats memory leak issues
   ~best_cost();
@@ -260,7 +261,7 @@ void best_cost::initialize_path( )
 {
   // Initialize the best cost at the goal to 0 for all times
   for( int t = 0; t < n_secs; t++ )
-    bc->set_danger_at( goal.x, goal.y, t, 0.0);
+    bc->set_danger_at( goal.x, goal.y, t, (*mc)(goal.x, goal.y, t) );
   
   // Find the squares which lie in the straight line between BC_start and BC_goal
   int dx = goal.x - start.x;
@@ -436,10 +437,17 @@ void best_cost::dump( int time ) const
   bc->dump( time );
 }
 
+void best_cost::dump_csv( int time, string prefix ) const
+{
+  mc->dump_csv( time, prefix );
+  bc->dump_csv( time, prefix );
+}
+
 void best_cost::dump_csv( int time ) const
 {
-  mc->dump_csv( time );
-  bc->dump_csv( time );
+  mc->dump_csv( time, "" );
+  bc->dump_csv( time, "" );
 }
+
 
 #endif

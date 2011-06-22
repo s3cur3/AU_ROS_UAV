@@ -192,7 +192,7 @@ public:
    */
   void dump_big_numbers( int time ) const;
   
-  void dump_csv( int time ) const;
+  void dump_csv( int time, string prefix ) const;
   
 private:
   enum bearing_t { N, NE, E, SE, S, SW, W, NW };
@@ -753,6 +753,26 @@ vector< estimate > danger_grid::calculate_future_pos( Plane & plane, int &time )
 	else
   dangerRecurse(theFuture[0],dest,theFuture,time);
   
+	//add prediction to one square ahead of goal
+	//find closest straight line from target bearing
+	angle=plane.getBearing();
+  neighoboringAngles(angle, neighbors[0], neighbors[1]);
+  if(fabs(angle-neighbors[0])>=fabs(angle-neighbors[1]))//distance
+  {closestAngle=neighbors[1]; otherAngle=neighbors[0];}
+  else
+  {closestAngle=neighbors[0]; otherAngle=neighbors[1];}
+  
+  //find displacement percentage
+  if((fabs(angle)>fabs(closestAngle))&&closestAngle!=0)
+    danger=(closestAngle/angle);
+  else if(closestAngle!=0)
+    danger=(angle/closestAngle);
+  else//i hate 0
+    danger=1-(angle/otherAngle);//because you can't use 0 find the inverse of the displacement to the other angle.
+  
+  //now add the danger ahead of the goal to theFuture
+  placeDanger(angle, theFuture, closestAngle, otherAngle, x1, y1, danger);	
+	
   return theFuture;
 }
 
@@ -767,7 +787,7 @@ void danger_grid::dangerRecurse(estimate e, int destination[], vector<estimate> 
   
   double xDistance=( fabs((double)x2-x1) ), yDistance=( fabs((double)y2-y1) );
   if(xDistance==0&&yDistance==0)//your there!!!!!!!(hopefully)
-  {return;}
+		{theFuture.push_back(estimate(0,0,-1));return;}
   double distance = sqrt((double)(xDistance*xDistance)+(yDistance*yDistance));
   
   //find the angle to the waypoint
@@ -1094,12 +1114,12 @@ void danger_grid::dump_big_numbers( int time ) const
   }
 }
 
-void danger_grid::dump_csv( int time ) const
+void danger_grid::dump_csv( int time, string prefix ) const
 {
 #ifdef DEBUG
   assert( time + (int)look_behind < (int)( danger_space->size() ) || time == 10000 );
 #endif
-  (*danger_space)[ time + look_behind ].dump_csv();
+  (*danger_space)[ time + look_behind ].dump_csv( prefix );
 }
 
 #endif

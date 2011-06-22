@@ -2,7 +2,7 @@
 #define Outputting
 #define DEBUG // for now, this should ALWAYS be defined for the sake of rigor
 //#define GODDAMMIT
-//#define collisionTesting
+#define collisionTesting
 
 #define TYLERS_PC
 
@@ -16,7 +16,7 @@
 #include <time.h>
 #include "Plane.h"
 #include "best_cost_with_fields.h"
-#include "astar_point.cpp"
+#include "astar_sparse.cpp"
 #include "telemetry_data_out.h"
 #include "Position.h"
 
@@ -297,6 +297,9 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
     assert( plane->getLocation().getLon() > -85.4915 );
     assert( plane->getLocation().getLat() > 32.5882 );
     assert( plane->getLocation().getLat() < 32.593 );
+    
+    cout << "goalSrv.response.latitude is " << goalSrv.response.latitude << endl;
+    cout << "goalSrv.response.longitude is " << goalSrv.response.longitude << endl;
 #endif
 		plane->setFinalDestination(plane->getLocation().getLon(), plane->getLocation().getLat());
 
@@ -340,8 +343,17 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
   best_cost bc = best_cost(&planes,fieldWidth,fieldHeight,res,planeId);
   
 #ifdef DEBUG
-  bc.dump_csv( 0 );
-  bc.dump_csv( 1 );
+  stringstream prefix;
+  prefix << "For plane," << planeId << ",\nGoal:," << endx << "," << endy << ",\n";
+  prefix << "Start:," << startx << "," << starty << ",\n";
+  prefix << "Timestep:,0,\n";
+  bc.dump_csv( 0, prefix.str() );
+  
+  stringstream prefix1;
+  prefix1 << "For plane," << planeId << ",\nGoal:," << endx << "," << endy << ",\n";
+  prefix1 << "Start:," << startx << "," << starty << ",\n";
+  prefix1 << "Timestep:,1,\n";
+  bc.dump_csv( 1, prefix.str() );
 #endif
   
   if( planeId == 0 )
@@ -429,9 +441,8 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 		goalSrv.request.positionInQueue=0;
 		if(findGoal.call(goalSrv))
       cout<<goalSrv.response.longitude<<" "<<goalSrv.response.latitude<<endl;*/
-		plane->update(current,next,gSpeed,bearing);
-		//cin.get();
-   
+    
+		//plane->update(current,next,gSpeed,bearing);
 	}
   
   cout << "End of callback " << endl << endl;

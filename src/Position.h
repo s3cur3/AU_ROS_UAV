@@ -293,17 +293,30 @@ void Position::latLonToXY( int & out_x, int & out_y)
   {
     bearing = map_tools::calculate_bearing_in_rad( top_left_lat, top_left_long,
                                                    lat, lon );
-    if( bearing < 0 )
-      bearing = TWO_PI + bearing;
-    bearing = PI/2 - bearing;
+    
+    if( bearing > 0 )
+    {
+      if( bearing < PI/2 )
+      {
+        bearing -= PI/2;
+      }
+      else
+        bearing = PI/2 - bearing;
+    }
+    bearing = fmod( bearing, PI/2 );
   }
   
 #ifdef DEBUG
-    assert( bearing < 0.001 );
-    assert( bearing > -PI/2 - 0.01 );
+  if( bearing > 0.001 )
+  {
+    cout << "That bearing of " << bearing << "is gonna break things!" << endl;
+    cout << "Your point was (" << lat << ", " << lon << ")" << endl;
+  }
+  assert( bearing < 0.001 );
+  assert( bearing > -PI/2 - 0.01 );
 #endif
-    out_x = (int)( (int)(cos( bearing ) * d_from_origin + 0.5) / resolution );
-    out_y = -(int)( (int)(sin( bearing ) * d_from_origin - 0.5) / resolution );
+  out_x = (int)( (int)(cos( bearing ) * d_from_origin + 0.5) / resolution );
+  out_y = -(int)( (int)(sin( bearing ) * d_from_origin - 0.5) / resolution );
   
 #ifdef DEBUG
   assert( out_x < w );

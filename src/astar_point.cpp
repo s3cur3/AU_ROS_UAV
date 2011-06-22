@@ -12,7 +12,7 @@
 
 #include "stlastar.h" // See header for copyright and usage information
 #include "Plane.h"
-#include "best_cost.h"
+#include "best_cost_with_fields.h"
 #include <iostream>
 #include <math.h>
 #include <vector>
