@@ -172,6 +172,11 @@ double Plane::getBearing()
 	return bearing;
 }
 
+double Plane::getBearingToDest()
+{
+	return bearingToDest;
+}
+
 void Plane::calculateBearing()
 {
 	if(!(current==lastPosition))

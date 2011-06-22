@@ -513,9 +513,13 @@ void danger_grid::set_danger_field( double bearing, double unweighted_danger,
   danger_grid::bearing_t named_bearing = name_bearing( bearing );
   double d = unweighted_danger * field_weight;
 
+  // These buffer zones have been made wider in light of A*'s propensity for taking
+  // diagonals when we allow it.
   switch( named_bearing )
   {
     case N:
+      // dag left+down
+      (*danger_space)[ time ].safely_add_danger_at( x - 1, y + 1, d );
       // straight left
       (*danger_space)[ time ].safely_add_danger_at( x - 1, y , d );
       // dag left+up
@@ -526,8 +530,12 @@ void danger_grid::set_danger_field( double bearing, double unweighted_danger,
       (*danger_space)[ time ].safely_add_danger_at( x + 1, y - 1, d );
       // straight right
       (*danger_space)[ time ].safely_add_danger_at( x + 1, y , d );
+      // dag right+down
+      (*danger_space)[ time ].safely_add_danger_at( x + 1, y + 1, d );
       break;
     case NE:
+      // straight left
+      (*danger_space)[ time ].safely_add_danger_at( x - 1, y , d );
       // dag left+up
       (*danger_space)[ time ].safely_add_danger_at( x - 1, y - 1, d );
       // straight up
@@ -538,8 +546,12 @@ void danger_grid::set_danger_field( double bearing, double unweighted_danger,
       (*danger_space)[ time ].safely_add_danger_at( x + 1, y , d );
       // dag right+down
       (*danger_space)[ time ].safely_add_danger_at( x + 1, y + 1, d );
+      // straight down
+      (*danger_space)[ time ].safely_add_danger_at( x , y + 1, d );
       break;
     case E:
+      // dag left+up
+      (*danger_space)[ time ].safely_add_danger_at( x - 1, y - 1, d );
       // straight up
       (*danger_space)[ time ].safely_add_danger_at( x , y - 1, d );
       // dag right+up
@@ -550,8 +562,12 @@ void danger_grid::set_danger_field( double bearing, double unweighted_danger,
       (*danger_space)[ time ].safely_add_danger_at( x + 1, y + 1, d );
       // straight down
       (*danger_space)[ time ].safely_add_danger_at( x , y + 1, d );
+      // dag left+down
+      (*danger_space)[ time ].safely_add_danger_at( x - 1, y + 1, d );
       break;
     case SE:
+      // straight up
+      (*danger_space)[ time ].safely_add_danger_at( x , y - 1, d );
       // dag right+up
       (*danger_space)[ time ].safely_add_danger_at( x + 1, y - 1, d );
       // straight right
@@ -562,8 +578,12 @@ void danger_grid::set_danger_field( double bearing, double unweighted_danger,
       (*danger_space)[ time ].safely_add_danger_at( x , y + 1, d );
       // dag left+down
       (*danger_space)[ time ].safely_add_danger_at( x - 1, y + 1, d );
+      // straight left
+      (*danger_space)[ time ].safely_add_danger_at( x - 1, y , d );
       break;
     case S:
+      // dag right+up
+      (*danger_space)[ time ].safely_add_danger_at( x + 1, y - 1, d );
       // straight right
       (*danger_space)[ time ].safely_add_danger_at( x + 1, y , d );
       // dag right+down
@@ -574,8 +594,12 @@ void danger_grid::set_danger_field( double bearing, double unweighted_danger,
       (*danger_space)[ time ].safely_add_danger_at( x - 1, y + 1, d );
       // straight left
       (*danger_space)[ time ].safely_add_danger_at( x - 1, y , d );
+      // dag left+up
+      (*danger_space)[ time ].safely_add_danger_at( x - 1, y - 1, d );
       break;
     case SW:
+      // straight right
+      (*danger_space)[ time ].safely_add_danger_at( x + 1, y , d );
       // dag right+down
       (*danger_space)[ time ].safely_add_danger_at( x + 1, y + 1, d );
       // straight down
@@ -586,8 +610,12 @@ void danger_grid::set_danger_field( double bearing, double unweighted_danger,
       (*danger_space)[ time ].safely_add_danger_at( x - 1, y , d );
       // dag left+up
       (*danger_space)[ time ].safely_add_danger_at( x - 1, y - 1, d );
+      // straight up
+      (*danger_space)[ time ].safely_add_danger_at( x , y - 1, d );
       break;
     case W:
+      // dag right+down
+      (*danger_space)[ time ].safely_add_danger_at( x + 1, y + 1, d );
       // straight down
       (*danger_space)[ time ].safely_add_danger_at( x , y + 1, d );
       // dag left+down
@@ -598,8 +626,12 @@ void danger_grid::set_danger_field( double bearing, double unweighted_danger,
       (*danger_space)[ time ].safely_add_danger_at( x - 1, y - 1, d );
       // straight up
       (*danger_space)[ time ].safely_add_danger_at( x , y - 1, d );
+      // dag right+up
+      (*danger_space)[ time ].safely_add_danger_at( x + 1, y - 1, d );
       break;
     case NW:
+      // straight down
+      (*danger_space)[ time ].safely_add_danger_at( x , y + 1, d );
       // dag left+down
       (*danger_space)[ time ].safely_add_danger_at( x - 1, y + 1, d );
       // straight left
@@ -610,6 +642,8 @@ void danger_grid::set_danger_field( double bearing, double unweighted_danger,
       (*danger_space)[ time ].safely_add_danger_at( x , y - 1, d );
       // dag right+up
       (*danger_space)[ time ].safely_add_danger_at( x + 1, y - 1, d );
+      // straight right
+      (*danger_space)[ time ].safely_add_danger_at( x + 1, y , d );
       break;
   } // end switch case
 }
@@ -755,23 +789,17 @@ vector< estimate > danger_grid::calculate_future_pos( Plane & plane, int &time )
   
 	//add prediction to one square ahead of goal
 	//find closest straight line from target bearing
-	angle=plane.getBearing();
+	angle=plane.getBearingToDest();
   neighoboringAngles(angle, neighbors[0], neighbors[1]);
   if(fabs(angle-neighbors[0])>=fabs(angle-neighbors[1]))//distance
   {closestAngle=neighbors[1]; otherAngle=neighbors[0];}
   else
   {closestAngle=neighbors[0]; otherAngle=neighbors[1];}
-  
-  //find displacement percentage
-  if((fabs(angle)>fabs(closestAngle))&&closestAngle!=0)
-    danger=(closestAngle/angle);
-  else if(closestAngle!=0)
-    danger=(angle/closestAngle);
-  else//i hate 0
-    danger=1-(angle/otherAngle);//because you can't use 0 find the inverse of the displacement to the other angle.
-  
+	
+	danger=1;
+	
   //now add the danger ahead of the goal to theFuture
-  placeDanger(angle, theFuture, closestAngle, otherAngle, x1, y1, danger);	
+  placeDanger(angle, theFuture, closestAngle, otherAngle, x2, y2, danger);	
 	
   return theFuture;
 }
@@ -787,7 +815,7 @@ void danger_grid::dangerRecurse(estimate e, int destination[], vector<estimate> 
   
   double xDistance=( fabs((double)x2-x1) ), yDistance=( fabs((double)y2-y1) );
   if(xDistance==0&&yDistance==0)//your there!!!!!!!(hopefully)
-		{theFuture.push_back(estimate(0,0,-1));return;}
+		{/*theFuture.push_back(estimate(0,0,-1));*/return;}
   double distance = sqrt((double)(xDistance*xDistance)+(yDistance*yDistance));
   
   //find the angle to the waypoint
