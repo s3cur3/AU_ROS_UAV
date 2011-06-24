@@ -113,8 +113,8 @@ int Position::getY() // TY changed this to return an int instead of a double
 void Position::setXY(int x1, int y1)
 {
 #ifdef DEBUG
-  assert( y1 >= 0 && y1 <= h );
-  assert( x1 >= 0 && x1 <= w );
+  assert( y1 >= 0 && y1 < h );
+  assert( x1 >= 0 && x1 < w );
 #endif
   x=x1;
   y=y1;

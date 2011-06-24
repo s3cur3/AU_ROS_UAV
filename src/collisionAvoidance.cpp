@@ -16,12 +16,12 @@
 #include <time.h>
 #include "Plane.h"
 #include "best_cost_with_fields.h"
-#include "astar_sparse.cpp"
+#include "astar_sparse2.cpp"
 #include "telemetry_data_out.h"
 #include "Position.h"
 
 #ifdef DEBUG
-#include <iomanip>
+#include "output_helpers.h"
 #endif
 
 //ROS headers
@@ -63,32 +63,9 @@ int planesmade;
 //keeps count of the number of services requested
 int the_count;
 
-#ifndef TO_STRING
-#define TO_STRING
-template <class T>
-inline std::string to_string( const T& t )
-{
-  std::stringstream ss;
-  ss << t;
-  return ss.str();
-}
-#endif
-
-#ifdef DEBUG
-#ifndef DOUBLE_TO_STRING
-#define DOUBLE_TO_STRING
-std::string double_to_string(const double & d)
-{
-  std::stringstream ss;
-  ss << std::setprecision( std::numeric_limits<double>::digits10+2);
-  ss << d;
-  return ss.str();
-}
-#endif
-#endif
-
-
 void makeField();
+int name_bearing(double);
+
 
 /**
  * Checks a plane's location against all others to see if there is a collision
@@ -182,6 +159,7 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
   assert( res > 9.99 && res < 10.1 );
 #endif
   
+  //update the plane's current location
 	Position current = Position(upperLeftLon,upperLeftLat,lonWidth,latWidth,currentLon,currentLat,res);
 
 	
@@ -227,7 +205,10 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
   
   assert( res > 9.99 && res < 10.1 );
 #endif
+  
+  // The plane's next location, be it the goal or an avoidance waypoint
 	Position next;
+  //if next is good . . .
 	if(destLat<=upperLeftLat && destLon>=upperLeftLon && destLat>0 && destLon<0)
   {
 		next = Position(upperLeftLon,upperLeftLat,lonWidth,latWidth,destLon,destLat,res);
@@ -251,12 +232,16 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
     ROS_INFO("\033[22;31m next is current");
   }
 
-	//if its a new plane
+	// If it's a new plane
 	if((int)planes.size()<=planeId)
 	{
 		//planesMap[planeId]=(int)planes.size();
 		//ROS_INFO("Plane %d is mapped to %d",planeId,(int)planes.size());
 		planes.push_back(Plane (planeId,current,next));
+    
+    newQueue=true;
+		if(the_count>2)
+			ROS_ERROR("error in plane stuffs");
 	}
 
 	//prevent the insanity that double []s bring
@@ -264,7 +249,7 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 	//update the plane
 	plane->update(current,next,gSpeed,bearing);
 #ifdef DEBUG
-  if( planeId == 5 )
+  if( true )
   {
     cout<<"Current location for plane"<<planeId<<" "<<plane->getLocation().getX()<<" "<<plane->getLocation().getY()<<endl;
     printf("   Which is %f, %f \n", plane->getLocation().getLon(), plane->getLocation().getLat() );
@@ -281,8 +266,6 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 	if(!findGoal.call(goalSrv))
 		ROS_ERROR("No goal was returned");
 
-	//make sure the goal is a real goal none of those lame "become rich and famous goals" we want something real and reachable by a foam airplane
-
 #if 	defined(Testing) || defined(Outputting)
   // TY confirms that the goals are getting set correctly before the first
   // DG output when using Chicken.course
@@ -295,6 +278,9 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
   }
 #endif
 
+  // Make sure the goal is a real goal none of those lame 
+  // "become rich and famous goals." We want something real and 
+  // reachable by a foam airplane
 	if( /*inside the area*/(goalSrv.response.latitude<=upperLeftLat&&goalSrv.response.longitude>=upperLeftLon) && goalSrv.response.latitude>0)
 	{
 #ifdef DEBUG
@@ -313,8 +299,7 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 #endif
 
 	}
-	//its going nowhere fast
-	else
+	else // It's going nowhere fast
 	{	
 #ifdef DEBUG
     assert( plane->getLocation().getLon() < -85.484 );
@@ -327,15 +312,10 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 #endif
 		plane->setFinalDestination(plane->getLocation().getLon(), plane->getLocation().getLat());
 
-//#ifdef Testing
-    if( planeId == 0 )
-    {
-      ROS_INFO("The final destination does not exist or has been reached");
-    }
-//#endif
-
+#ifdef DEBUG
+    ROS_INFO("The final destination does not exist or has been reached");
+#endif
 	}
-	
 	
 	
 	//grab stuff for A*, if thats his real name
@@ -355,7 +335,7 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 #endif
   
   #ifdef DEBUG
-  if( planeId == 0 )
+  if( planeId == 10 )
   {
     ROS_INFO("for plane %d\n the startx:%d\n the starty:%d\n the endx:%d\n the endy:%d\n end lat: %f \n end lon %f",
              planeId,startx,starty,endx,endy, plane->getFinalDestination().getLat(), 
@@ -363,21 +343,68 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
   }
   #endif
 
-	point forSparta;
+  planes[planeId]=*plane;
+
+  
+	point a_Star;
   best_cost bc = best_cost(&planes,fieldWidth,fieldHeight,res,planeId);
   
 #ifdef DEBUG
-  stringstream prefix;
-  prefix << "For plane," << planeId << ",\nGoal:," << endx << "," << endy << ",\n";
-  prefix << "Start:," << startx << "," << starty << ",\n";
-  prefix << "Timestep:,0,\n";
-  bc.dump_csv( 0, prefix.str() );
-  
-  stringstream prefix1;
-  prefix1 << "For plane," << planeId << ",\nGoal:," << endx << "," << endy << ",\n";
-  prefix1 << "Start:," << startx << "," << starty << ",\n";
-  prefix1 << "Timestep:,1,\n";
-  bc.dump_csv( 1, prefix.str() );
+//  unsigned int time = clock() / (CLOCKS_PER_SEC / 1000);
+//  unsigned int t = 0;
+//  
+//  stringstream prefix;
+//  prefix << "For plane," << planeId << ",\nGoal:," << endx << "," << endy << ",\n";
+//  prefix << "Start:," << startx << "," << starty << ",\n";
+//  prefix << "Timestep:,0,\n";
+//  stringstream name;
+//  name << "plane_" << planeId << "_t_" << t << "_" << time;
+//  bc.dump_csv( t, prefix.str(), name.str() );
+//  
+//  stringstream prefix1;
+//  prefix1 << "For plane," << planeId << ",\nGoal:," << endx << "," << endy << ",\n";
+//  prefix1 << "Start:," << startx << "," << starty << ",\n";
+//  prefix1 << "Timestep:,1,\n";
+//  stringstream name1;
+//  t = 1;
+//  name1 << "plane_" << planeId << "_t_" << t << "_" << time;
+//  bc.dump_csv( t, prefix1.str(), name1.str() );
+//  
+//  stringstream prefix2;
+//  prefix2 << "For plane," << planeId << ",\nGoal:," << endx << "," << endy << ",\n";
+//  prefix2 << "Start:," << startx << "," << starty << ",\n";
+//  prefix2 << "Timestep:,2,\n";
+//  stringstream name2;
+//  t = 2;
+//  name2 << "plane_" << planeId << "_t_" << t << "_" << time;
+//  bc.dump_csv( t, prefix2.str(), name2.str() );
+//  
+//  stringstream prefix3;
+//  prefix3 << "For plane," << planeId << ",\nGoal:," << endx << "," << endy << ",\n";
+//  prefix3 << "Start:," << startx << "," << starty << ",\n";
+//  prefix3 << "Timestep:,2,\n";
+//  stringstream name3;
+//  t = 3;
+//  name3 << "plane_" << planeId << "_t_" << t << "_" << time;
+//  bc.dump_csv( t, prefix3.str(), name3.str() );
+//  
+//  stringstream prefix10;
+//  prefix10 << "For plane," << planeId << ",\nGoal:," << endx << "," << endy << ",\n";
+//  prefix10 << "Start:," << startx << "," << starty << ",\n";
+//  prefix10 << "Timestep:,10,\n";
+//  stringstream name10;
+//  t = 10;
+//  name10 << "plane_" << planeId << "_t_" << t << "_" << time;
+//  bc.dump_csv( t, prefix10.str(), name10.str() );
+//  
+//  stringstream prefix11;
+//  prefix11 << "For plane," << planeId << ",\nGoal:," << endx << "," << endy << ",\n";
+//  prefix11 << "Start:," << startx << "," << starty << ",\n";
+//  prefix11 << "Timestep:,11,\n";
+//  stringstream name11;
+//  t = 11;
+//  name11 << "plane_" << planeId << "_t_" << t << "_" << time;
+//  bc.dump_csv( t, prefix11.str(), name11.str() );
 #endif
   
   if( planeId == 0 )
@@ -385,17 +412,97 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
     ROS_INFO("Created bc, going into A*");
   }
   
-	forSparta=astar_point(&bc,startx,starty,endx,endy,planeId);
-	//our code will blot out the sun
+	a_Star=astar_point(&bc,startx,starty,endx,endy,planeId);
  
+#ifdef DEBUG
+//  stringstream prefixcomp;
+//  prefixcomp << "For comparison \n";
+//  prefixcomp << "For plane," << planeId << ",\nGoal:," << endx << "," << endy << ",\n";
+//  prefixcomp << "Start:," << startx << "," << starty << ",\n";
+//  prefixcomp << "Timestep:,1,\n";
+//  stringstream namecomp;
+//  t = 1;
+//  namecomp << "plane_" << planeId << "_t_" << t << "_" << time << "_after";
+//  bc.dump_csv( t, prefixcomp.str(), namecomp.str() );
+#endif
+  
 #if defined(Outputting) || defined(GODDAMMIT)
-  if( planeId == 0 )
-  {
-    ROS_INFO("A* says\033[22;32m:\nx: %d\ny: %d\n",forSparta.x, forSparta.y);
-  }
+  ROS_INFO("A* says for plane %d to go here: \033[22;32m\nx: %d\ny: %d\nFrom here:\nx: %d\ny: %d",
+           planeId, a_Star.x, a_Star.y, startx, starty);
+
 #endif
 
-	if( /*!next_is_current*/ (forSparta.x!=startx&&forSparta.y!=starty)&&(forSparta.x!=endx&&forSparta.y!=endy) )
+  int currentx=startx;
+  int currenty=starty;
+	int direction=name_bearing(plane->getBearing());
+	cout<<"plane "<<planeId<<" has a direction of "<<direction<<endl;
+	switch(direction)
+  {
+    case 0://headed north
+      if(currenty-1 > -1)
+        currenty--;
+
+      break;
+      
+    case 7://headed northwest
+      if(currentx > 0 && currenty > 0)
+      {
+        currentx--;
+        currenty--;
+      }
+      break;
+			
+    case 6://headed west
+      if(currentx-1 > -1)
+        currentx--;
+      break;
+			
+    case 5://headed southwest
+      if(currentx-1 > -1 && currenty+1 <43) 
+      {
+        currentx--;
+        currenty++;
+      }
+      break;
+			
+    case 4://headed south
+      if(currenty+1 <43)
+        currenty++;
+      break;
+			
+    case 3://headed southeast
+      if(currentx+1 < 47 && currenty+1 < 43)
+      {
+        currentx++;
+        currenty++;
+      }
+      break;
+      
+    case 2://headed east
+      if(currentx+1 < 47)
+      currentx++;
+      break;
+			
+    case 1://headed northease
+      if(currentx+1 < 47 && currenty-1 > -1)
+      {
+        currentx++;
+        currenty--;
+      }
+      break;
+			
+    default:
+      cout<<"something has gone wrong";
+  }
+#ifdef DEBUG
+  assert( currentx < 47 );
+  assert( currentx >= 0 );
+  assert( currenty < 43 );
+  assert( currenty >= 0 );
+#endif
+  current.setXY(currentx,currenty);
+  
+	if( /*!next_is_current*/ (a_Star.x!=startx&&a_Star.y!=starty)&&(a_Star.x!=endx&&a_Star.y!=endy) )
 	{
 #ifdef DEBUG
     assert( upperLeftLon < -85.49 && upperLeftLon > -85.491 );
@@ -403,15 +510,15 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
     assert( lonWidth > 0.005 && lonWidth < 0.00501 );
     assert( latWidth > -0.00381 && latWidth < -0.00380 );
     
-    assert( forSparta.x < 47 );
-    assert( forSparta.x >= 0 );
-    assert( forSparta.y < 43 );
-    assert( forSparta.y >= 0 );
+    assert( a_Star.x < 47 );
+    assert( a_Star.x >= 0 );
+    assert( a_Star.y < 43 );
+    assert( a_Star.y >= 0 );
     
     assert( res > 9.99 && res < 10.1 );
 #endif
     
-    Position aStar(upperLeftLon,upperLeftLat,lonWidth,latWidth,forSparta.x,forSparta.y,res);
+    Position aStar(upperLeftLon,upperLeftLat,lonWidth,latWidth,a_Star.x,a_Star.y,res);
     
 #ifdef Outputting
     if( planeId == 0 )
@@ -430,7 +537,7 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
       cout << "aStar.getX() == " << aStar.getX() << endl;
       cout << "aStar.getY() == " << aStar.getY() << endl;
       
-      cout << "You set it's (x, y) to (" << forSparta.x << ", " << forSparta.y << ")" << endl;
+      cout << "You set it's (x, y) to (" << a_Star.x << ", " << a_Star.y << ")" << endl;
     }
     assert( aStar.getLat() > 32.5882 );
     assert( aStar.getLat() < 32.593 );
@@ -443,7 +550,7 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 		srv.request.latitude = aStar.getLat();
 		srv.request.altitude = goalSrv.response.altitude;//? not sure if this is allowed but hey i like cheating
 
-    //next.setXY( forSparta.x, forSparta.y );
+    //next.setXY( a_Star.x, a_Star.y );
     
     
 		next.setLatLon( aStar.getLat(), aStar.getLon() );
@@ -466,8 +573,15 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 		if(findGoal.call(goalSrv))
       cout<<goalSrv.response.longitude<<" "<<goalSrv.response.latitude<<endl;*/
     
-		//plane->update(current,next,gSpeed,bearing);
+    //update plane so others see it going to new goal
+		plane->update(current,next,gSpeed,bearing);
 	}
+  else
+  {
+		plane->update(current,next,gSpeed,bearing);
+  }
+  
+	planes[planeId]=*plane;
   
   cout << "End of callback " << endl << endl;
 
@@ -498,6 +612,7 @@ int main(int argc, char **argv)
 	return 0;
 }
 
+#ifdef COLLISIONTESTING
 bool	collision_occurred( int id_to_check )
 {
   for( unsigned int crnt_id = 0; crnt_id < plane_locs.size(); crnt_id++ )
@@ -513,6 +628,7 @@ bool	collision_occurred( int id_to_check )
   
   return false;
 }
+#endif
 
 /*
  bool collision(int &one, int &two)
@@ -586,4 +702,45 @@ void makeField()
 	{
 		ROS_ERROR("Cannot open field data");
 	}
+}
+
+int name_bearing( double the_bearing )
+{
+  the_bearing = fmod(the_bearing, 360); // modular division for floats
+  
+  if( the_bearing > -22.5 && the_bearing <= 22.5 )
+    return 0;
+  else if( the_bearing > 22.5 && the_bearing <= 67.5 )
+    return 1;
+  else if( the_bearing > 67.5 && the_bearing <= 112.5 )
+    return 2;
+  else if( the_bearing > 112.5 && the_bearing <= 157.5 )
+    return 3;
+  else if( the_bearing > 157.5 && the_bearing <= 202.5 )
+    return 4;
+  else if( the_bearing > 202.5 && the_bearing <= 247.5 )
+    return 5;
+  else if( the_bearing > 247.5 && the_bearing <= 292.5 )
+    return 6;
+  else if( the_bearing > 292.5 && the_bearing <= 337.5 )
+    return 7;
+  else if( the_bearing > -67.5 && the_bearing <= -22.5 )
+    return 7;
+  else if( the_bearing > -112.5 && the_bearing <= -67.5 )
+    return 6;
+  else if( the_bearing > -157.5 && the_bearing <= -112.5 )
+    return 5;
+  else if( the_bearing > -202.5 && the_bearing <= -157.5 )
+    return 4;
+  else if( the_bearing > -247.5 && the_bearing <= -202.5 )
+    return 3;
+  else if( the_bearing > -292.5 && the_bearing <= -247.5 )
+    return 2;
+  else if( the_bearing > -337.5 && the_bearing <= -292.5 )
+    return 1;
+  else
+  {
+    assert( the_bearing > -361 && the_bearing < 361 );
+    return 0;
+  }
 }

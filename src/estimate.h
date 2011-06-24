@@ -18,8 +18,8 @@ using namespace std;
 
 struct estimate
 {
-     int x;
-     int y;
+    int x;
+    int y;
     double danger;
     
     estimate( int x_pos, int y_pos, double the_danger )

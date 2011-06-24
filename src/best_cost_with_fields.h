@@ -131,7 +131,7 @@ public:
    * @param time The time, in seconds, whose map should be output
    */
   void dump_csv( int time ) const;
-  void dump_csv( int time, string prefix ) const;
+  void dump_csv( int time, string prefix, string name ) const;
   
   // AK: Destructor, combats memory leak issues
   ~best_cost();
@@ -446,16 +446,16 @@ void best_cost::dump( int time ) const
   bc->dump( time );
 }
 
-void best_cost::dump_csv( int time, string prefix ) const
+void best_cost::dump_csv( int time, string prefix, string name ) const
 {
-  mc->dump_csv( time, prefix );
-  bc->dump_csv( time, prefix );
+  mc->dump_csv( time, prefix, name );
+  bc->dump_csv( time, prefix, name );
 }
 
 void best_cost::dump_csv( int time ) const
 {
-  mc->dump_csv( time, "" );
-  bc->dump_csv( time, "" );
+  mc->dump_csv( time, "", "" );
+  bc->dump_csv( time, "", "" );
 }
 
 

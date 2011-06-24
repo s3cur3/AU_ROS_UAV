@@ -148,8 +148,8 @@ public:
   void dump( ) const;
 
   void dump_big_numbers( ) const;
-  
   void dump_csv( string prefix ) const;
+  void dump_csv( string prefix, string name ) const;
 
 private:
   vector< vector< grid_square > > the_map; // a 2-D vector array of grid squares
@@ -451,10 +451,18 @@ void map::dump_big_numbers( ) const
 
 void map::dump_csv( string prefix ) const
 {
+  stringstream ss;
+  unsigned long time = clock() / (CLOCKS_PER_SEC / 1000);
+  ss << time;
+  dump_csv( prefix, ss.str() );
+}
+
+
+void map::dump_csv( string prefix, string name ) const
+{
   double mult = 1.0;
   stringstream ss( stringstream::out );
-  unsigned long time = clock() / (CLOCKS_PER_SEC / 1000);
-  ss << output_path << "map_output_" << time << ".csv";
+  ss << output_path << "map_output_" << name << ".csv";
   string filename = ss.str();
   
   ofstream csv;
@@ -480,7 +488,7 @@ void map::dump_csv( string prefix ) const
         if( the_map[ left_index ][ right_index ].danger < EPSILON &&
            the_map[ left_index ][ right_index ].danger > -EPSILON )
         {
-          csv << "--,";
+          csv << ",";
         }
         else
         {

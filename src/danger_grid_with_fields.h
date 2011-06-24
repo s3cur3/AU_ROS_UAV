@@ -192,7 +192,7 @@ public:
    */
   void dump_big_numbers( int time ) const;
   
-  void dump_csv( int time, string prefix ) const;
+  void dump_csv( int time, string prefix, string name ) const;
   
 private:
   enum bearing_t { N, NE, E, SE, S, SW, W, NW };
@@ -515,9 +515,12 @@ void danger_grid::set_danger_field( double bearing, double unweighted_danger,
 
   // These buffer zones have been made wider in light of A*'s propensity for taking
   // diagonals when we allow it.
-  switch( named_bearing )
+  /*switch( named_bearing )
   {
-    case N:
+    case N:*/
+		///////
+		/*CHANGED TO ADD FIELD ALL THE WAY ROUND TO PREVENT SNEAKY BASTARDS*/
+		//////
       // dag left+down
       (*danger_space)[ time ].safely_add_danger_at( x - 1, y + 1, d );
       // straight left
@@ -532,7 +535,9 @@ void danger_grid::set_danger_field( double bearing, double unweighted_danger,
       (*danger_space)[ time ].safely_add_danger_at( x + 1, y , d );
       // dag right+down
       (*danger_space)[ time ].safely_add_danger_at( x + 1, y + 1, d );
-      break;
+			// straight down
+			(*danger_space)[time].safely_add_danger_at(x,y+1,d);
+      /*break;
     case NE:
       // straight left
       (*danger_space)[ time ].safely_add_danger_at( x - 1, y , d );
@@ -645,7 +650,7 @@ void danger_grid::set_danger_field( double bearing, double unweighted_danger,
       // straight right
       (*danger_space)[ time ].safely_add_danger_at( x + 1, y , d );
       break;
-  } // end switch case
+  } // end switch case*/
 }
 
 void danger_grid::set_danger_scale( )
@@ -724,7 +729,24 @@ vector< map > danger_grid::get_danger_space() const
 {
   return (*danger_space);
 }
-
+/** 
+	a function for predicting planes. most of the work is done in the recursive calling of 
+	danger recurse but this guy starts the whole process. relies on dangerRecurse(), neighoboringAngles(),
+	and placeDanger(). it is built to be called 2 times. use the same variable for time in each instances.
+	it decides which point, the final destination or just the goal, to fly to based on the value in time.
+	if time is =0 it assumes the destination is where it is going otherwise it assumes it is flying from the 
+	destination to the goal. if there is only a goal then the destination will be the goal based on the way that 
+	planes and the telemetry data works.note this prediction is based on 2 assumptions: a flat cartesian grid in
+	which the planes exist and that the planes can point turn. in later editions the point turning assumption
+	will, hopefully, be dropped. the cartesian grid will always be an assumption as A* only works in a cartesian grid
+	so there is no reason to do anything else. 
+	input:(yes there is more to this function than just a description)
+		plane: the plane whose path you are predicting
+		time: the time from which you are starting prediction, must be >0
+	output:
+		a vector that contains estimates of the planes path. as the plane traves through time a (0,0,-1) estimate is inserter
+		as a time marker.
+**/
 vector< estimate > danger_grid::calculate_future_pos( Plane & plane, int &time )
 {
   
@@ -800,10 +822,31 @@ vector< estimate > danger_grid::calculate_future_pos( Plane & plane, int &time )
 	
   //now add the danger ahead of the goal to theFuture
   placeDanger(angle, theFuture, closestAngle, otherAngle, x2, y2, danger);	
+
+	//2 seconds ho!!!!(like land ho! not the street-corner kind)
+	theFuture.push_back(estimate(0,0,-1));
+  //now add the danger ahead of the goal to theFuture(btw this is all you need since were assuming a line at this point)
+  placeDanger(angle, theFuture, closestAngle, otherAngle, theFuture[theFuture.size()-3].x, theFuture[theFuture.size()-3].y, danger);	
+
+	//3 seconds ho!!!!(this time I need a good night)
+	theFuture.push_back(estimate(0,0,-1));
+  //now add the danger ahead of the goal to theFuture(btw this is all you need since were assuming a line at this point)
+  placeDanger(angle, theFuture, closestAngle, otherAngle,  theFuture[theFuture.size()-3].x, theFuture[theFuture.size()-3].y, danger);	
+	
 	
   return theFuture;
 }
 
+/**
+	the recursive function that calculates the planes path
+	input:
+		e: an "estimate"
+		destination[]: a pair of x,y that represents where the plane is going
+		theFuture: a vector of estimates
+		time: an int used for calculating the total time the plane is predicted for
+	output:
+		it returns both a vector of extimates and the total time value
+**/
 void danger_grid::dangerRecurse(estimate e, int destination[], vector<estimate> &theFuture,int &time)
 {
   
@@ -858,6 +901,16 @@ void danger_grid::dangerRecurse(estimate e, int destination[], vector<estimate> 
   
 }
 
+/**
+	a function that finds the neighbors of a given angle
+	input:
+		angle: the angle you are finding the neighbors of
+		first and second: both are out parameters only 0s are expected in
+	output:
+		first: the closest angle
+		second: the next closest angle
+**/
+
 void danger_grid::neighoboringAngles(double angle, double &first, double &second)
 {
   if(angle>0)
@@ -885,55 +938,74 @@ void danger_grid::neighoboringAngles(double angle, double &first, double &second
   }
 }
 
+/**
+	input:
+		angle: the bearing from the location to the goal location
+		e: a vector of "estimates" 
+		closest: the angle that is closest to angle that bisects a neighboring square
+		other: the next closest angle
+		x: the x location in the grid(of the current location not the one that you place the danger in)
+		y: the y location in the grid
+	output:
+		e is changed to contain the the estimated danger in the new location
+	**/
 void danger_grid::placeDanger(double angle, vector<estimate> &e, double closest, double other, int x, int y, double danger)
 {
+	double dangerCeiling=.4;
+	double remainingDanger=1-danger;
+	if(danger>=dangerCeiling)
+		danger=dangerCeiling;
+	if(remainingDanger>=dangerCeiling)
+		remainingDanger=dangerCeiling;
+		
+	
   if(angle>0)//to the right
   {
     if(closest==0)//north && northeast
     {
       e.push_back(estimate(x,y-1,danger));//majority in N
-      e.push_back(estimate(x+1,y-1,1-danger));//remainder in NE
+      e.push_back(estimate(x+1,y-1,remainingDanger));//remainder in NE
     }
     else if(closest == 45 && other == 0)//northeast && north
     {
       e.push_back(estimate(x+1,y-1,danger));//majority in NE
-      e.push_back(estimate(x,y-1,1-danger));//remainder in N
+      e.push_back(estimate(x,y-1,remainingDanger));//remainder in N
     }
     
     else if(closest == 45)//northeast && east
     {
       e.push_back(estimate(x+1,y-1,danger));//majority in NE
-      e.push_back(estimate(x+1,y,1-danger));//remainder in east
+      e.push_back(estimate(x+1,y,remainingDanger));//remainder in east
     }
     
     else if(closest == 90 && other == 45)//east && northeast
     {
       e.push_back(estimate(x+1,y,danger));//majority in east
-      e.push_back(estimate(x+1,y-1,1-danger));//remainder in NE
+      e.push_back(estimate(x+1,y-1,remainingDanger));//remainder in NE
     }
     
     else if(closest == 90)//east && southeast
     {
       e.push_back(estimate(x+1,y,danger));//majority in east
-      e.push_back(estimate(x+1,y+1,1-danger));//remainder in SE
+      e.push_back(estimate(x+1,y+1,remainingDanger));//remainder in SE
     }
     
     else if(closest == 135 && other == 90)//southeast && east
     {
       e.push_back(estimate(x+1,y+1,danger));//majority in SE
-      e.push_back(estimate(x+1,y,1-danger));//remainder in east
+      e.push_back(estimate(x+1,y,remainingDanger));//remainder in east
     }
     
     else if(closest == 135)//southeast && south
     {
       e.push_back(estimate(x+1,y+1,danger));//majority in SE
-      e.push_back(estimate(x,y+1,1-danger));//remainder in south
+      e.push_back(estimate(x,y+1,remainingDanger));//remainder in south
     }
     
     else//south && southeast
     {
       e.push_back(estimate(x,y+1,danger));//majority in south
-      e.push_back(estimate(x+1,y+1,1-danger));//majority in SE
+      e.push_back(estimate(x+1,y+1,remainingDanger));//majority in SE
     }
   }
   else//to the left
@@ -941,48 +1013,48 @@ void danger_grid::placeDanger(double angle, vector<estimate> &e, double closest,
     if(closest==0)//north && northwest
     {
       e.push_back(estimate(x,y-1,danger));//majority in N
-      e.push_back(estimate(x-1,y-1,1-danger));//remainder in NW
+      e.push_back(estimate(x-1,y-1,remainingDanger));//remainder in NW
     }
     else if(closest == -45 && other == 0)//northwest && north
     {
       e.push_back(estimate(x-1,y-1,danger));//majority in NW
-      e.push_back(estimate(x,y-1,1-danger));//remainder in N
+      e.push_back(estimate(x,y-1,remainingDanger));//remainder in N
     }
     
     else if(closest == -45)//northwest && west
     {
       e.push_back(estimate(x-1,y-1,danger));//majority in NW
-      e.push_back(estimate(x-1,y,1-danger));//remainder in west
+      e.push_back(estimate(x-1,y,remainingDanger));//remainder in west
     }
     
     else if(closest == -90 && other == -45)//west && northwest
     {
       e.push_back(estimate(x-1,y,danger));//majority in west
-      e.push_back(estimate(x-1,y-1,1-danger));//remainder in NE
+      e.push_back(estimate(x-1,y-1,remainingDanger));//remainder in NE
     }
     
     else if(closest == -90)//west && southwest
     {
       e.push_back(estimate(x-1,y,danger));//majority in west
-      e.push_back(estimate(x-1,y+1,1-danger));//remainder in SW
+      e.push_back(estimate(x-1,y+1,remainingDanger));//remainder in SW
     }
     
     else if(closest == -135 && other == -90)//southwest && west
     {
       e.push_back(estimate(x-1,y+1,danger));//majority in SW
-      e.push_back(estimate(x-1,y,1-danger));//remainder in west
+      e.push_back(estimate(x-1,y,remainingDanger));//remainder in west
     }
     
     else if(closest == -135)//southwest && south
     {
       e.push_back(estimate(x-1,y+1,danger));//majority in SW
-      e.push_back(estimate(x,y+1,1-danger));//remainder in south
+      e.push_back(estimate(x,y+1,remainingDanger));//remainder in south
     }
     
     else//south && southwest
     {
       e.push_back(estimate(x,y+1,danger));//majority in south
-      e.push_back(estimate(x-1,y+1,1-danger));//majority in SW
+      e.push_back(estimate(x-1,y+1,remainingDanger));//majority in SW
     }
   }
 }
@@ -1142,12 +1214,12 @@ void danger_grid::dump_big_numbers( int time ) const
   }
 }
 
-void danger_grid::dump_csv( int time, string prefix ) const
+void danger_grid::dump_csv( int time, string prefix, string name ) const
 {
 #ifdef DEBUG
   assert( time + (int)look_behind < (int)( danger_space->size() ) || time == 10000 );
 #endif
-  (*danger_space)[ time + look_behind ].dump_csv( prefix );
+  (*danger_space)[ time + look_behind ].dump_csv( prefix, name );
 }
 
 #endif
