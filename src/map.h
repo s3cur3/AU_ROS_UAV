@@ -359,7 +359,7 @@ void map::dump( ) const
    }*/
 #ifdef OUTPUT_CSV
   stringstream ss( stringstream::out );
-  unsigned int time = clock() / (CLOCKS_PER_SEC / 1000);
+  unsigned long int time = clock() / (CLOCKS_PER_SEC / 1000);
   ss << output_path << "map_output_" << time << ".csv";
   string filename = ss.str();
   

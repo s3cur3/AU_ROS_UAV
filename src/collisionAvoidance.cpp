@@ -64,8 +64,18 @@ int planesmade;
 int the_count;
 
 void makeField();
-int name_bearing(double);
 
+enum bearing_t { N, NE, E, SE, S, SW, W, NW };
+
+/**
+ * Converts a bearing in degrees to a "named" version, for use in deciding which
+ * nearby squares are in the path of the aircraft
+ * @param the_bearing Bearing of the aircraft in degrees (0 is due north, 
+ *                    90 due east, and so on)
+ * @return A named version of the direction (N for bearings -22.5 to 22.5 deg,
+ *         NE for bearings 22.5 to 67.5 deg, and so on)
+ */
+bearing_t name_bearing( double the_bearing );
 
 /**
  * Checks a plane's location against all others to see if there is a collision
@@ -350,16 +360,16 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
   best_cost bc = best_cost(&planes,fieldWidth,fieldHeight,res,planeId);
   
 #ifdef DEBUG
-//  unsigned int time = clock() / (CLOCKS_PER_SEC / 1000);
-//  unsigned int t = 0;
-//  
-//  stringstream prefix;
-//  prefix << "For plane," << planeId << ",\nGoal:," << endx << "," << endy << ",\n";
-//  prefix << "Start:," << startx << "," << starty << ",\n";
-//  prefix << "Timestep:,0,\n";
-//  stringstream name;
-//  name << "plane_" << planeId << "_t_" << t << "_" << time;
-//  bc.dump_csv( t, prefix.str(), name.str() );
+  unsigned int time = clock() / (CLOCKS_PER_SEC / 1000);
+  unsigned int t = 0;
+  
+  stringstream prefix;
+  prefix << "For plane," << planeId << ",\nGoal:," << endx << "," << endy << ",\n";
+  prefix << "Start:," << startx << "," << starty << ",\n";
+  prefix << "Timestep:,0,\n";
+  stringstream name;
+  name << "plane_" << planeId << "_t_" << t << "_" << time;
+  bc.dump_csv( t, prefix.str(), name.str() );
 //  
 //  stringstream prefix1;
 //  prefix1 << "For plane," << planeId << ",\nGoal:," << endx << "," << endy << ",\n";
@@ -434,17 +444,16 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 
   int currentx=startx;
   int currenty=starty;
-	int direction=name_bearing(plane->getBearing());
+  bearing_t direction = name_bearing( plane->getBearing() );
 	cout<<"plane "<<planeId<<" has a direction of "<<direction<<endl;
-	switch(direction)
+	switch( direction )
   {
-    case 0://headed north
+    case N://headed north
       if(currenty-1 > -1)
         currenty--;
-
       break;
       
-    case 7://headed northwest
+    case NW://headed northwest
       if(currentx > 0 && currenty > 0)
       {
         currentx--;
@@ -452,12 +461,12 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
       }
       break;
 			
-    case 6://headed west
+    case W://headed west
       if(currentx-1 > -1)
         currentx--;
       break;
 			
-    case 5://headed southwest
+    case SW://headed southwest
       if(currentx-1 > -1 && currenty+1 <43) 
       {
         currentx--;
@@ -465,12 +474,12 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
       }
       break;
 			
-    case 4://headed south
+    case S://headed south
       if(currenty+1 <43)
         currenty++;
       break;
 			
-    case 3://headed southeast
+    case SE://headed southeast
       if(currentx+1 < 47 && currenty+1 < 43)
       {
         currentx++;
@@ -478,12 +487,12 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
       }
       break;
       
-    case 2://headed east
+    case E://headed east
       if(currentx+1 < 47)
       currentx++;
       break;
 			
-    case 1://headed northease
+    case NE://headed northeast
       if(currentx+1 < 47 && currenty-1 > -1)
       {
         currentx++;
@@ -622,6 +631,10 @@ bool	collision_occurred( int id_to_check )
         plane_locs[ crnt_id ].y == plane_locs[ id_to_check ].y && /* and the same y pos */
         plane_locs[ crnt_id ].t != -1 /* and it HAS been initialized */)
     {
+      cout << "   Collision occurred between planes " << crnt_id << " and "
+        << id_to_check << endl;
+      cout << "              (Note: presumably plane " << id_to_check
+        << " was updated most recently)" << endl;
       return true;
     }
   }
@@ -704,43 +717,46 @@ void makeField()
 	}
 }
 
-int name_bearing( double the_bearing )
+bearing_t name_bearing( double the_bearing )
 {
   the_bearing = fmod(the_bearing, 360); // modular division for floats
   
   if( the_bearing > -22.5 && the_bearing <= 22.5 )
-    return 0;
+    return N;
   else if( the_bearing > 22.5 && the_bearing <= 67.5 )
-    return 1;
+    return NE;
   else if( the_bearing > 67.5 && the_bearing <= 112.5 )
-    return 2;
+    return E;
   else if( the_bearing > 112.5 && the_bearing <= 157.5 )
-    return 3;
+    return SE;
   else if( the_bearing > 157.5 && the_bearing <= 202.5 )
-    return 4;
+    return S;
   else if( the_bearing > 202.5 && the_bearing <= 247.5 )
-    return 5;
+    return SW;
   else if( the_bearing > 247.5 && the_bearing <= 292.5 )
-    return 6;
+    return W;
   else if( the_bearing > 292.5 && the_bearing <= 337.5 )
-    return 7;
+    return NW;
   else if( the_bearing > -67.5 && the_bearing <= -22.5 )
-    return 7;
+    return NW;
   else if( the_bearing > -112.5 && the_bearing <= -67.5 )
-    return 6;
+    return W;
   else if( the_bearing > -157.5 && the_bearing <= -112.5 )
-    return 5;
+    return SW;
   else if( the_bearing > -202.5 && the_bearing <= -157.5 )
-    return 4;
+    return S;
   else if( the_bearing > -247.5 && the_bearing <= -202.5 )
-    return 3;
+    return SE;
   else if( the_bearing > -292.5 && the_bearing <= -247.5 )
-    return 2;
+    return E;
   else if( the_bearing > -337.5 && the_bearing <= -292.5 )
-    return 1;
+    return NW;
   else
   {
+#ifdef DEBUG
     assert( the_bearing > -361 && the_bearing < 361 );
-    return 0;
+#endif
+    return N;
   }
 }
+

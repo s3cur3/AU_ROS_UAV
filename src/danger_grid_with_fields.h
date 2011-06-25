@@ -59,7 +59,7 @@ static const double field_weight = 0.7;
 
 class danger_grid
 {
-public:
+public:  
   /**
    * The constructor for the danger grid. It will automatically calculate the
    * danger associated with each square in the map up to the default number of
@@ -196,7 +196,7 @@ public:
   
 private:
   enum bearing_t { N, NE, E, SE, S, SW, W, NW };
-
+  
   /**
    * The method that does virtually all the important work for the class.
    * Calculates danger ratings for all squares in all maps of the danger_space
@@ -510,7 +510,6 @@ void danger_grid::fill_danger_space( const natural plane_id )
 void danger_grid::set_danger_field( double bearing, double unweighted_danger,
                                     natural x, natural y, int time )
 {
-  danger_grid::bearing_t named_bearing = name_bearing( bearing );
   double d = unweighted_danger * field_weight;
 
   // These buffer zones have been made wider in light of A*'s propensity for taking
@@ -888,7 +887,7 @@ void danger_grid::dangerRecurse(estimate e, int destination[], vector<estimate> 
   
   //now add the new danger to theFuture
   placeDanger(angle, theFuture, closestAngle, otherAngle, x1, y1, danger);
-  int nextPos = theFuture.size()-2;
+  int nextPos = (int)theFuture.size()-2;
   //branch it up now
 	theFuture.push_back(estimate(0,0,-1));
 	time++;

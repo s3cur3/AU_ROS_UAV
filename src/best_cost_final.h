@@ -1,5 +1,5 @@
 //
-//  best_cost_with_fields.h
+//  best_cost_final.h
 //  AU_UAV_ROS
 //
 //  Created by Tyler Young on 5/31/11.
@@ -19,6 +19,8 @@
 // Unlike best_cost.h, this class adds a "field" around each aircraft, extending
 // in the direction of the aircraft's travel. This means that when A* works with the
 // grid, there is some cost associated with coming close to another aircraft.
+// Additionally, we've fixed a (rather important) error in the compuation of the
+// initial path.
 
 
 #define DEBUG
@@ -35,6 +37,7 @@
 #include <math.h>
 #include <cstdlib>
 #include "write_to_log.h"
+#include "map_tools.h"
 
 // used to tell the map class that it's okay to have costs greater than 1 associated
 // with squares
@@ -45,6 +48,7 @@
 #endif
 
 using namespace std;
+using namespace map_tools;
 
 // The scaling factor for the "danger" rating; effectively, the cost of 
 // conflicting with another aircraft
@@ -157,6 +161,36 @@ private:
    */
   void initialize_to_do_index();
   
+  /**
+   * Calculates the Euclidean distance from the starting square to each of the
+   * squares in the list, and returns a reference to the one that is closest.
+   * 
+   * @param starting_sqr The square to which all other squares' distance is calculated
+   * @param list_of_sqrs A reference to a vector containing some number of squares
+   *                     whose distance to the starting square will be calculated
+   * @return The address of the coordinate in the list_of_sqrs with minimum distance
+   *         from the starting square
+   */
+  coord get_closest_sqr( const coord starting_sqr, 
+                         vector< coord > * list_of_sqrs );
+  
+  /**
+   * Returns an array of the squares which will update their neighbors 
+   * @param branching_sqr The goal, or the square closest to the plane which was
+   *                      previously updated
+   * @param branching_to_plane The (named) bearing from the plane to the branching
+   *                           square
+   * @param t the time we're working with here
+   * @param out_updating_cells The vector to be modified which will contain the 
+   *                           squares that can update their neighbors
+   */
+  void find_updating_sqrs( const coord branching_sqr, 
+                           const bearing_t branching_to_plane,
+                           const int t, vector< coord > * out_updating_cells );
+  
+  // The "owner" of this BC grid, for whom we will calculate distance costs &c.
+  Plane * owner;
+  
   danger_grid * mc; // the map cost (MC) grid (a.k.a., the danger grid)
   danger_grid * bc; // the best cost grid; the heart of this class
     
@@ -202,6 +236,8 @@ best_cost::best_cost( vector< Plane > * set_of_aircraft,
   
   goal.x = (*set_of_aircraft)[ plane_id ].getFinalDestination().getX();
   goal.y = (*set_of_aircraft)[ plane_id ].getFinalDestination().getY();
+  
+  owner = &( (*set_of_aircraft)[ plane_id ] );
   
 #ifdef DEBUG
   create_log( "Creating BC grid for plane " + to_string( plane_id ), log_path );
@@ -263,71 +299,107 @@ void best_cost::initialize_path( )
   for( int t = 0; t < n_secs; t++ )
     bc->set_danger_at( goal.x, goal.y, t, (*mc)(goal.x, goal.y, t) );
   
-  // Find the squares which lie in the straight line between BC_start and BC_goal
-  int dx = goal.x - start.x;
-  int dy = start.y - goal.y; // since origin is at top left
-  int x_moves_rem = abs( dx ); // remaining x moves until we reach goal's x
-  int y_moves_rem = abs( dy );
-  bool move_up = ( dy > 0 ? true : false );
-  bool move_right = ( dx > 0 ? true : false );
-  
-  unsigned int moves_since_dag = 0;
-  const bool more_x = x_moves_rem > y_moves_rem;
-  unsigned int dag_to_straight_ratio;
-  if( x_moves_rem == 0 )
-    dag_to_straight_ratio = y_moves_rem;
-  else if( y_moves_rem == 0 )
-    dag_to_straight_ratio = x_moves_rem;
-  else
-    dag_to_straight_ratio = more_x ? x_moves_rem/y_moves_rem : y_moves_rem/x_moves_rem;
-  
-  while( x_moves_rem > 0 || y_moves_rem > 0 ) // 1 or more moves req'd to reach goal
+  // The squares which will update their neighbors
+  vector< coord > updating_cells;
+
+  for( int t = 0; t < n_secs; t++ )
   {
-    if( moves_since_dag >= dag_to_straight_ratio )
-    {
-      // make a diagonal move
-      if( x_moves_rem != 0 ) // there are one or more x moves remaining, so . . .
-        --x_moves_rem;      // we'll use one
-      if( y_moves_rem != 0 )
-        --y_moves_rem;
-      moves_since_dag = 0;
-    }
-    else if( more_x )
-    {
-      if( x_moves_rem != 0 ) // there are one or more x moves remaining, so . . .
-        --x_moves_rem;      // we'll use one
-      moves_since_dag++;
-    }
-    else
-    {
-      if( y_moves_rem != 0 )
-        --y_moves_rem;
-      moves_since_dag++;
-    }
+    bool start_has_been_updated = false;
     
-    // Values depend on direction of movement
-    int x_to_set, y_to_set;
-    x_to_set = ( move_right ? start.x + x_moves_rem : start.x - x_moves_rem );
-    y_to_set = ( move_up ? start.y - y_moves_rem : start.y + y_moves_rem );
+    // Bearing from the branching square (here, the goal) to the plane is the
+    // opposite of the bearing from the plane to the goal
+    bearing_t branching_to_plane = reverse_bearing( name_bearing( (*owner).getBearingToDest() ) );
     
-    // Calculate starting-place heuristic for this square using the MC (danger) grid
-    // and the straight-line distance to the goal
-    for( int t = n_secs; t >= 0; t-- )
-    { //              This isn't quite right . . . FIX ME! /////////////////////////////////////////////////////////////////////////////////////////
-      double danger = (*mc)( x_to_set, y_to_set, t );
-      
+    // The first time we run, the squares that will update their neighbors' true best
+    // cost is simply the 3 squares adjacent to the goal which are closes to the 
+    // plane
+    find_updating_sqrs( goal, branching_to_plane, t, &updating_cells );
 #ifdef DEBUG
-      if( x_to_set == goal.x && y_to_set == goal.y )
-        cout << "Why are you trying to change the goal??" << endl;
-      assert( false );
+    assert( updating_cells.size() <= 3 );
+    assert( updating_cells.size() > 0 );
 #endif
-      bc->set_danger_at( x_to_set, y_to_set, t, map_weight * danger +
-                         bc->get_dist_cost_at( x_to_set, y_to_set ) );
-      // This (x, y, t) coordinate can change the best cost of its neighbors; check later
-      to_do.push_back( coord( x_to_set, y_to_set, t ) );
-      in_to_do[ x_to_set ][ y_to_set ][ t ] = true;
+    
+    coord * branching_sqr;
+    
+    // The squares we are changing in each round of the while loop
+    vector< coord > cells_to_change;
+    
+    while( !start_has_been_updated && updating_cells.size() > 0 )
+    {
+#ifdef DEBUG
+      assert( updating_cells.size() <= 3 );
+      assert( updating_cells.size() > 0 );
+#endif
+      
+      branching_sqr = new coord( get_closest_sqr( start, &updating_cells ) );
+      branching_to_plane = name_bearing( calculate_euclidean_bearing(
+        (*branching_sqr).x, (*branching_sqr).x, start.x, start.y ) );
+      
+      find_updating_sqrs( (*branching_sqr), branching_to_plane, t, &cells_to_change );
+#ifdef DEBUG
+      assert( cells_to_change.size() <= 3 );
+      assert( cells_to_change.size() > 0 );
+#endif
+      
+      // For each square that we're going to change . . .
+      for( vector< coord >::iterator changing_sqr = cells_to_change.begin();
+           changing_sqr != cells_to_change.end(); ++changing_sqr )
+      {
+        // Cost of this square is the cost from the minimum-cost reachable square to
+        // the goal + the cost of this square + the distance from this square to the
+        // min reachable square
+        double danger_of_changing_sqr = (*mc)((*changing_sqr).x, (*changing_sqr).y, t);
+        
+        double lowest_cost_so_far = 10000000;
+        
+        // Each of the updating cells is potentially the min-cost reachable sqr
+        for( vector< coord >::iterator p_min = updating_cells.begin();
+            p_min != updating_cells.end(); ++p_min )
+        {
+          // If this square is adjacent to the one we're changing . . .
+          if( ( (int)(*p_min).x - (*changing_sqr).x <= 1 &&
+                (int)(*p_min).x - (*changing_sqr).x >= -1 ) &&
+              ( (int)(*p_min).y - (*changing_sqr).y <= 1 &&
+                (int)(*p_min).y - (*changing_sqr).y >= -1 ) )
+          {
+            double bc_of_p_min = (*bc)( (*p_min).x, (*p_min).y, t );
+            
+            // If this is the lowest cost we've seen so far . . .
+            if( bc_of_p_min < lowest_cost_so_far )
+            {
+              double distance = 
+              get_euclidean_dist_between( (*p_min).x, (*p_min).y,
+                                          (*changing_sqr).x, (*changing_sqr).y );
+              
+              bc->set_danger_at( (*changing_sqr).x, (*changing_sqr).y, t, 
+                                 bc_of_p_min + distance +
+                                 map_weight * danger_of_changing_sqr );
+            }
+          }
+        } // end for each square in updating_cells
+      
+        if( (*changing_sqr).x == start.x && (*changing_sqr).y == start.y )
+          start_has_been_updated = true;
+        
+        to_do.push_back( (*changing_sqr) );
+        in_to_do[ (*changing_sqr).x ][ (*changing_sqr).y ][ t ] = true;
+      } // end for each changing_square
+      
+      // The squares we just changed are now going to update their neighbors
+      updating_cells = cells_to_change;
+      
+      cells_to_change.clear();
+      
+      delete branching_sqr;
+      branching_sqr = NULL;
+    } // end while start has not been updated and there are updating cells
+    
+    if( branching_sqr != NULL )
+    {
+      delete branching_sqr;
+      branching_sqr = NULL;
     }
-  }
+  } // end for each time step
   
   danger_threshold = (*bc)( start.x, start.y, start.t );
 }
@@ -432,6 +504,157 @@ double best_cost::operator()( unsigned int x, unsigned int y, int time ) const
 double best_cost::get_pos(unsigned int x, unsigned int y, int time) const
 {
   return bc->get_danger_at(x, y, time);
+}
+
+coord best_cost::get_closest_sqr( const coord starting_sqr, 
+                                    vector< coord > * list_of_sqrs )
+{
+#ifdef DEBUG
+  if( (*list_of_sqrs).size() == 0 )
+    assert( false );
+#endif
+  
+  double min_d = 10000000;
+  double d_to_crnt;
+  coord * closest_sqr;
+  
+  for( vector< coord >::iterator crnt_sqr = (*list_of_sqrs).begin(); 
+       crnt_sqr != (*list_of_sqrs).end(); ++crnt_sqr )
+  {
+    d_to_crnt = sqrt( (*crnt_sqr).x * (*crnt_sqr).x + (*crnt_sqr).y * (*crnt_sqr).y );
+    if( d_to_crnt < min_d )
+    {
+      min_d = d_to_crnt;
+      closest_sqr = &(*crnt_sqr);
+    }
+  }
+  
+#ifdef DEBUG
+  assert( (*closest_sqr).x < n_sqrs_w );
+  assert( (*closest_sqr).y < n_sqrs_h );
+  assert( (*closest_sqr).x >= 0 );
+  assert( (*closest_sqr).y >= 0 );
+#endif
+  
+  return (*closest_sqr);
+}
+
+void best_cost::find_updating_sqrs( const coord branching_sqr,
+                                    const bearing_t branching_to_plane,
+                                    const int t, vector< coord > * out_updating_cells )
+{  
+#ifdef DEBUG
+  assert( (*out_updating_cells).size() == 0 );
+#endif
+  
+  if( branching_to_plane == N )
+  {
+    if( goal.y > 0 ) // safe to add squares that are up 1
+    {
+      if( goal.x > 0 ) // safe to add squares that are 1 left
+        (*out_updating_cells).push_back( coord(goal.x - 1, goal.y - 1, t) ); // up and left
+      
+      if( goal.x + 1 < n_sqrs_w ) // safe to add squares that are 1 right
+        (*out_updating_cells).push_back( coord(goal.x + 1, goal.y - 1, t) ); // up and right
+      
+      (*out_updating_cells).push_back( coord( goal.x, goal.y - 1, t) ); // straight up
+    }
+  }
+  else if( branching_to_plane == NE )
+  {
+    if( goal.x + 1 < n_sqrs_w ) // safe to add squares that are 1 right
+      (*out_updating_cells).push_back( coord(goal.x + 1, goal.y, t) ); // straight right
+    
+    if( goal.y > 0 ) // safe to add squares that are up 1
+    {
+      (*out_updating_cells).push_back( coord( goal.x, goal.y - 1, t) ); // straight up
+      
+      if( goal.x + 1 < n_sqrs_w ) // safe to add squares that are 1 right
+        (*out_updating_cells).push_back( coord(goal.x + 1, goal.y - 1, t) ); // up and right
+    }
+  }
+  else if( branching_to_plane == E )
+  {
+    if( goal.x + 1 < n_sqrs_w ) // safe to add squares that are 1 right
+    {
+      (*out_updating_cells).push_back( coord(goal.x + 1, goal.y, t) ); // straight right
+      
+      if( goal.y > 0 ) // safe to add squares that are up 1
+        (*out_updating_cells).push_back( coord(goal.x + 1, goal.y - 1, t) ); // up and right
+      
+      if( goal.y + 1 < n_sqrs_h ) // safe to add squares that are down 1
+        (*out_updating_cells).push_back( coord(goal.x + 1, goal.y + 1, t) ); // down and right
+    }
+  }
+  else if( branching_to_plane == SE )
+  {
+    if( goal.x + 1 < n_sqrs_w ) // safe to add squares that are 1 right
+    {
+      (*out_updating_cells).push_back( coord(goal.x + 1, goal.y, t) ); // straight right
+      
+      if( goal.y + 1 < n_sqrs_h ) // safe to add squares that are down 1
+        (*out_updating_cells).push_back( coord(goal.x + 1, goal.y + 1, t) ); // down and right
+    }
+    
+    if( goal.y + 1 < n_sqrs_h ) // safe to add squares that are down 1
+      (*out_updating_cells).push_back( coord(goal.x, goal.y + 1, t) ); // straight down
+  }
+  else if( branching_to_plane == S )
+  {
+    if( goal.y + 1 < n_sqrs_h ) // safe to add squares that are down 1
+    {
+      if( goal.x > 0 ) // safe to add squares that are 1 left
+        (*out_updating_cells).push_back( coord(goal.x - 1, goal.y + 1, t) ); // down and left
+      
+      if( goal.x + 1 < n_sqrs_w ) // safe to add squares that are 1 right
+        (*out_updating_cells).push_back( coord(goal.x + 1, goal.y + 1, t) ); // down and right
+      
+      (*out_updating_cells).push_back( coord( goal.x, goal.y + 1, t) ); // straight down
+    }
+  }
+  else if( branching_to_plane == SW )
+  {
+    if( goal.x > 0 ) // safe to add squares that are 1 left
+    {
+      (*out_updating_cells).push_back( coord(goal.x - 1, goal.y, t) ); // straight left
+      
+      if( goal.y + 1 < n_sqrs_h ) // safe to add squares that are down 1
+        (*out_updating_cells).push_back( coord(goal.x - 1, goal.y + 1, t) ); // down and left
+    }
+    
+    if( goal.y + 1 < n_sqrs_h ) // safe to add squares that are down 1
+      (*out_updating_cells).push_back( coord(goal.x, goal.y + 1, t) ); // straight down
+  }
+  else if( branching_to_plane == W )
+  {
+    if( goal.x > 0 ) // safe to add squares that are 1 left
+    {
+      (*out_updating_cells).push_back( coord(goal.x - 1, goal.y, t) ); // straight left
+      
+      if( goal.y > 0 ) // safe to add squares that are up 1
+        (*out_updating_cells).push_back( coord(goal.x - 1, goal.y - 1, t) ); // up and left
+      
+      if( goal.y + 1 < n_sqrs_h ) // safe to add squares that are down 1
+        (*out_updating_cells).push_back( coord(goal.x - 1, goal.y + 1, t) ); // down and left
+    }
+  }
+  else if( branching_to_plane == NW )
+  {
+    if( goal.x > 0 ) // safe to add squares that are 1 left
+    {
+      (*out_updating_cells).push_back( coord(goal.x - 1, goal.y, t) ); // straight left
+      
+      if( goal.y > 0 ) // safe to add squares that are up 1
+        (*out_updating_cells).push_back( coord(goal.x - 1, goal.y - 1, t) ); // up and left
+    }
+    
+    if( goal.y > 0 ) // safe to add squares that are up 1
+      (*out_updating_cells).push_back( coord(goal.x, goal.y - 1, t) ); // straight up
+  }
+  
+#ifdef DEBUG
+  assert( (*out_updating_cells).size() <= 3 );
+#endif
 }
 
 

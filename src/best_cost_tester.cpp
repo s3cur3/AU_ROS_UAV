@@ -8,7 +8,7 @@
 #include <cstdlib>
 #include <string>
 #include <iostream>
-#include "best_cost_with_fields.h"
+#include "best_cost_final.h"
 #include "map_tools.h"
 #include <time.h>
 #include <vector>

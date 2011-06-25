@@ -25,6 +25,26 @@ const double DEGREEStoRAD = PI/180;//Conversion factor from Degrees to Radians
 
 namespace map_tools 
 {
+  enum bearing_t { N, NE, E, SE, S, SW, W, NW };
+  
+  /**
+   * Converts a bearing in degrees to a "named" version, for use in deciding which
+   * nearby squares are in the path of the aircraft
+   * @param the_bearing Bearing of the aircraft in degrees (0 is due north, 
+   *                    90 due east, and so on)
+   * @return A named version of the direction (N for bearings -22.5 to 22.5 deg,
+   *         NE for bearings 22.5 to 67.5 deg, and so on)
+   */
+  bearing_t name_bearing( double the_bearing );
+
+  /**
+   * Gives the opposite of a "named" bearing; the opposite of N is S, opposite of
+   * SE is NW, and so on.
+   * @param start_bearing The bearing whose opposite will be returned
+   * @return The opposite of the starting bearing
+   */
+  bearing_t reverse_bearing( bearing_t start_bearing );
+  
   /**
    * Using the width, height, and resolution (in whatever system of measurement
    * you're using, such as meters), this returns the width of the field IN SQUARES.
@@ -115,6 +135,15 @@ namespace map_tools
                                    double latitude_2, double longitude_2 );
   
   /**
+   * Calculate the bearing, in degrees, between two points
+   * @param x_1, y_1 The x and y coordinates of the first point
+   * @param x_2, y_2 The x and y coordinates of the other point
+   * @return The bearing, in degrees, from point 1 to point 2
+   */
+  double calculate_euclidean_bearing( int x_1, int y_1,
+                                     int x_2, int y_2 );
+  
+  /**
    * Converts an angle, for use in the haversine formula
    * @param angle_in_degrees The angle you wish to convert from degrees to radians
    * @return The angle converted to radians
@@ -122,7 +151,90 @@ namespace map_tools
   double to_radians( double angle_in_degrees );
   
   const double pi = 3.1415926535897932;
+  
+  /**
+   * Calculates the distance between two points in a plane using the Pythagorean
+   * theorem.
+   * @param x_1, y_1 The x and y coordinates of the first point
+   * @param x_2, y_2 The x and y coordinates of the other point
+   * @return The calculated distance between (x_1, y_1) and (x_2, y_2)
+   */
+  double get_euclidean_dist_between( int x_1, int y_1,
+                                     int x_2, int y_2 );
 }
+
+
+map_tools::bearing_t map_tools::name_bearing( double the_bearing )
+{
+  the_bearing = fmod(the_bearing, 360); // modular division for floats
+  
+  if( the_bearing > -22.5 && the_bearing <= 22.5 )
+    return N;
+  else if( the_bearing > 22.5 && the_bearing <= 67.5 )
+    return NE;
+  else if( the_bearing > 67.5 && the_bearing <= 112.5 )
+    return E;
+  else if( the_bearing > 112.5 && the_bearing <= 157.5 )
+    return SE;
+  else if( the_bearing > 157.5 && the_bearing <= 202.5 )
+    return S;
+  else if( the_bearing > 202.5 && the_bearing <= 247.5 )
+    return SW;
+  else if( the_bearing > 247.5 && the_bearing <= 292.5 )
+    return W;
+  else if( the_bearing > 292.5 && the_bearing <= 337.5 )
+    return NW;
+  else if( the_bearing > -67.5 && the_bearing <= -22.5 )
+    return NW;
+  else if( the_bearing > -112.5 && the_bearing <= -67.5 )
+    return W;
+  else if( the_bearing > -157.5 && the_bearing <= -112.5 )
+    return SW;
+  else if( the_bearing > -202.5 && the_bearing <= -157.5 )
+    return S;
+  else if( the_bearing > -247.5 && the_bearing <= -202.5 )
+    return SE;
+  else if( the_bearing > -292.5 && the_bearing <= -247.5 )
+    return E;
+  else if( the_bearing > -337.5 && the_bearing <= -292.5 )
+    return NW;
+  else
+  {
+#ifdef DEBUG
+    assert( the_bearing > -361 && the_bearing < 361 );
+#endif
+    return N;
+  }
+}
+
+map_tools::bearing_t map_tools::reverse_bearing( map_tools::bearing_t start_bearing )
+{
+  switch( start_bearing )
+  {
+    case N:
+      return map_tools::S;
+    case NE:
+      return map_tools::SW;
+    case E:
+      return map_tools::W;
+    case SE:
+      return map_tools::NW;
+    case S:
+      return map_tools::N;
+    case SW:
+      return map_tools::NE;
+    case W:
+      return map_tools::E;
+    case NW:
+      return map_tools::SE;
+#ifdef DEBUG
+    default:
+      assert( false );
+#endif
+  }
+}
+
+
 
 unsigned int map_tools::find_width_in_squares( double width_of_field, 
                                                double height_of_field, 
@@ -248,9 +360,24 @@ double map_tools::calculate_bearing_in_rad( double latitude_1, double longitude_
   return atan2(y, x);
 }
 
+double map_tools::calculate_euclidean_bearing( int x_1, int y_1,
+                                               int x_2, int y_2 )
+{
+  int d_y = y_2 - y_1;
+  int d_x = x_1 - x_2;
+  return atan2( d_y, d_x )*RADtoDEGREES;
+}
+
+
 double map_tools::to_radians( double angle_in_degrees )
 {
     return ( angle_in_degrees * ( pi/180 ) );
+}
+
+double map_tools::get_euclidean_dist_between( int x_1, int y_1,
+                                             int x_2, int y_2 )
+{
+  return sqrt( (x_2 - x_1)*(x_2 - x_1) + (y_2 - y_1)*(y_2 - y_1) );
 }
 
 #endif

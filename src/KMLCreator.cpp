@@ -119,9 +119,17 @@ bool saveFlightData(AU_UAV_ROS::SaveFlightData::Request &req, AU_UAV_ROS::SaveFl
 	isMonitoringTelemetry = false;
 	ROS_INFO("Saving to file %s...", req.filename.c_str());
 
+  
+  
+  
+  
 	// This vector used by Tyler Young to store the distances traveled by planes /////
   std::vector< double > d_traveled;
+  int counter = -1;
   ////////////////////// End of additions by TY ///////////////////////////////
+  
+  
+  
   
 	FILE *fp = fopen((ros::package::getPath("AU_UAV_ROS")+"/flightData/"+req.filename).c_str(), "w");
 	if(fp != NULL)
@@ -174,8 +182,12 @@ bool saveFlightData(AU_UAV_ROS::SaveFlightData::Request &req, AU_UAV_ROS::SaveFl
 			fprintf(fp, "          <altitudeMode>absolute</altitudeMode>\n");
 			fprintf(fp, "          <coordinates>\n");
 			
+      
+      
+      
       // Added by TY for distance calc                /////////////////////////////// 
-      while( ii->first >= (int)d_traveled.size() )
+      ++counter;
+      while( counter >= (int)d_traveled.size() )
       {
         d_traveled.push_back( 0.0 );
       }
@@ -184,12 +196,15 @@ bool saveFlightData(AU_UAV_ROS::SaveFlightData::Request &req, AU_UAV_ROS::SaveFl
       double prev_lon = 0.0;
       ///////////////////////// End of additions by TY ////////////////////////
       
+      
+      
+      
+      
 			//for each coordinate saved, we want to write to the file
 			while(!(ii->second.empty()))
 			{
 				AU_UAV_ROS::waypoint temp = ii->second.front();
 				fprintf(fp, "            %lf, %lf, %lf\n", temp.longitude, temp.latitude, temp.altitude);
-				ii->second.pop();
         
         
         
@@ -197,14 +212,16 @@ bool saveFlightData(AU_UAV_ROS::SaveFlightData::Request &req, AU_UAV_ROS::SaveFl
         if( (prev_lat > 0.00001 || prev_lat < -0.00001)  && 
            (prev_lon > 0.00001 || prev_lon < -0.00001) ) 
         { // Prev position has been initialized
-          d_traveled[ ii->first ] += dist_between_pts( temp.latitude, temp.longitude, 
-                                                       prev_lat, prev_lon,
-                                                       "meters" );
+          d_traveled[ counter ] += dist_between_pts( temp.latitude, temp.longitude, 
+                                                     prev_lat, prev_lon,
+                                                     "meters" );
         }
-        
         prev_lat = temp.latitude;
         prev_lon = temp.longitude;
         ///////////////////////// End of additions by TY ////////////////////////
+        
+        
+        ii->second.pop();
 			}
 			
 			fprintf(fp, "          </coordinates>\n");
