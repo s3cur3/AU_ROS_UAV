@@ -10,7 +10,7 @@
 #include <iostream>
 #include "best_cost_with_fields.h"
 #include "map_tools.h"
-#include "Plane.h"
+#include "Plane_fixed.h"
 #include <time.h>
 #include <vector>
 #include <iomanip>

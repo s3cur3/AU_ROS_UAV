@@ -11,6 +11,10 @@
 
 #include <math.h>
 
+#ifdef DEBUG
+#include <cassert>
+#endif
+
 using namespace std;
 
 static const double earth_radius = 6371000; // meters, on average
@@ -36,6 +40,14 @@ namespace map_tools
    *         NE for bearings 22.5 to 67.5 deg, and so on)
    */
   bearing_t name_bearing( double the_bearing );
+  
+  /**
+   * Returns a string version of the enumerated type bearing_t
+   * @param the_bearing The bearing, obtainable by using name_bearing, to convert
+   *                    to a string
+   * @return A string "N", "NE", "E", or what have you
+   */
+  string bearing_to_string( bearing_t the_bearing );
 
   /**
    * Gives the opposite of a "named" bearing; the opposite of N is S, opposite of
@@ -135,13 +147,13 @@ namespace map_tools
                                    double latitude_2, double longitude_2 );
   
   /**
-   * Calculate the bearing, in degrees, between two points
+   * Calculate the bearing, in degrees, between two points (FROM point 1, TO point 2)
    * @param x_1, y_1 The x and y coordinates of the first point
    * @param x_2, y_2 The x and y coordinates of the other point
    * @return The bearing, in degrees, from point 1 to point 2
    */
   double calculate_euclidean_bearing( int x_1, int y_1,
-                                     int x_2, int y_2 );
+                                      int x_2, int y_2 );
   
   /**
    * Converts an angle, for use in the haversine formula
@@ -204,6 +216,29 @@ map_tools::bearing_t map_tools::name_bearing( double the_bearing )
     assert( the_bearing > -361 && the_bearing < 361 );
 #endif
     return N;
+  }
+}
+
+string map_tools::bearing_to_string( map_tools::bearing_t the_bearing )
+{
+  switch( the_bearing )
+  {
+    case N:
+      return "N";
+    case NE:
+      return "NE";
+    case E:
+      return "E";
+    case SE:
+      return "SE";
+    case S:
+      return "S";
+    case SW:
+      return "SW";
+    case W:
+      return "W";
+    default:
+      return "NW";
   }
 }
 
@@ -364,8 +399,8 @@ double map_tools::calculate_euclidean_bearing( int x_1, int y_1,
                                                int x_2, int y_2 )
 {
   int d_y = y_2 - y_1;
-  int d_x = x_1 - x_2;
-  return atan2( d_y, d_x )*RADtoDEGREES;
+  int d_x = x_2 - x_1;
+  return atan2( d_y, d_x )*RADtoDEGREES + 90;
 }
 
 

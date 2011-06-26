@@ -24,6 +24,7 @@
 
 
 #define DEBUG
+//#define DEBUG_BC
 
 #ifndef BC_GRID_EXP
 #define BC_GRID_EXP
@@ -38,6 +39,7 @@
 #include <cstdlib>
 #include "write_to_log.h"
 #include "map_tools.h"
+#include "Plane_fixed.h"
 
 // used to tell the map class that it's okay to have costs greater than 1 associated
 // with squares
@@ -301,6 +303,13 @@ void best_cost::initialize_path( )
   
   // The squares which will update their neighbors
   vector< coord > updating_cells;
+  
+#ifdef DEBUG_BC
+  cout << "Goal: (" << goal.x << ", " << goal.y << ")" << endl;
+  cout << "Starting pos: (" << start.x << ", " << start.y << ")" << endl;
+  cout << "Plane says its bearing to the dest is " << (*owner).getBearingToDest() << endl;
+  cout << "We would name that " << bearing_to_string( name_bearing( (*owner).getBearingToDest() ) )<< endl;
+#endif
 
   for( int t = 0; t < n_secs; t++ )
   {
@@ -308,7 +317,11 @@ void best_cost::initialize_path( )
     
     // Bearing from the branching square (here, the goal) to the plane is the
     // opposite of the bearing from the plane to the goal
-    bearing_t branching_to_plane = reverse_bearing( name_bearing( (*owner).getBearingToDest() ) );
+    bearing_t branching_to_plane = reverse_bearing( name_bearing( (*owner).getBearingToDest() ) );  
+    
+#ifdef DEBUG_BC
+    cout << "We say the bearing from the dest to the plane is " << bearing_to_string(branching_to_plane) << endl;
+#endif
     
     // The first time we run, the squares that will update their neighbors' true best
     // cost is simply the 3 squares adjacent to the goal which are closes to the 
@@ -332,8 +345,16 @@ void best_cost::initialize_path( )
 #endif
       
       branching_sqr = new coord( get_closest_sqr( start, &updating_cells ) );
+#ifdef DEBUG_BC
+      cout << "  Euclidean bearing from branching sqr to start is " << calculate_euclidean_bearing(
+                                                                                      (*branching_sqr).x, (*branching_sqr).y, start.x, start.y ) << endl;
+#endif
       branching_to_plane = name_bearing( calculate_euclidean_bearing(
-        (*branching_sqr).x, (*branching_sqr).x, start.x, start.y ) );
+        (*branching_sqr).x, (*branching_sqr).y, start.x, start.y ) );
+#ifdef DEBUG_BC
+      cout << "  Calculated bearing from branching square (" <<
+      (*branching_sqr).x << ", " << (*branching_sqr).y << ") to be " << bearing_to_string(branching_to_plane) << endl;
+#endif
       
       find_updating_sqrs( (*branching_sqr), branching_to_plane, t, &cells_to_change );
 #ifdef DEBUG
@@ -379,7 +400,16 @@ void best_cost::initialize_path( )
         } // end for each square in updating_cells
       
         if( (*changing_sqr).x == start.x && (*changing_sqr).y == start.y )
+        {
           start_has_been_updated = true;
+#ifdef DEBUG_BC
+          cout << "BC at start is " << (*bc)( start.x, start.y, t ) << endl << endl;
+#endif
+        }
+        
+#ifdef DEBUG_BC
+        cout << "    Changed sqr: (" << (*changing_sqr).x << ", " << (*changing_sqr).y << ")" << endl;
+#endif
         
         to_do.push_back( (*changing_sqr) );
         in_to_do[ (*changing_sqr).x ][ (*changing_sqr).y ][ t ] = true;
@@ -399,6 +429,8 @@ void best_cost::initialize_path( )
       delete branching_sqr;
       branching_sqr = NULL;
     }
+    
+    updating_cells.clear();
   } // end for each time step
   
   danger_threshold = (*bc)( start.x, start.y, start.t );
@@ -521,7 +553,8 @@ coord best_cost::get_closest_sqr( const coord starting_sqr,
   for( vector< coord >::iterator crnt_sqr = (*list_of_sqrs).begin(); 
        crnt_sqr != (*list_of_sqrs).end(); ++crnt_sqr )
   {
-    d_to_crnt = sqrt( (*crnt_sqr).x * (*crnt_sqr).x + (*crnt_sqr).y * (*crnt_sqr).y );
+    d_to_crnt = sqrt( ((*crnt_sqr).x - start.x)*((*crnt_sqr).x - start.x) + 
+                      ((*crnt_sqr).y - start.y)*((*crnt_sqr).y - start.y) );
     if( d_to_crnt < min_d )
     {
       min_d = d_to_crnt;
@@ -529,11 +562,19 @@ coord best_cost::get_closest_sqr( const coord starting_sqr,
     }
   }
   
+#ifdef DEBUG_BC
+  cout << "Given the choices ";
+  for( vector< coord >::iterator crnt_sqr = (*list_of_sqrs).begin(); 
+      crnt_sqr != (*list_of_sqrs).end(); ++crnt_sqr )
+  {
+    cout << "(" << (*crnt_sqr).x << ", " << (*crnt_sqr).y << "), ";
+  }
+  cout << endl << "...we chose ("<< (*closest_sqr).x << ", " << (*closest_sqr).y << ") " << endl;
+#endif
+  
 #ifdef DEBUG
   assert( (*closest_sqr).x < n_sqrs_w );
   assert( (*closest_sqr).y < n_sqrs_h );
-  assert( (*closest_sqr).x >= 0 );
-  assert( (*closest_sqr).y >= 0 );
 #endif
   
   return (*closest_sqr);
@@ -549,107 +590,107 @@ void best_cost::find_updating_sqrs( const coord branching_sqr,
   
   if( branching_to_plane == N )
   {
-    if( goal.y > 0 ) // safe to add squares that are up 1
+    if( branching_sqr.y > 0 ) // safe to add squares that are up 1
     {
-      if( goal.x > 0 ) // safe to add squares that are 1 left
-        (*out_updating_cells).push_back( coord(goal.x - 1, goal.y - 1, t) ); // up and left
+      if( branching_sqr.x > 0 ) // safe to add squares that are 1 left
+        (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y - 1, t) ); // up and left
       
-      if( goal.x + 1 < n_sqrs_w ) // safe to add squares that are 1 right
-        (*out_updating_cells).push_back( coord(goal.x + 1, goal.y - 1, t) ); // up and right
+      if( branching_sqr.x + 1 < n_sqrs_w ) // safe to add squares that are 1 right
+        (*out_updating_cells).push_back( coord(branching_sqr.x + 1, branching_sqr.y - 1, t) ); // up and right
       
-      (*out_updating_cells).push_back( coord( goal.x, goal.y - 1, t) ); // straight up
+      (*out_updating_cells).push_back( coord( branching_sqr.x, branching_sqr.y - 1, t) ); // straight up
     }
   }
   else if( branching_to_plane == NE )
   {
-    if( goal.x + 1 < n_sqrs_w ) // safe to add squares that are 1 right
-      (*out_updating_cells).push_back( coord(goal.x + 1, goal.y, t) ); // straight right
+    if( branching_sqr.x + 1 < n_sqrs_w ) // safe to add squares that are 1 right
+      (*out_updating_cells).push_back( coord(branching_sqr.x + 1, branching_sqr.y, t) ); // straight right
     
-    if( goal.y > 0 ) // safe to add squares that are up 1
+    if( branching_sqr.y > 0 ) // safe to add squares that are up 1
     {
-      (*out_updating_cells).push_back( coord( goal.x, goal.y - 1, t) ); // straight up
+      (*out_updating_cells).push_back( coord( branching_sqr.x, branching_sqr.y - 1, t) ); // straight up
       
-      if( goal.x + 1 < n_sqrs_w ) // safe to add squares that are 1 right
-        (*out_updating_cells).push_back( coord(goal.x + 1, goal.y - 1, t) ); // up and right
+      if( branching_sqr.x + 1 < n_sqrs_w ) // safe to add squares that are 1 right
+        (*out_updating_cells).push_back( coord(branching_sqr.x + 1, branching_sqr.y - 1, t) ); // up and right
     }
   }
   else if( branching_to_plane == E )
   {
-    if( goal.x + 1 < n_sqrs_w ) // safe to add squares that are 1 right
+    if( branching_sqr.x + 1 < n_sqrs_w ) // safe to add squares that are 1 right
     {
-      (*out_updating_cells).push_back( coord(goal.x + 1, goal.y, t) ); // straight right
+      (*out_updating_cells).push_back( coord(branching_sqr.x + 1, branching_sqr.y, t) ); // straight right
       
-      if( goal.y > 0 ) // safe to add squares that are up 1
-        (*out_updating_cells).push_back( coord(goal.x + 1, goal.y - 1, t) ); // up and right
+      if( branching_sqr.y > 0 ) // safe to add squares that are up 1
+        (*out_updating_cells).push_back( coord(branching_sqr.x + 1, branching_sqr.y - 1, t) ); // up and right
       
-      if( goal.y + 1 < n_sqrs_h ) // safe to add squares that are down 1
-        (*out_updating_cells).push_back( coord(goal.x + 1, goal.y + 1, t) ); // down and right
+      if( branching_sqr.y + 1 < n_sqrs_h ) // safe to add squares that are down 1
+        (*out_updating_cells).push_back( coord(branching_sqr.x + 1, branching_sqr.y + 1, t) ); // down and right
     }
   }
   else if( branching_to_plane == SE )
   {
-    if( goal.x + 1 < n_sqrs_w ) // safe to add squares that are 1 right
+    if( branching_sqr.x + 1 < n_sqrs_w ) // safe to add squares that are 1 right
     {
-      (*out_updating_cells).push_back( coord(goal.x + 1, goal.y, t) ); // straight right
+      (*out_updating_cells).push_back( coord(branching_sqr.x + 1, branching_sqr.y, t) ); // straight right
       
-      if( goal.y + 1 < n_sqrs_h ) // safe to add squares that are down 1
-        (*out_updating_cells).push_back( coord(goal.x + 1, goal.y + 1, t) ); // down and right
+      if( branching_sqr.y + 1 < n_sqrs_h ) // safe to add squares that are down 1
+        (*out_updating_cells).push_back( coord(branching_sqr.x + 1, branching_sqr.y + 1, t) ); // down and right
     }
     
-    if( goal.y + 1 < n_sqrs_h ) // safe to add squares that are down 1
-      (*out_updating_cells).push_back( coord(goal.x, goal.y + 1, t) ); // straight down
+    if( branching_sqr.y + 1 < n_sqrs_h ) // safe to add squares that are down 1
+      (*out_updating_cells).push_back( coord(branching_sqr.x, branching_sqr.y + 1, t) ); // straight down
   }
   else if( branching_to_plane == S )
   {
-    if( goal.y + 1 < n_sqrs_h ) // safe to add squares that are down 1
+    if( branching_sqr.y + 1 < n_sqrs_h ) // safe to add squares that are down 1
     {
-      if( goal.x > 0 ) // safe to add squares that are 1 left
-        (*out_updating_cells).push_back( coord(goal.x - 1, goal.y + 1, t) ); // down and left
+      if( branching_sqr.x > 0 ) // safe to add squares that are 1 left
+        (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y + 1, t) ); // down and left
       
-      if( goal.x + 1 < n_sqrs_w ) // safe to add squares that are 1 right
-        (*out_updating_cells).push_back( coord(goal.x + 1, goal.y + 1, t) ); // down and right
+      if( branching_sqr.x + 1 < n_sqrs_w ) // safe to add squares that are 1 right
+        (*out_updating_cells).push_back( coord(branching_sqr.x + 1, branching_sqr.y + 1, t) ); // down and right
       
-      (*out_updating_cells).push_back( coord( goal.x, goal.y + 1, t) ); // straight down
+      (*out_updating_cells).push_back( coord( branching_sqr.x, branching_sqr.y + 1, t) ); // straight down
     }
   }
   else if( branching_to_plane == SW )
   {
-    if( goal.x > 0 ) // safe to add squares that are 1 left
+    if( branching_sqr.x > 0 ) // safe to add squares that are 1 left
     {
-      (*out_updating_cells).push_back( coord(goal.x - 1, goal.y, t) ); // straight left
+      (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y, t) ); // straight left
       
-      if( goal.y + 1 < n_sqrs_h ) // safe to add squares that are down 1
-        (*out_updating_cells).push_back( coord(goal.x - 1, goal.y + 1, t) ); // down and left
+      if( branching_sqr.y + 1 < n_sqrs_h ) // safe to add squares that are down 1
+        (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y + 1, t) ); // down and left
     }
     
-    if( goal.y + 1 < n_sqrs_h ) // safe to add squares that are down 1
-      (*out_updating_cells).push_back( coord(goal.x, goal.y + 1, t) ); // straight down
+    if( branching_sqr.y + 1 < n_sqrs_h ) // safe to add squares that are down 1
+      (*out_updating_cells).push_back( coord(branching_sqr.x, branching_sqr.y + 1, t) ); // straight down
   }
   else if( branching_to_plane == W )
   {
-    if( goal.x > 0 ) // safe to add squares that are 1 left
+    if( branching_sqr.x > 0 ) // safe to add squares that are 1 left
     {
-      (*out_updating_cells).push_back( coord(goal.x - 1, goal.y, t) ); // straight left
+      (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y, t) ); // straight left
       
-      if( goal.y > 0 ) // safe to add squares that are up 1
-        (*out_updating_cells).push_back( coord(goal.x - 1, goal.y - 1, t) ); // up and left
+      if( branching_sqr.y > 0 ) // safe to add squares that are up 1
+        (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y - 1, t) ); // up and left
       
-      if( goal.y + 1 < n_sqrs_h ) // safe to add squares that are down 1
-        (*out_updating_cells).push_back( coord(goal.x - 1, goal.y + 1, t) ); // down and left
+      if( branching_sqr.y + 1 < n_sqrs_h ) // safe to add squares that are down 1
+        (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y + 1, t) ); // down and left
     }
   }
   else if( branching_to_plane == NW )
   {
-    if( goal.x > 0 ) // safe to add squares that are 1 left
+    if( branching_sqr.x > 0 ) // safe to add squares that are 1 left
     {
-      (*out_updating_cells).push_back( coord(goal.x - 1, goal.y, t) ); // straight left
+      (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y, t) ); // straight left
       
-      if( goal.y > 0 ) // safe to add squares that are up 1
-        (*out_updating_cells).push_back( coord(goal.x - 1, goal.y - 1, t) ); // up and left
+      if( branching_sqr.y > 0 ) // safe to add squares that are up 1
+        (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y - 1, t) ); // up and left
     }
     
-    if( goal.y > 0 ) // safe to add squares that are up 1
-      (*out_updating_cells).push_back( coord(goal.x, goal.y - 1, t) ); // straight up
+    if( branching_sqr.y > 0 ) // safe to add squares that are up 1
+      (*out_updating_cells).push_back( coord(branching_sqr.x, branching_sqr.y - 1, t) ); // straight up
   }
   
 #ifdef DEBUG

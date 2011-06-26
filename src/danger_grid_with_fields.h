@@ -23,7 +23,7 @@
 #include <vector>
 #include "map.h"
 #include "estimate.h"
-#include "Plane.h"
+#include "Plane_fixed.h"
 #include <math.h>
 #include <climits>
 #include "map_tools.h"
@@ -397,7 +397,6 @@ void danger_grid::fill_danger_space( const natural plane_id )
   // locations from the avoidance waypoint to the goal; else, it will be empty.
   vector< estimate > est_to_goal;
   
-  // Fill the danger_space for times in the past
   // For each plane . . .
   for( vector< Plane >::iterator current_plane = aircraft->begin();
       current_plane != aircraft->end(); ++current_plane )

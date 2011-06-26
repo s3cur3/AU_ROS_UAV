@@ -14,8 +14,8 @@
 #include <iostream>
 #include <fstream>
 #include <time.h>
-#include "Plane.h"
-#include "best_cost_with_fields.h"
+#include "Plane_fixed.h"
+#include "best_cost_final.h"
 #include "astar_sparse2.cpp"
 #include "telemetry_data_out.h"
 #include "Position.h"
@@ -64,18 +64,6 @@ int planesmade;
 int the_count;
 
 void makeField();
-
-enum bearing_t { N, NE, E, SE, S, SW, W, NW };
-
-/**
- * Converts a bearing in degrees to a "named" version, for use in deciding which
- * nearby squares are in the path of the aircraft
- * @param the_bearing Bearing of the aircraft in degrees (0 is due north, 
- *                    90 due east, and so on)
- * @return A named version of the direction (N for bearings -22.5 to 22.5 deg,
- *         NE for bearings 22.5 to 67.5 deg, and so on)
- */
-bearing_t name_bearing( double the_bearing );
 
 /**
  * Checks a plane's location against all others to see if there is a collision
@@ -176,7 +164,7 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 #ifdef COLLISIONTESTING
   // if this plane ID is not in the plane_locs vector, increase the size of the
   // vector to accomodate it
-  while( planeId >= plane_locs.size() )
+  while( planeId >= (int)plane_locs.size() )
   {
     point dummy;
     dummy.x = -1;
@@ -257,7 +245,7 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 	//prevent the insanity that double []s bring
 	Plane * plane = &(planes[planeId]);
 	//update the plane
-	plane->update(current,next,gSpeed,bearing);
+	plane->update(current,next,gSpeed);
 #ifdef DEBUG
   if( true )
   {
@@ -422,7 +410,7 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
     ROS_INFO("Created bc, going into A*");
   }
   
-	a_Star=astar_point(&bc,startx,starty,endx,endy,planeId);
+	a_Star=astar_point(&bc,startx,starty,endx,endy,planeId,plane->get_named_bearing());
  
 #ifdef DEBUG
 //  stringstream prefixcomp;
@@ -444,16 +432,16 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 
   int currentx=startx;
   int currenty=starty;
-  bearing_t direction = name_bearing( plane->getBearing() );
-	cout<<"plane "<<planeId<<" has a direction of "<<direction<<endl;
+  map_tools::bearing_t direction = name_bearing( plane->getBearing() );
+	cout<<"plane "<<planeId<<" has a direction of "<<map_tools::bearing_to_string( direction )<<endl;
 	switch( direction )
   {
-    case N://headed north
+    case map_tools::N://headed north
       if(currenty-1 > -1)
         currenty--;
       break;
       
-    case NW://headed northwest
+    case map_tools::NW://headed northwest
       if(currentx > 0 && currenty > 0)
       {
         currentx--;
@@ -461,12 +449,12 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
       }
       break;
 			
-    case W://headed west
+    case map_tools::W://headed west
       if(currentx-1 > -1)
         currentx--;
       break;
 			
-    case SW://headed southwest
+    case map_tools::SW://headed southwest
       if(currentx-1 > -1 && currenty+1 <43) 
       {
         currentx--;
@@ -474,12 +462,12 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
       }
       break;
 			
-    case S://headed south
+    case map_tools::S://headed south
       if(currenty+1 <43)
         currenty++;
       break;
 			
-    case SE://headed southeast
+    case map_tools::SE://headed southeast
       if(currentx+1 < 47 && currenty+1 < 43)
       {
         currentx++;
@@ -487,12 +475,12 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
       }
       break;
       
-    case E://headed east
+    case map_tools::E://headed east
       if(currentx+1 < 47)
       currentx++;
       break;
 			
-    case NE://headed northeast
+    case map_tools::NE://headed northeast
       if(currentx+1 < 47 && currenty-1 > -1)
       {
         currentx++;
@@ -583,11 +571,11 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
       cout<<goalSrv.response.longitude<<" "<<goalSrv.response.latitude<<endl;*/
     
     //update plane so others see it going to new goal
-		plane->update(current,next,gSpeed,bearing);
+		plane->update(current,next,gSpeed);
 	}
   else
   {
-		plane->update(current,next,gSpeed,bearing);
+		plane->update(current,next,gSpeed);
   }
   
 	planes[planeId]=*plane;
@@ -717,46 +705,46 @@ void makeField()
 	}
 }
 
-bearing_t name_bearing( double the_bearing )
+map_tools::bearing_t name_bearing( double the_bearing )
 {
   the_bearing = fmod(the_bearing, 360); // modular division for floats
   
   if( the_bearing > -22.5 && the_bearing <= 22.5 )
-    return N;
+    return map_tools::N;
   else if( the_bearing > 22.5 && the_bearing <= 67.5 )
-    return NE;
+    return map_tools::NE;
   else if( the_bearing > 67.5 && the_bearing <= 112.5 )
-    return E;
+    return map_tools::E;
   else if( the_bearing > 112.5 && the_bearing <= 157.5 )
-    return SE;
+    return map_tools::SE;
   else if( the_bearing > 157.5 && the_bearing <= 202.5 )
-    return S;
+    return map_tools::S;
   else if( the_bearing > 202.5 && the_bearing <= 247.5 )
-    return SW;
+    return map_tools::SW;
   else if( the_bearing > 247.5 && the_bearing <= 292.5 )
-    return W;
+    return map_tools::W;
   else if( the_bearing > 292.5 && the_bearing <= 337.5 )
-    return NW;
+    return map_tools::NW;
   else if( the_bearing > -67.5 && the_bearing <= -22.5 )
-    return NW;
+    return map_tools::NW;
   else if( the_bearing > -112.5 && the_bearing <= -67.5 )
-    return W;
+    return map_tools::W;
   else if( the_bearing > -157.5 && the_bearing <= -112.5 )
-    return SW;
+    return map_tools::SW;
   else if( the_bearing > -202.5 && the_bearing <= -157.5 )
-    return S;
+    return map_tools::S;
   else if( the_bearing > -247.5 && the_bearing <= -202.5 )
-    return SE;
+    return map_tools::SE;
   else if( the_bearing > -292.5 && the_bearing <= -247.5 )
-    return E;
+    return map_tools::E;
   else if( the_bearing > -337.5 && the_bearing <= -292.5 )
-    return NW;
+    return map_tools::NW;
   else
   {
 #ifdef DEBUG
     assert( the_bearing > -361 && the_bearing < 361 );
 #endif
-    return N;
+    return map_tools::N;
   }
 }
 
