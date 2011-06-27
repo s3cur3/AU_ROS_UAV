@@ -190,6 +190,14 @@ private:
                            const bearing_t branching_to_plane,
                            const int t, vector< coord > * out_updating_cells );
   
+  /**
+   * Adds cost to grid squares on the left of the aircraft, effectively implementing
+   * a preference for right-hand turns when path planning using A*.
+   * @param plane The "owner" of this BC grid, from whose starting location and
+   *              toward whose goal we will be adding cost.
+   */
+  void encourage_right( Plane * plane );
+  
   // The "owner" of this BC grid, for whom we will calculate distance costs &c.
   Plane * owner;
   
@@ -514,7 +522,7 @@ void best_cost::minimize_cost()
 
 void best_cost::initialize_to_do_index()
 {
-  in_to_do.resize( n_sqrs_w );
+  in_to_do.resize( n_sqrs_w ); 
   for( unsigned int x = 0; x < n_sqrs_w; x++ )
   {
     in_to_do[ x ].resize( n_sqrs_h );
@@ -696,6 +704,76 @@ void best_cost::find_updating_sqrs( const coord branching_sqr,
 #ifdef DEBUG
   assert( (*out_updating_cells).size() <= 3 );
 #endif
+}
+
+void best_cost::encourage_right( Plane * plane )
+{
+  bool reached_edge_of_grid = false;
+  vector< vector< bool> > in_list_of_pts;
+  vector< coord > pts;
+  natural deviation_min = 5;
+  natural deg_per_deviation = 10; // how far left we deviate each time
+
+  
+  // Intially, no squares are present in the list of points; intialize it to false.
+  in_list_of_pts.resize( n_sqrs_w ); 
+  for( unsigned int x = 0; x < n_sqrs_w; x++ )
+  {
+    in_list_of_pts[ x ].resize( n_sqrs_h, false );
+  }
+    
+  // For each deviation from a straight line to the goal that we're adding cost to . . .
+  for( natural i = 0; i < 2; i++ )
+  {
+    // Until we have added squares all the way to the edge . . .
+    while( !reached_edge_of_grid )
+    {
+      natural the_x, the_y;
+      natural deviation = i*deg_per_deviation + deviation_min;
+      
+      // Get the grid square which is one resolution-length farther away than the last
+      calculate_xy_point( (*plane).getLocation(), res /* distance from start pt */, 
+                          (*plane).getBearingToDest() - deviation,
+                          res, the_x, the_y);
+      
+      // If we haven't already added this (x, y) to the list of things to which
+      // we will add cost . . .
+      if( !in_list_of_pts[ the_x ][ the_y ] )
+        pts.push_back( coord(the_x, the_y) ); // add it.
+      
+      // If we've reached the edge of the grid, the thing we just pushed back will
+      // serve as the "marker" indicating we've moved to the next deviation width
+      if( the_x >= n_sqrs_w && the_y >= n_sqrs_h )
+      {
+        reached_edge_of_grid = true;
+      }
+    }
+  } // end for each deviation from a straight line
+  
+  double added_cost = 0.3 // begin with the highest cost we will add
+
+  pts.pop_back(); // the last thing we added was a marker
+  
+  while( !pts.empty() )
+  {
+    coord front = pts.front();
+    
+    // If this is not a marker . . .
+    if( front.x < n_sqrs_w && front.y < n_sqrs_h )
+    {
+      // Add cost at this square for all times
+      for( natural t = 0; t < n_secs; t++ )
+      {
+        bc->add_danger_at( front.x, front.y, t, added_cost);
+      }
+    }
+    else // this was a marker
+    {
+      pts.pop_back(); // nuke it!
+      added_cost *= 0.6666666; // decrease the cost we're adding for the next round
+    }
+  }
+  
 }
 
 

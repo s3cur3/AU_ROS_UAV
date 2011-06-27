@@ -293,34 +293,6 @@ private:
   bool distance_costs_initialized;
 };
 
-/* This isn't ever used...
- danger_grid::danger_grid( vector< Plane > & set_of_aircraft, const map the_map )
-{
-  look_ahead = DEFAULT_LOOK_AHEAD;
-  look_behind = 2;
-  aircraft = &set_of_aircraft;
-  
-  // Set up the danger_space
-  map set_up( the_map.get_width_in_meters(), the_map.get_height_in_meters(),
-              the_map.get_resolution() ); // empty map to fill danger_space with
-  
-#ifdef OVERLAYED
-  overlayed.push_back( map( the_map ) );
-#endif
-  for( unsigned int i = 0; i <= (look_ahead + look_behind); i++ )
-  {
-    danger_space.push_back( set_up );
-  } // danger_space is now a set of maps, with one map for each second in time that
-  // we will work with.
-  
-  // Set up the danger ratings
-  set_danger_scale( );
-  
-  // Do all the work -- calculate the danger rating for all squares at all times
-  fill_danger_space( plane_id );
-}
- */
-
 danger_grid::danger_grid( vector< Plane > * set_of_aircraft, const double width,
                           const double height, const double resolution,
                           const natural plane_id )
@@ -373,22 +345,6 @@ danger_grid::~danger_grid()
 
 void danger_grid::fill_danger_space( const natural plane_id )
 {  
-  for( vector< Plane >::iterator current_plane = aircraft->begin();
-      current_plane != aircraft->end(); ++current_plane )
-  {
-    if( (*current_plane).getId() != (int)plane_id ) // this isn't the owner of the DG
-    {
-      (*danger_space)[0 + look_behind].
-        add_danger_at( (*current_plane).getLocation().getX(),
-                       (*current_plane).getLocation().getY(), plane_danger);
-    }
-    
-#ifdef OVERLAYED
-    overlayed[0].add_danger_at((*current_plane).getLocation().getX(),
-                               (*current_plane).getLocation().getY(), 1.0);
-#endif
-  }
-  
   // This will store the list of predicted plane locations from the plane's
   // current location to its avoidance waypoint; if there is no avoidance waypoint,
   // it will contain predictions all the way to the plane's goal.
@@ -404,6 +360,15 @@ void danger_grid::fill_danger_space( const natural plane_id )
     // If this is not the "owner" of the danger grid . . . 
     if( (*current_plane).getId() != (int)plane_id )
     {
+      // Set the danger at the plane's starting location
+      (*danger_space)[0 + look_behind].
+      add_danger_at( (*current_plane).getLocation().getX(),
+                    (*current_plane).getLocation().getY(), plane_danger);
+#ifdef OVERLAYED
+      overlayed[0].add_danger_at((*current_plane).getLocation().getX(),
+                                 (*current_plane).getLocation().getY(), 1.0);
+#endif
+      
       // Get the estimated danger for relevant squares in the map at this time
       int dummy = 0;
       est_to_avoid = calculate_future_pos( *current_plane, dummy );
@@ -727,6 +692,7 @@ vector< map > danger_grid::get_danger_space() const
 {
   return (*danger_space);
 }
+
 /** 
 	a function for predicting planes. most of the work is done in the recursive calling of 
 	danger recurse but this guy starts the whole process. relies on dangerRecurse(), neighoboringAngles(),
@@ -740,7 +706,7 @@ vector< map > danger_grid::get_danger_space() const
 	so there is no reason to do anything else. 
 	input:(yes there is more to this function than just a description)
 		plane: the plane whose path you are predicting
-		time: the time from which you are starting prediction, must be >0
+		time: the time from which you are starting prediction, must be >=0
 	output:
 		a vector that contains estimates of the planes path. as the plane traves through time a (0,0,-1) estimate is inserter
 		as a time marker.
