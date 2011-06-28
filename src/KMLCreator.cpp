@@ -9,11 +9,6 @@ This will monitor updates from the planes and then eventually write them to a fi
 #include <map>
 #include <queue>
 
-// Added by Tyler Young for distance calculation
-#include <vector>
-////////////////////// End of additions by TY ///////////////////////////////
-
-
 //ros headers
 #include "ros/ros.h"
 #include "ros/package.h"
@@ -30,60 +25,6 @@ bool isMonitoringTelemetry = true;
 std::map<int, std::queue<struct AU_UAV_ROS::waypoint> > mapOfPaths;
 
 std::string colorComboArray[] = {"7f0000ff", "7f00ff00", "7fff0000", "7f00ffff", "7fff00ff", "7fffff00"};
-
-
-/**
- * Uses the haversine formula to calculate the distance between two points.
- * Added by Tyler Young
- * 
- * Returns the distance in feet, yards, meters, kilometers, or attoparsecs.
- * @param latitude_1 The latitude (in decimal degrees) for point 1
- * @param longitude_1 The longitude (in decimal degrees) for point 1
- * @param latitude_2 The latitude (in decimal degrees) for point 2
- * @param longitude_2 The longitude (in decimal degrees) for point 2
- * @param units The units for the returned distance. Allowed values are:
- *                   - 'feet'
- *                   - 'yards'
- *                   - 'miles'
- *                   - 'meters'
- *                   - 'kilometers'
- *                   - 'attoparsecs'
- *              Default value is meters.
- * @return The distance, measured in whatever units were specified (default is meters)
- */
-double dist_between_pts( double latitude_1, double longitude_1, 
-                         double latitude_2, double longitude_2,
-                         std::string units )
-{    
-  const double DEGREES_TO_RAD = 3.14159265 / 180;
-  const double earth_radius = 6371000; // meters, on average
-  
-  double the_distance;
-  double d_lat = DEGREES_TO_RAD*( latitude_2 - latitude_1 );
-  double d_long = DEGREES_TO_RAD*( longitude_2 - longitude_1 );
-  double sin_d_lat = sin( d_lat / 2);
-  double sin_d_long = sin( d_long / 2);
-  double a = ( sin_d_lat * sin_d_lat +
-              cos( DEGREES_TO_RAD*latitude_1 ) * cos( DEGREES_TO_RAD*latitude_2 ) * 
-              sin_d_long * sin_d_long );
-  double c = 2 * atan2( sqrt(a), sqrt(1 - a) );
-  
-  the_distance = fabs(earth_radius * c); // make sure it's positive
-  
-  if( units == "feet" )
-    return the_distance * 3.28083989501312;
-  if( units == "yards" )
-    return the_distance * 3.28083989501312 / 3;
-  if( units == "miles" )
-    return the_distance * 3.28083989501312 / 5280;
-  if( units == "kilometers" )
-    return the_distance / 1000;
-  if( units == "attoparsecs" )
-    return the_distance * 32.4077649;
-  else
-    return the_distance;
-}
-
 
 /*
 telemetryCallback
@@ -118,19 +59,7 @@ bool saveFlightData(AU_UAV_ROS::SaveFlightData::Request &req, AU_UAV_ROS::SaveFl
 {
 	isMonitoringTelemetry = false;
 	ROS_INFO("Saving to file %s...", req.filename.c_str());
-
-  
-  
-  
-  
-	// This vector used by Tyler Young to store the distances traveled by planes /////
-  std::vector< double > d_traveled;
-  int counter = -1;
-  ////////////////////// End of additions by TY ///////////////////////////////
-  
-  
-  
-  
+	
 	FILE *fp = fopen((ros::package::getPath("AU_UAV_ROS")+"/flightData/"+req.filename).c_str(), "w");
 	if(fp != NULL)
 	{
@@ -182,46 +111,12 @@ bool saveFlightData(AU_UAV_ROS::SaveFlightData::Request &req, AU_UAV_ROS::SaveFl
 			fprintf(fp, "          <altitudeMode>absolute</altitudeMode>\n");
 			fprintf(fp, "          <coordinates>\n");
 			
-      
-      
-      
-      // Added by TY for distance calc                /////////////////////////////// 
-      ++counter;
-      while( counter >= (int)d_traveled.size() )
-      {
-        d_traveled.push_back( 0.0 );
-      }
-      
-      double prev_lat = 0.0;
-      double prev_lon = 0.0;
-      ///////////////////////// End of additions by TY ////////////////////////
-      
-      
-      
-      
-      
 			//for each coordinate saved, we want to write to the file
 			while(!(ii->second.empty()))
 			{
 				AU_UAV_ROS::waypoint temp = ii->second.front();
 				fprintf(fp, "            %lf, %lf, %lf\n", temp.longitude, temp.latitude, temp.altitude);
-        
-        
-        
-        // Add this pt the distance calculated (by TY) ///////////////////////////////
-        if( (prev_lat > 0.00001 || prev_lat < -0.00001)  && 
-           (prev_lon > 0.00001 || prev_lon < -0.00001) ) 
-        { // Prev position has been initialized
-          d_traveled[ counter ] += dist_between_pts( temp.latitude, temp.longitude, 
-                                                     prev_lat, prev_lon,
-                                                     "meters" );
-        }
-        prev_lat = temp.latitude;
-        prev_lon = temp.longitude;
-        ///////////////////////// End of additions by TY ////////////////////////
-        
-        
-        ii->second.pop();
+				ii->second.pop();
 			}
 			
 			fprintf(fp, "          </coordinates>\n");
@@ -233,21 +128,6 @@ bool saveFlightData(AU_UAV_ROS::SaveFlightData::Request &req, AU_UAV_ROS::SaveFl
 		fprintf(fp, "    </Folder>\n");
 		fprintf(fp, "  </Document>\n");
 		fprintf(fp, "</kml>\n");
-    
-    
-    // Output the distances calculated (by TY) ///////////////////////////////
-    fprintf(fp, "<!--\n");
-    
-    double total_d = 0.0;
-    for( int i = 0; i < (int)d_traveled.size(); i++ )
-    {
-      total_d += d_traveled[ i ];
-      fprintf(fp, "     Plane %d distance traveled: %f meters\n", i, d_traveled[ i ]);
-    }
-    fprintf(fp, "     Total distance traveled: %f meters\n", total_d );
-    fprintf(fp, "-->\n");
-    ///////////////////////// End of additions by TY ////////////////////////
-    
 		fclose(fp);
 			
 		ROS_INFO("Done! It's safe to CTRL-C now.");

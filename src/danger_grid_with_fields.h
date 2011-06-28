@@ -29,6 +29,7 @@
 #include "map_tools.h"
 #include "coord.h"
 
+
 using namespace std;
 
 #ifndef natural
@@ -92,11 +93,6 @@ public:
                const double height, const double resolution, const natural plane_id );
   
   /**
-   * The destructor for the danger_grid object
-   */
-  ~danger_grid();
-  
-  /**
    * The copy constructor; takes a reference to a danger grid and makes this object
    * a duplicate.
    * @param dg A reference to another danger grid
@@ -107,6 +103,20 @@ public:
    */
   danger_grid( const danger_grid * dg, vector< Plane > * set_of_aircraft,
               const natural plane_id );
+  
+  /**
+   * The copy constructor; takes a reference to a danger grid and makes this object
+   * a duplicate.
+   * @param dg A reference to another danger grid
+   * @param flag The flag -- if this is set to "infinity", we will initialize all
+   *             squares to the max double value
+   */
+  danger_grid( const danger_grid * dg, string flag );
+  
+  /**
+   * The destructor for the danger_grid object
+   */
+  ~danger_grid();
   
   /**
    * Return the danger rating of a square
@@ -160,6 +170,13 @@ public:
   unsigned int get_width_in_squares() const;
   unsigned int get_height_in_squares() const;
   unsigned int get_time_in_secs() const;
+  
+  /**
+   * This is only for copying the prediction space from another danger grid, and
+   * even then, the only reason to use it over get_time_in_secs() is to maintain
+   * compatibility with future updates which predict plane locations in the PAST.
+   */
+  unsigned int get_pred_space_time_in_secs() const;
   vector< map > get_danger_space() const;
   double get_res() const;
   
@@ -376,12 +393,25 @@ danger_grid::danger_grid( const danger_grid * dg, vector< Plane > * set_of_aircr
 #endif
 }
 
+danger_grid::danger_grid( const danger_grid * dg, string flag )
+{
+  if( flag != "infinity" )
+    cout << "You're using the wrong constructor." << endl;
+  assert( flag == "infinity" );
+  
+  map inf( dg->get_width_in_squares() * dg->get_res(), 
+           dg->get_height_in_squares() * dg->get_res(),
+           dg->get_res(), numeric_limits<double>::max( ) );
+  
+  danger_space = new vector< map >( dg->get_pred_space_time_in_secs(), inf );
+}
+
 danger_grid::~danger_grid()
 {
   if( distance_costs_initialized )
   {
     delete dist_map;
-    delete encouraged_right;
+    //delete encouraged_right;
   }
   delete danger_space;
 }
@@ -572,7 +602,7 @@ void danger_grid::set_danger_buffer( double bearing, double unweighted_danger,
   // dag less right+down
   (*danger_space)[ time ].safely_add_danger_at( x + 1, y + 2, d );
   // straight down
-  (*danger_space)[ time ].safely_add_danger_at(   x ,  y + 2, d);
+  (*danger_space)[ time ].safely_add_danger_at(   x ,  y + 2, d );
    
    
 }
@@ -641,6 +671,11 @@ unsigned int danger_grid::get_height_in_squares() const
 unsigned int danger_grid::get_time_in_secs() const
 {
   return look_ahead;
+}
+
+unsigned int danger_grid::get_pred_space_time_in_secs() const
+{
+  return look_ahead + look_behind + 1;
 }
 
 double danger_grid::get_res() const

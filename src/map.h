@@ -58,6 +58,14 @@ struct grid_square
   {
     danger = 0.0;
   }
+  
+  /**
+   * Construct a grid square with a danger value
+   */
+  grid_square( double value )
+  {
+    danger = value;
+  }
 };
 
 // A map is composed of grid squares
@@ -81,6 +89,20 @@ public:
    * in meters
    */
   map( double width_of_field, double height_of_field, double map_resolution );
+  
+  /**
+   * The constructor for a map object which initializes the cost of each square
+   *
+   * Note that the width, height, and resolution may be in any units, but the units
+   * must be consistent across all measurements.
+   * @param width_of_field The width of the flyable area, in meters
+   * @param height_of_field The height of the flyable area, in meters
+   * @param map_resolution The resolution (width and height of a given square),
+   * in meters
+   * @param start_value The starting cost value for each grid square
+   */
+  map( double width_of_field, double height_of_field, double map_resolution,
+       double start_value );
   
   /**
    * Return IDs of all aircraft in a given (x,y) square
@@ -189,19 +211,40 @@ map::map( double width_of_field, double height_of_field, double map_resolution )
   the_map.resize( squares_wide );
 
   for( unsigned int i = 0; i < the_map.size(); ++i )
-    the_map[ i ].resize( squares_high );
-  
-  for( vector< vector< grid_square > >::iterator i = the_map.begin();
-      i != the_map.end(); ++i )
-  {
-    for( vector< grid_square >::iterator j = i->begin(); j != i->end(); ++j )
-    {
+    the_map[ i ].resize( squares_high, 0.0 );
+}
+
+map::map( double width_of_field, double height_of_field, double map_resolution,
+          double start_value )
+{
 #ifdef DEBUG
-      assert( i->size() < 1000000 );
+  assert( width_of_field > EPSILON );
+  assert( height_of_field > EPSILON );
+  assert( map_resolution > EPSILON );
+  assert( height_of_field / map_resolution < 1000000 );
+  assert( width_of_field / map_resolution < 1000000 );
 #endif
-      j->danger = 0;
-    }
-  }
+  
+  width = width_of_field;
+  height = height_of_field;
+  resolution = map_resolution;
+  
+  // Let this function fill in the values for width and height in squares
+  squares_wide = map_tools::find_width_in_squares( width_of_field, height_of_field,
+                                                  map_resolution );
+  squares_high = map_tools::find_height_in_squares( width_of_field, height_of_field,
+                                                   map_resolution );
+  
+#ifdef DEBUG
+  assert( squares_high != 0 && squares_high < (UINT_MAX - 1000) );
+  assert( squares_wide != 0 && squares_wide < (UINT_MAX - 1000) );
+#endif
+  
+  // This *should* create a 2-d array accessed in [x][y] order
+  the_map.resize( squares_wide );
+  
+  for( unsigned int i = 0; i < the_map.size(); ++i )
+    the_map[ i ].resize( squares_high, start_value );
 }
 
 vector< unsigned int > map::get_planes_at( unsigned int x_pos, unsigned int y_pos ) const
@@ -334,31 +377,17 @@ void map::dump( ) const
       }
       else
       {
-        if( (the_map[ left_index ][ right_index ].danger)*mult - mult > -EPSILON )
+        if( the_map[ left_index ][ right_index ].danger > 1000000 )
+          printf( "in " );
+        else if( (the_map[ left_index ][ right_index ].danger)*mult - mult > -EPSILON )
           printf("%3.0f", (the_map[ left_index ][ right_index ].danger)*mult );
         else
           printf( "%2.0f ", (the_map[ left_index ][ right_index ].danger)*mult );
       }
     }
-    cout << endl;
   }
-  /*cout << endl << " Aircraft present in squares (where more than one are"
-   << " present, only the first is listed): " << endl;
-   for( unsigned int right_index = 0; right_index < the_map[ 0 ].size(); ++right_index )
-   {
-   for( unsigned int left_index = 0; left_index < the_map.size(); ++left_index )
-   {
-   if( the_map[ left_index ][ right_index ].danger < PLANE_DANGER )
-   {
-   cout << " - ";
-   }
-   else
-   {
-   printf( "%2d ", the_map[ left_index ][ right_index ].planes[0] );
-   }
-   }
-   cout << endl;
-   }*/
+    cout << endl;
+
 #ifdef OUTPUT_CSV
   stringstream ss( stringstream::out );
   unsigned long int time = clock() / (CLOCKS_PER_SEC / 1000);

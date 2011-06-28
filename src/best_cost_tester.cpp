@@ -8,7 +8,8 @@
 #include <cstdlib>
 #include <string>
 #include <iostream>
-#include "best_cost_final.h"
+#include "best_cost_for_sparsity.h"
+//#include "best_cost_for_sparsity.h"
 #include "map_tools.h"
 #include <time.h>
 #include <vector>
@@ -222,11 +223,11 @@ int main()
   best_cost bc39( &test_set39, width_of_field, height_of_field, resolution, 2 );
   
   
-  bc.dump( 0 );
+  bc1.dump( 0 );
   
-  bc.dump( 5 );
+  bc1.dump( 5 );
   
-  bc.dump( 6 );
+  bc1.dump( 6 );
   
  
   seconds = time(NULL);

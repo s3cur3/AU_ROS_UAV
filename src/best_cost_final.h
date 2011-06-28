@@ -285,154 +285,74 @@ best_cost::~best_cost()
 
 void best_cost::initialize_path( )
 {
-  // Initialize the best cost at the goal to the map cost for all times
+  // Initialize the best cost at the goal to 0 for all times
   for( int t = 0; t < n_secs; t++ )
     bc->set_danger_at( goal.x, goal.y, t, (*mc)(goal.x, goal.y, t) );
   
-  // The squares which will update their neighbors
-  vector< coord > updating_cells;
+  // Find the squares which lie in the straight line between BC_start and BC_goal
+  int dx = goal.x - start.x;
+  int dy = start.y - goal.y; // since origin is at top left
+  int x_moves_rem = abs( dx ); // remaining x moves until we reach goal's x
+  int y_moves_rem = abs( dy );
+  bool move_up = ( dy > 0 ? true : false );
+  bool move_right = ( dx > 0 ? true : false );
   
-#ifdef DEBUG_BC
-  cout << "Goal: (" << goal.x << ", " << goal.y << ")" << endl;
-  cout << "Starting pos: (" << start.x << ", " << start.y << ")" << endl;
-  cout << "Plane says its bearing to the dest is " << (*owner).getBearingToDest() << endl;
-  cout << "We would name that " << bearing_to_string( name_bearing( (*owner).getBearingToDest() ) )<< endl;
-#endif
-
-  for( int t = 0; t < n_secs; t++ )
+  unsigned int moves_since_dag = 0;
+  const bool more_x = x_moves_rem > y_moves_rem;
+  unsigned int dag_to_straight_ratio;
+  if( x_moves_rem == 0 )
+    dag_to_straight_ratio = y_moves_rem;
+  else if( y_moves_rem == 0 )
+    dag_to_straight_ratio = x_moves_rem;
+  else
+    dag_to_straight_ratio = more_x ? x_moves_rem/y_moves_rem : y_moves_rem/x_moves_rem;
+  
+  double danger_adjust = ( n_sqrs_w + n_sqrs_h ) / 4;
+  while( x_moves_rem > 0 || y_moves_rem > 0 ) // 1 or more moves req'd to reach goal
   {
-    bool start_has_been_updated = false;
-    
-    // Bearing from the branching square (here, the goal) to the plane is the
-    // opposite of the bearing from the plane to the goal
-    bearing_t branching_to_plane = reverse_bearing( (*owner).get_named_bearing_to_dest() );  
-    
-#ifdef DEBUG_BC
-    cout << "We say the bearing from the dest to the plane is " << bearing_to_string(branching_to_plane) << endl;
-#endif
-    
-    // The first time we run, the squares that will update their neighbors' true best
-    // cost is simply the 3 squares adjacent to the goal which are closes to the 
-    // plane
-    find_updating_sqrs( goal, branching_to_plane, t, &updating_cells );
-#ifdef DEBUG
-    // Turn this assertion off, since it breaks each time the plane reaches its destination
-    /*
-    if( updating_cells.size() == 0 )
+    if( moves_since_dag >= dag_to_straight_ratio )
     {
-      cout << endl << "By the time you read this, an assertion will have failed." << endl;
-      cout << "Here's why. The bearing from your plane's goal to the plane was " << 
-        bearing_to_string( branching_to_plane ) << "," << endl;
-      cout << "and your plane was at (" << start.x << ", " << start.y << 
-        "), with its goal at (" << goal.x << ", " << goal.y << ")" << endl;
-      cout << "We say the bearing from the plane to the dest is " << 
-        bearing_to_string( (*owner).get_named_bearing_to_dest() ) << 
-        ", since the bearing in degrees is " << (*owner).getBearingToDest() << endl;
+      // make a diagonal move
+      if( x_moves_rem != 0 ) // there are one or more x moves remaining, so . . .
+        --x_moves_rem; // we'll use one
+      if( y_moves_rem != 0 )
+        --y_moves_rem;
+      moves_since_dag = 0;
     }
-    assert( updating_cells.size() <= 3 );
-    assert( updating_cells.size() > 0 ); */
-#endif
-    
-    coord * branching_sqr;
-    
-    // The squares we are changing in each round of the while loop
-    vector< coord > cells_to_change;
-    
-    while( !start_has_been_updated && updating_cells.size() > 0 )
+    else if( more_x )
     {
-#ifdef DEBUG
-      assert( updating_cells.size() <= 3 );
-      assert( updating_cells.size() > 0 );
-#endif
-      
-      branching_sqr = new coord( get_closest_sqr( start, &updating_cells ) );
-#ifdef DEBUG_BC
-      cout << "  Euclidean bearing from branching sqr to start is " << calculate_euclidean_bearing(
-                                                                                      (*branching_sqr).x, (*branching_sqr).y, start.x, start.y ) << endl;
-#endif
-      branching_to_plane = name_bearing( calculate_euclidean_bearing(
-        (*branching_sqr).x, (*branching_sqr).y, start.x, start.y ) );
-#ifdef DEBUG_BC
-      cout << "  Calculated bearing from branching square (" <<
-      (*branching_sqr).x << ", " << (*branching_sqr).y << ") to be " << bearing_to_string(branching_to_plane) << endl;
-#endif
-      
-      find_updating_sqrs( (*branching_sqr), branching_to_plane, t, &cells_to_change );
-#ifdef DEBUG
-      assert( cells_to_change.size() <= 3 );
-      assert( cells_to_change.size() > 0 );
-#endif
-      
-      // For each square that we're going to change . . .
-      for( vector< coord >::iterator changing_sqr = cells_to_change.begin();
-           changing_sqr != cells_to_change.end(); ++changing_sqr )
-      {
-        // Cost of this square is the cost from the minimum-cost reachable square to
-        // the goal + the cost of this square + the distance from this square to the
-        // min reachable square
-        double danger_of_changing_sqr = (*mc)((*changing_sqr).x, (*changing_sqr).y, t);
-        
-        double lowest_cost_so_far = 10000000;
-        
-        // Each of the updating cells is potentially the min-cost reachable sqr
-        for( vector< coord >::iterator p_min = updating_cells.begin();
-            p_min != updating_cells.end(); ++p_min )
-        {
-          // If this square is adjacent to the one we're changing . . .
-          if( ( (int)(*p_min).x - (*changing_sqr).x <= 1 &&
-                (int)(*p_min).x - (*changing_sqr).x >= -1 ) &&
-              ( (int)(*p_min).y - (*changing_sqr).y <= 1 &&
-                (int)(*p_min).y - (*changing_sqr).y >= -1 ) )
-          {
-            double bc_of_p_min = (*bc)( (*p_min).x, (*p_min).y, t );
-            
-            // If this is the lowest cost we've seen so far . . .
-            if( bc_of_p_min < lowest_cost_so_far )
-            {
-              double distance = 
-              get_euclidean_dist_between( (*p_min).x, (*p_min).y,
-                                          (*changing_sqr).x, (*changing_sqr).y );
-              
-              bc->set_danger_at( (*changing_sqr).x, (*changing_sqr).y, t, 
-                                 bc_of_p_min + distance +
-                                 map_weight * danger_of_changing_sqr );
-            }
-          }
-        } // end for each square in updating_cells
-      
-        if( (*changing_sqr).x == start.x && (*changing_sqr).y == start.y )
-        {
-          start_has_been_updated = true;
-#ifdef DEBUG_BC
-          cout << "BC at start is " << (*bc)( start.x, start.y, t ) << endl << endl;
-#endif
-        }
-        
-#ifdef DEBUG_BC
-        cout << "    Changed sqr: (" << (*changing_sqr).x << ", " << (*changing_sqr).y << ")" << endl;
-#endif
-        
-        to_do.push_back( (*changing_sqr) );
-        in_to_do[ (*changing_sqr).x ][ (*changing_sqr).y ][ t ] = true;
-      } // end for each changing_square
-      
-      // The squares we just changed are now going to update their neighbors
-      updating_cells = cells_to_change;
-      
-      cells_to_change.clear();
-      
-      delete branching_sqr;
-      branching_sqr = NULL;
-    } // end while start has not been updated and there are updating cells
-    
-    if( branching_sqr != NULL )
+      if( x_moves_rem != 0 ) // there are one or more x moves remaining, so . . .
+        --x_moves_rem; // we'll use one
+      moves_since_dag++;
+    }
+    else
     {
-      delete branching_sqr;
-      branching_sqr = NULL;
+      if( y_moves_rem != 0 )
+        --y_moves_rem;
+      moves_since_dag++;
     }
     
-    updating_cells.clear();
-  } // end for each time step
+    // Values depend on direction of movement
+    int x_to_set, y_to_set;
+    x_to_set = ( move_right ? start.x + x_moves_rem : start.x - x_moves_rem );
+    y_to_set = ( move_up ? start.y - y_moves_rem : start.y + y_moves_rem );
+    
+    // Calculate starting-place heuristic for this square using the MC (danger) grid
+    // and the straight-line distance to the goal
+    for( int t = n_secs; t >= 0; t-- )
+    { // This isn't quite right . . . FIX ME! /////////////////////////////////////////////////////////////////////////////////////////
+      double danger = (*mc)( x_to_set, y_to_set, t );
+#ifdef DEBUG
+      if( x_to_set == goal.x && y_to_set == goal.y )
+        cout << "Why are you trying to change the goal??" << endl;
+#endif
+      bc->set_danger_at( x_to_set, y_to_set, t, danger_adjust * danger +
+                        bc->get_dist_cost_at( x_to_set, y_to_set ) );
+      // This (x, y, t) coordinate can change the best cost of its neighbors; check later
+      to_do.push_back( coord( x_to_set, y_to_set, t ) );
+      in_to_do[ x_to_set ][ y_to_set ][ t ] = true;
+    }
+  }
   
   danger_threshold = (*bc)( start.x, start.y, start.t );
 }
