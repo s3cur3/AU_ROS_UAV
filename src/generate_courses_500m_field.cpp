@@ -40,8 +40,8 @@ int main()
   int seed = 1;
   natural num_planes = 8;
   natural num_waypts = 20;
-  natural min_alt = 300; // These two vars define the altitude range we'll give to
-  natural max_alt = 301; // our aircraft.
+  natural min_alt = 1400; // These two vars define the altitude range we'll give to
+  natural max_alt = 1401; // our aircraft.
   
   // The directory in which to save the courses
   string course_dir = "/Volumes/DATA/Dropbox/school/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/courses/";
@@ -116,7 +116,7 @@ int main()
   course_file << "#     Altitude between " << min_alt << " and " << max_alt << "\n";
   course_file << "#  \n";
   course_file << "#     Latitude between " << double_to_text(upper_left_latitude + height_in_degrees_latitude) << " and " << double_to_text(upper_left_latitude) << "\n";
-  course_file << "#     Latitude between " << double_to_text(upper_left_longitude) << " and " << double_to_text(upper_left_longitude + width_in_degrees_longitude) << "\n\n";
+  course_file << "#     Longitude between " << double_to_text(upper_left_longitude) << " and " << double_to_text(upper_left_longitude + width_in_degrees_longitude) << "\n\n";
 
   
   // Vars to use in randomizing

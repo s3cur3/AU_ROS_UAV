@@ -91,10 +91,28 @@ public:
   double operator()( unsigned int x, unsigned int y, int time ) const;
   
   /**
-   * Same function as ()
+   * Gets the distance from the specifyed (x, y) position to the goal of this
+   * BC grid's owner
+   * @param x_pos The x coordinate of the position in question
+   * @param y_pos The y coordinate of the position in question
+   * @return the straight-line distance from (x, y) to the goal
+   */
+  double get_dist_cost_at( unsigned int x_pos, unsigned int y_pos ) const;
+  
+  /**
+   * Same function as overloaded operator ()
    */
   double get_pos(unsigned int x, unsigned int y, int time) const;
-    
+  
+  /**
+   * @return the width of the best cost grid in squares
+   */
+  unsigned int get_width_in_squares() const;
+  /**
+   * @return the height of the best cost grid in squares
+   */
+  unsigned int get_height_in_squares() const;
+  
   /**
    * Output the map at a given time; for troubleshooting only
    * @param time The time, in seconds, whose map should be output
@@ -226,7 +244,7 @@ best_cost::best_cost( vector< Plane > * set_of_aircraft,
   // square at each time to the goal square. Initializes each square with the 
   // following simple heuristic:
   //      cost( node n ) = mc( n ) + (weighing factor) * distance( from n to goal )
-  bc = new danger_grid( mc );
+  bc = new danger_grid( mc, set_of_aircraft, plane_id );
   bc->calculate_distance_costs( goal.x, goal.y, 1.0 );
   
   n_secs = bc->get_time_in_secs();
@@ -520,6 +538,23 @@ double best_cost::get_pos(unsigned int x, unsigned int y, int time) const
 {
   return bc->get_danger_at(x, y, time);
 }
+
+double best_cost::get_dist_cost_at( unsigned int x_pos, unsigned int y_pos ) const
+{
+  return bc->get_dist_cost_at(x_pos, y_pos);
+}
+
+
+unsigned int best_cost::get_width_in_squares() const
+{
+  return (*bc).get_width_in_squares();
+}
+
+unsigned int best_cost::get_height_in_squares() const
+{
+  return (*bc).get_height_in_squares();
+}
+
 
 coord best_cost::get_closest_sqr( const coord starting_sqr, 
                                     vector< coord > * list_of_sqrs )

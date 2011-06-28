@@ -323,6 +323,7 @@ private:
   double map_res;
   
   map * dist_map;
+  map * encouraged_right;
   bool distance_costs_initialized;
 };
 
@@ -380,6 +381,7 @@ danger_grid::~danger_grid()
   if( distance_costs_initialized )
   {
     delete dist_map;
+    delete encouraged_right;
   }
   delete danger_space;
 }
@@ -537,7 +539,7 @@ void danger_grid::set_danger_buffer( double bearing, double unweighted_danger,
   // straight down
   (*danger_space)[ time ].safely_add_danger_at(   x ,  y + 1, d);
   
-  /*
+  
   // Begin squares that are 2 away from current location
   // dag less left+down
   (*danger_space)[ time ].safely_add_danger_at( x - 1, y + 2, d );
@@ -572,14 +574,13 @@ void danger_grid::set_danger_buffer( double bearing, double unweighted_danger,
   // straight down
   (*danger_space)[ time ].safely_add_danger_at(   x ,  y + 2, d);
    
-   */
+   
 }
 
 void danger_grid::set_danger_scale( )
 {
   // For now, we aren't scaling anything down
-  for( int i = 0; i <= (int)(look_behind + look_ahead + 1); i++ )
-    danger_ratings.push_back( plane_danger );
+  danger_ratings.resize( look_behind + look_ahead + 1, plane_danger );
 }
 
 double danger_grid::get_danger_at( unsigned int x_pos, unsigned int y_pos,
@@ -714,7 +715,8 @@ vector< estimate > danger_grid::calculate_future_pos( Plane & plane, int &time )
     angle=(-1)*angle;//the plane goes from -180 to +180
 
 	//if a turn needs to be made to correct for the bearing
-	if(fabs(angle)-fabs(plane.getBearing())>22.5)
+	/*
+  if(fabs(angle)-fabs(plane.getBearing())>22.5)
 	{
 		turn(plane.getBearing(),angle,theFuture,x1,y1);
 		theFuture.push_back(estimate(-1,-1,-1));
@@ -726,6 +728,7 @@ vector< estimate > danger_grid::calculate_future_pos( Plane & plane, int &time )
 		if((x2-x1)<0)//positive means that the plane is headed to the left aka west
 			angle=(-1)*angle;//the plane goes from -180 to +180
 	}
+   */
   
   //find closest straight line
   double neighbors[2];
@@ -1114,6 +1117,8 @@ void danger_grid::calculate_distance_costs( unsigned int goal_x, unsigned int go
     }
   }
   
+  //encouraged_right = new map(*dist_map);
+  
   // Add a bit of cost to the left side of the aircraft to encourage it to
   // take avoidance maneuvers to the right
   //encourage_right( );
@@ -1284,7 +1289,7 @@ void danger_grid::encourage_right( )
     } // end while we haven't reached the edge
   } // end for each deviation from a straight line
   
-  double added_cost = get_plane_danger() * 0.00001; // begin with the highest cost we will add
+  double added_cost = get_plane_danger() * 0.1; // begin with the highest cost we will add
   
   pts.pop_back(); // the last thing we added was a marker
   
@@ -1296,7 +1301,7 @@ void danger_grid::encourage_right( )
     if( back.x < get_width_in_squares() && back.y < get_height_in_squares() )
     {
       // Add cost at this square
-      dist_map->add_danger_at( back.x, back.y, added_cost);
+      encouraged_right->add_danger_at( back.x, back.y, added_cost);
 
       pts.pop_back(); // done with this point
     }

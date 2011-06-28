@@ -33,14 +33,11 @@ using namespace map_tools;
 // Global data
 // The world map
 
-const int MAP_WIDTH = 47;
-const int MAP_HEIGHT = 43;
+const int MAP_WIDTH = 41;
+const int MAP_HEIGHT = 37;
 const int ROUTE_ABANDONED = 1; // if 1, says if search terminated
 best_cost *bc_grid;
 const int MAX_TIME = 20; // 20 steps into the future...I think
-const int nothing = 0;
-
-const int DEBUG_MOVE = 0;
 
 // easy calculation for next move
 // 0-7 are actual moves, 8 is goal state, 9 is stall state
@@ -68,8 +65,12 @@ struct point {
   int t;
 } ;
 
+queue<point> expan;
+
 // used to avoid considering the dangerous point
 int goal_orientation = -1;
+
+// The danger point is the point of divergence between our pre-sparse search and A* search
 point danger_point;
 
 // a_path is the path A* recommends
@@ -131,9 +132,9 @@ public:
   unsigned int x;	 // the (x,y) positions of the node
   unsigned int y;
   unsigned int timestep; // AK: the timestep that the node is being considered under
-  int parent_bearing;
+  bearing_t parent_bearing; // AK: Used for children node to understand where their parent is coming from
 	
-  MapSearchNode() { x = y = 0; timestep = 0; parent_bearing = -1;}
+  MapSearchNode() { x = y = 0; timestep = 0; parent_bearing = N; }
   MapSearchNode( unsigned int px, unsigned int py ) { x=px; y=py; }
   MapSearchNode( unsigned int px, unsigned int py, unsigned int t_step) { x=px; y=py; timestep=t_step; } // AK
   //  MapSearchNode( unsigned int px, unsigned int py, unsigned int t_step) { x=px; y=py; timestep=t_step; } // AK
@@ -213,6 +214,12 @@ bool MapSearchNode::IsGoal( MapSearchNode &nodeGoal )
 bool MapSearchNode::GetSuccessors( AStarSearch<MapSearchNode> *astarsearch, MapSearchNode *parent_node )
 {
   //cout << endl << "(" << x << ", " << y << ") : " << timestep << endl;
+  point temp;
+  temp.x = x;
+  temp.y = y;
+  temp.t = timestep;
+  expan.push(temp);
+
   int parent_x = -1; 
   int parent_y = -1; 
   int time_z = -100;
@@ -221,50 +228,72 @@ bool MapSearchNode::GetSuccessors( AStarSearch<MapSearchNode> *astarsearch, MapS
   set<int> legal_moves;
 
   if ( !parent_node ){
-    if((initial_bearing == N))
+    cout << "PARENT" << endl;
+    if((initial_bearing == N)) {
       bearing=6;//north
-    else if(initial_bearing == NW)
+      parent_bearing = N;
+    } else if(initial_bearing == NW) {
       bearing=5;//north west
-    else if(initial_bearing == W)
+      parent_bearing = NW;
+    } else if(initial_bearing == W) {
       bearing=4;//west
-    else if(initial_bearing == SW)
+      parent_bearing = W;
+    } else if(initial_bearing == SW) {
       bearing=3;//southwest
-    else if(initial_bearing == S)
+      parent_bearing = SW;
+    } else if(initial_bearing == S) {
       bearing=2;//south
-    else if(initial_bearing == SE)
+      parent_bearing = S;
+    } else if(initial_bearing == SE) {
       bearing=1;//southeast
-    else if(initial_bearing == E)
+      parent_bearing = SE;
+    } else if(initial_bearing == E) {
       bearing=0;//east
-    else if(initial_bearing == NE)
+      parent_bearing = E;
+    } else if(initial_bearing == NE) {
       bearing=7;//northeast
-  } else {
-    parent_x = parent_node->x;
-    parent_y = parent_node->y;
+      parent_bearing = NE;
+    }
 
-    if (s_y-parent_y == 0 && s_x-parent_x < 0){		  
+    //parent_bearing = bearing;
+  } else {
+    // Our parent node -they raised us to be the node we were meant to be (ish)
+    parent_x = (int)parent_node->x;
+    parent_y = (int)parent_node->y;
+    
+    if (parent_y-(int)y == 0 && parent_x-(int)x < 0){		  
       bearing = 0; // goal is to your right
+      parent_bearing = E;
     }
-    else if (s_y-parent_y < 0 && s_x-parent_x < 0){
+    else if (parent_y-(int)y < 0 && parent_x-(int)x < 0){
       bearing = 1; // down right
+      parent_bearing = SE;
     }
-    else if (s_y-parent_y < 0 && s_x-parent_x == 0){
+    else if (parent_y-(int)y < 0 && parent_x-(int)x == 0){
       bearing = 2; // down
+      parent_bearing = S;
     }
-    else if (s_y-parent_y < 0 && s_x-parent_x > 0){
+    else if (parent_y-(int)y < 0 && parent_x-(int)x > 0){
       bearing = 3; // down left
+      parent_bearing = SW;
     }
-    else if (s_y-parent_y == 0 && s_x-parent_x >0){
+    else if (parent_y-(int)y == 0 && parent_x-(int)x >0){
       bearing = 4; // left
+      parent_bearing = W;
     }
-    else if (s_y-parent_y > 0 && s_x-parent_x > 0){
+    else if (parent_y-(int)y > 0 && parent_x-(int)x > 0){
       bearing = 5; // top left
+      parent_bearing = NW;
     }
-    else if (s_y-parent_y > 0 && s_x-parent_x == 0){
+    else if (parent_y-(int)y > 0 && parent_x-(int)x == 0){
       bearing = 6; // top
+      parent_bearing = N;
     }
-    else if (s_y-parent_y > 0 && s_x-parent_x < 0){
+    else if (parent_y-(int)y > 0 && parent_x-(int)x < 0){
       bearing = 7; // top right
+      parent_bearing = NE;
     }
+    
     //cout << "My parent is: " << parent_x << ", " << parent_y << ", " << parent_node->timestep << endl;
   } 
 
@@ -272,8 +301,8 @@ bool MapSearchNode::GetSuccessors( AStarSearch<MapSearchNode> *astarsearch, MapS
   time_z = timestep+1>19 ? 19 : 1+timestep;
   //cout << "Parent's Time: " << parent_node->timestep << " and our new time: " << time_z << endl;
 
- 
-  //cout << "BEARING: " << bearing <<endl;
+  //cout << "   BEARING: " << bearing << " AND bear_t " << parent_bearing << endl;
+  //getchar();
   // 5 R
   int r[] = {(bearing-2), (bearing-1), bearing%movegoals, (bearing+1)%movegoals,(bearing+2)%movegoals}; 
 
@@ -331,7 +360,7 @@ bool MapSearchNode::GetSuccessors( AStarSearch<MapSearchNode> *astarsearch, MapS
 	(int)x + movex[r[i]] >= lesser_x && (int)x + movex[r[i]] <= greater_x &&
 	(int)y + movey[r[i]] >= lesser_y && (int)y + movey[r[i]] <= greater_y){
       legal_moves.insert(r[i]);
-      //cout << " GO: X -- " << x+movex[r[i]] << ", " << y+movey[r[i]] << " " << bc_grid->get_pos(x+movex[r[i]], y+movey[r[i]], time_z) << endl;
+      //cout << " GO: X -- " << x+movex[r[i]] << ", " << y+movey[r[i]] << " at time: " << time_z << " ---- "  << bc_grid->get_pos(x+movex[r[i]], y+movey[r[i]], time_z) << endl;
     }
   }
 
@@ -728,6 +757,10 @@ int other_main(int startx, int starty, int endx, int endy, int planeid ){
 point astar_point(best_cost *bc, int startx, int starty, int endx, int endy, int planeid, bearing_t current_bear)
 {
   //cout << planeid << " : (" << startx << ", " << starty << ") --> (" << endx << ", " << endy << ")" << endl;
+  while (!expan.empty()){
+    expan.pop();
+  }
+
   s_x = startx;
   s_y = starty;
   e_x = endx;
@@ -1080,7 +1113,7 @@ point astar_point(best_cost *bc, int startx, int starty, int endx, int endy, int
   }
 
   if (sparse){
-    //cout << "Sparse " << planeid << endl;
+    cout << "Sparse " << planeid << endl;
     point keep_calm_and_carry_on;
     keep_calm_and_carry_on.x = endx;
     keep_calm_and_carry_on.y = endy;
@@ -1204,7 +1237,37 @@ point astar_point(best_cost *bc, int startx, int starty, int endx, int endy, int
     move.y = endy;
   } 
 
-  //cout << "Our final move  for " << planeid << " is : " << move.x << ", " << move.y << endl;
+  /**
+  cout << "Our final move  for " << planeid << " is : " << move.x << ", " << move.y << endl;
+  getchar();
+	  int nmap[MAP_WIDTH][MAP_HEIGHT];
+	  for (int y = 0; y < MAP_HEIGHT; y++){
+	    for (int x = 0; x < MAP_WIDTH; x++){
+	      nmap[x][y] = -1;
+	    }
+	  }
+	  while (!expan.empty()){
+	    point p = expan.front();
+	    expan.pop();
+	    nmap[p.x][p.y] = p.t;	    
+	  }
+
+	  for (int y = 0; y < MAP_HEIGHT; y++){
+	    for (int x = 0; x < MAP_WIDTH; x++){
+	      if (x == endx && y == endy)
+		cout << "EE ";
+	      else if (nmap[x][y] == -1)
+		cout << ".  ";
+	      else if (nmap[x][y] < 10)
+		cout << nmap[x][y] << "  ";
+	      else
+		cout << nmap[x][y] << " "; 
+	    }
+	    cout << endl;
+	  }
+
+	  getchar();
+  */
   return move;
 }
 

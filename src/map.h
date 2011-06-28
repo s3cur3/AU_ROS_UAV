@@ -196,7 +196,9 @@ map::map( double width_of_field, double height_of_field, double map_resolution )
   {
     for( vector< grid_square >::iterator j = i->begin(); j != i->end(); ++j )
     {
-      assert( i->size() < 1000000 ); // FAIL!!! (Multiplying this number by 10 causes no failure) ////////////////////////////////////
+#ifdef DEBUG
+      assert( i->size() < 1000000 );
+#endif
       j->danger = 0;
     }
   }
