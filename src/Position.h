@@ -4,6 +4,7 @@
 
 #ifndef POSITION 
 #define POSITION
+
 #include <iostream>
 #include <fstream>
 #include "map_tools.h"
@@ -69,8 +70,8 @@ public:
 	double getLon() const;
 	int getX();
 	int getY();
-	int getWidth();
-	int getHeight();
+	int getWidth(); // in grid squares
+	int getHeight(); // in grid squares
 	double getUpperLeftLongitude();
     double getUpperLeftLatitude();
 	bool operator==(Position &equal);

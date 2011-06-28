@@ -57,9 +57,9 @@ const double height_in_degrees_latitude = -0.003808;
 int main()
 {
   // The directory from which to read the courses
-  string course_dir = "/Volumes/DATA/Dropbox/school/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/courses/tyler/";
+  string course_dir = "/Volumes/DATA/Dropbox/school/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/courses/";
   //string course_dir = "/home/trescenzi/Dropbox/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/courses/";
-  string name = "long";
+  string name = "final_8_500m";
   char defaults;
   
   cout << "Defaults are an input file name and path of:"<< endl;

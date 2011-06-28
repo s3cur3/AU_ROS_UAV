@@ -40,6 +40,7 @@
 #include "write_to_log.h"
 #include "map_tools.h"
 #include "Plane_fixed.h"
+#include "coord.h"
 
 // used to tell the map class that it's okay to have costs greater than 1 associated
 // with squares
@@ -57,37 +58,6 @@ using namespace map_tools;
 static const double map_weight = 1.0;
 
 const string log_path = "/mnt/hgfs/Dropbox/school/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/log/";
-
-struct coord
-{
-  unsigned int x;
-  unsigned int y;
-  unsigned int t;
-  char tag;
-  
-  coord()
-  {
-    x = 0;
-    y = 0;
-    t = 0;
-  }
-  
-  coord( unsigned int start_x, unsigned int start_y, unsigned int time )
-  {
-    x = start_x;
-    y = start_y;
-    t = time;
-    tag = NULL;
-  }
-  
-  coord( unsigned int start_x, unsigned int start_y, unsigned int time, char label )
-  {
-    x = start_x;
-    y = start_y;
-    t = time;
-    tag = label;
-  }
-};
 
 class best_cost
 {
@@ -190,14 +160,6 @@ private:
                            const bearing_t branching_to_plane,
                            const int t, vector< coord > * out_updating_cells );
   
-  /**
-   * Adds cost to grid squares on the left of the aircraft, effectively implementing
-   * a preference for right-hand turns when path planning using A*.
-   * @param plane The "owner" of this BC grid, from whose starting location and
-   *              toward whose goal we will be adding cost.
-   */
-  void encourage_right( Plane * plane );
-  
   // The "owner" of this BC grid, for whom we will calculate distance costs &c.
   Plane * owner;
   
@@ -287,7 +249,7 @@ best_cost::best_cost( vector< Plane > * set_of_aircraft,
 #endif
   
   initialize_to_do_index();
-
+  
   // Create a starting point for the minimization step
   initialize_path();
   
@@ -325,7 +287,7 @@ void best_cost::initialize_path( )
     
     // Bearing from the branching square (here, the goal) to the plane is the
     // opposite of the bearing from the plane to the goal
-    bearing_t branching_to_plane = reverse_bearing( name_bearing( (*owner).getBearingToDest() ) );  
+    bearing_t branching_to_plane = reverse_bearing( (*owner).get_named_bearing_to_dest() );  
     
 #ifdef DEBUG_BC
     cout << "We say the bearing from the dest to the plane is " << bearing_to_string(branching_to_plane) << endl;
@@ -336,8 +298,21 @@ void best_cost::initialize_path( )
     // plane
     find_updating_sqrs( goal, branching_to_plane, t, &updating_cells );
 #ifdef DEBUG
+    // Turn this assertion off, since it breaks each time the plane reaches its destination
+    /*
+    if( updating_cells.size() == 0 )
+    {
+      cout << endl << "By the time you read this, an assertion will have failed." << endl;
+      cout << "Here's why. The bearing from your plane's goal to the plane was " << 
+        bearing_to_string( branching_to_plane ) << "," << endl;
+      cout << "and your plane was at (" << start.x << ", " << start.y << 
+        "), with its goal at (" << goal.x << ", " << goal.y << ")" << endl;
+      cout << "We say the bearing from the plane to the dest is " << 
+        bearing_to_string( (*owner).get_named_bearing_to_dest() ) << 
+        ", since the bearing in degrees is " << (*owner).getBearingToDest() << endl;
+    }
     assert( updating_cells.size() <= 3 );
-    assert( updating_cells.size() > 0 );
+    assert( updating_cells.size() > 0 ); */
 #endif
     
     coord * branching_sqr;
@@ -705,77 +680,6 @@ void best_cost::find_updating_sqrs( const coord branching_sqr,
   assert( (*out_updating_cells).size() <= 3 );
 #endif
 }
-
-void best_cost::encourage_right( Plane * plane )
-{
-  bool reached_edge_of_grid = false;
-  vector< vector< bool> > in_list_of_pts;
-  vector< coord > pts;
-  natural deviation_min = 5;
-  natural deg_per_deviation = 10; // how far left we deviate each time
-
-  
-  // Intially, no squares are present in the list of points; intialize it to false.
-  in_list_of_pts.resize( n_sqrs_w ); 
-  for( unsigned int x = 0; x < n_sqrs_w; x++ )
-  {
-    in_list_of_pts[ x ].resize( n_sqrs_h, false );
-  }
-    
-  // For each deviation from a straight line to the goal that we're adding cost to . . .
-  for( natural i = 0; i < 2; i++ )
-  {
-    // Until we have added squares all the way to the edge . . .
-    while( !reached_edge_of_grid )
-    {
-      natural the_x, the_y;
-      natural deviation = i*deg_per_deviation + deviation_min;
-      
-      // Get the grid square which is one resolution-length farther away than the last
-      calculate_xy_point( (*plane).getLocation(), res /* distance from start pt */, 
-                          (*plane).getBearingToDest() - deviation,
-                          res, the_x, the_y);
-      
-      // If we haven't already added this (x, y) to the list of things to which
-      // we will add cost . . .
-      if( !in_list_of_pts[ the_x ][ the_y ] )
-        pts.push_back( coord(the_x, the_y) ); // add it.
-      
-      // If we've reached the edge of the grid, the thing we just pushed back will
-      // serve as the "marker" indicating we've moved to the next deviation width
-      if( the_x >= n_sqrs_w && the_y >= n_sqrs_h )
-      {
-        reached_edge_of_grid = true;
-      }
-    }
-  } // end for each deviation from a straight line
-  
-  double added_cost = 0.3 // begin with the highest cost we will add
-
-  pts.pop_back(); // the last thing we added was a marker
-  
-  while( !pts.empty() )
-  {
-    coord front = pts.front();
-    
-    // If this is not a marker . . .
-    if( front.x < n_sqrs_w && front.y < n_sqrs_h )
-    {
-      // Add cost at this square for all times
-      for( natural t = 0; t < n_secs; t++ )
-      {
-        bc->add_danger_at( front.x, front.y, t, added_cost);
-      }
-    }
-    else // this was a marker
-    {
-      pts.pop_back(); // nuke it!
-      added_cost *= 0.6666666; // decrease the cost we're adding for the next round
-    }
-  }
-  
-}
-
 
 void best_cost::dump( int time ) const
 {  

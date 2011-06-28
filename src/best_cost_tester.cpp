@@ -120,7 +120,9 @@ int main()
                        width_in_degrees_longitude, height_in_degrees_latitude,
                        20, 40, resolution );
   
-  test_set.push_back( Plane( 0, plane_1_start, plane_1_end ) );
+  test_set.push_back( Plane( 0, other_plane_end, plane_1_end ) );
+  test_set[0].update( plane_1_start, plane_1_end, 30 );
+  
   test_set.push_back( Plane( 1, other_plane_start, other_plane_end ) );
   test_set[0].setDestination(5, 5);
   vector< Plane > test_set1 = randomized_planes( num_planes );

@@ -10,7 +10,6 @@
 #define MAP_TOOLS
 
 #include <math.h>
-#include "Position.h"
 
 #ifdef DEBUG
 #include <cassert>
@@ -105,8 +104,8 @@ namespace map_tools
    * @return The distance, measured in whatever units were specified (default is meters)
    */
   double calculate_distance_between_points( double latitude_1, double longitude_1, 
-                                           double latitude_2, double longitude_2,
-                                           string units );
+                                            double latitude_2, double longitude_2,
+                                            string units );
 
   /**
    * Calculates an ending lat-long coordinate given a starting lat-long position, 
@@ -123,23 +122,7 @@ namespace map_tools
   void calculate_point( double latitude_1, double longitude_1, 
                         double distance_in_meters, double bearing_in_deg,
                         double & out_latitude_2, double & out_longitude_2 );
-  
-  /**
-   * Calculates an ending (x, y) coordinate given a starting Position object, 
-   * a distance between the two points, and a bearing from the starting point to the
-   * final point.
-   * @param start_pos The Position object representing point 1
-   * @param distance_in_meters Distance between starting and ending points
-   * @param bearing_in_deg The bearing from the starting to the ending point
-   * @param resolution The resolution of the Cartesian plane you're using
-   * @param out_x The x position for the ending point
-   * @param out_y The y position for the ending point
-   * @param 
-   */
-  void calculate_xy_point( const Position * start_pos, double distance_in_meters, 
-                           double bearing_in_deg, double resolution
-                           double & out_x, double & out_y );
-  
+     
   /**
    * Calculate the bearing, in degrees, between two points
    * @param latitude_1 The latitude (in decimal degrees) for point 1
@@ -286,8 +269,6 @@ map_tools::bearing_t map_tools::reverse_bearing( map_tools::bearing_t start_bear
   }
 }
 
-
-
 unsigned int map_tools::find_width_in_squares( double width_of_field, 
                                                double height_of_field, 
                                                double map_resolution )
@@ -380,68 +361,6 @@ void map_tools::calculate_point( double latitude_1, double longitude_1,
   
   out_longitude_2 *= RADtoDEGREES;
   out_latitude_2 *= RADtoDEGREES;
-}
-
-void map_tools::calculate_xy_point( const Position * start_pos, double distance_in_meters, 
-                                    double bearing_in_deg, double resolution
-                                    double & out_x, double & out_y )
-{
-  double end_lat, end_lon;
-  
-  // Get the ending point in latitude and longitude
-  // (Yes, this is duplicated code from the Position class . . . )
-  map_tools::calculate_point( (*start_pos).getLat(), (*start_pos).getLon(), 
-                              distance_in_meters, bearing_in_deg,
-                              end_lat, end_lon );
-  
-  // Convert that lat-long to x and y  
-  double d_from_origin = 
-    map_tools::calculate_distance_between_points( (*start_pos).getUpperLeftLatitude, 
-                                                  (*start_pos).getUpperLeftLongitude,
-                                                  end_lat, end_lon, "meters");
-  double bearing; // in radians!
-  
-  if( d_from_origin > -EPSILON && d_from_origin < EPSILON )
-  {
-    bearing = 0;
-  }
-  else
-  {
-    bearing = map_tools::calculate_bearing_in_rad( (*start_pos).getUpperLeftLatitude, 
-                                                   (*start_pos).getUpperLeftLongitude,
-                                                   end_lat, end_lon );
-    
-    if( bearing > 0 )
-    {
-      if( bearing < PI/2 )
-      {
-        bearing -= PI/2;
-      }
-      else
-        bearing = PI/2 - bearing;
-    }
-    bearing = fmod( bearing, PI/2 );
-  }
-  
-#ifdef DEBUG
-  if( bearing > 0.001 )
-  {
-    cout << "That bearing of " << bearing << "is gonna break things!" << endl;
-    cout << "Your point was (" << lat << ", " << lon << ")" << endl;
-  }
-  assert( bearing < 0.001 );
-  assert( bearing > -PI/2 - 0.01 );
-#endif
-  
-  out_x = (int)( (int)(cos( bearing ) * d_from_origin + 0.5) / resolution );
-  out_y = -(int)( (int)(sin( bearing ) * d_from_origin - 0.5) / resolution );
-  
-#ifdef DEBUG
-  assert( out_x < w );
-  assert( out_y < h );
-  assert( out_x >= 0 );
-  assert( out_y >= 0 );
-#endif
 }
 
 double map_tools::calculateBearing( double latitude_1, double longitude_1, 

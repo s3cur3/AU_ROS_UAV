@@ -27,6 +27,7 @@
 #include <math.h>
 #include <climits>
 #include "map_tools.h"
+#include "coord.h"
 
 using namespace std;
 
@@ -52,10 +53,11 @@ const double TWO_PI = 2*PI;
 const double RADtoDEGREES = 180/PI;//Conversion factor from Radians to Degrees
 const double DEGREEStoRAD = PI/180;//Conversion factor from Degrees to Radians
 #endif
-// the amount we'll multiply danger values by when adding the "fuzziness" (the 
+
+// the amount we'll multiply danger values by when adding the buffer zones (the 
 // danger around the predicted squares, to keep other aircraft from coming too
 // close)
-static const double field_weight = 0.7;
+static const double field_weight = 1.0;
 
 class danger_grid
 {
@@ -83,6 +85,8 @@ public:
    * @param width The width of the airspace (our x dimension)
    * @param height The height of the airspace (our y dimension)
    * @param resolution The resolution to be used in the map
+   * @param plane_id The ID of this danger grid's "owner" (should be its position
+   *                 in the set_of_aircraft vector
    */
   danger_grid( vector< Plane > * set_of_aircraft, const double width,
                const double height, const double resolution, const natural plane_id );
@@ -95,9 +99,14 @@ public:
   /**
    * The copy constructor; takes a reference to a danger grid and makes this object
    * a duplicate.
-   * @param mc A reference to another danger grid
+   * @param dg A reference to another danger grid
+   * @param set_of_aircraft A vector array containing the aircraft that need to
+   *                        be considered
+   * @param plane_id The ID of this danger grid's "owner" (should be its position
+   *                 in the set_of_aircraft vector
    */
-  danger_grid( const danger_grid * dg);
+  danger_grid( const danger_grid * dg, vector< Plane > * set_of_aircraft,
+              const natural plane_id );
   
   /**
    * Return the danger rating of a square
@@ -155,6 +164,18 @@ public:
   double get_res() const;
   
   /**
+   * @return a reference to the "owner" of this danger grid (the plane for which
+   * it was created)
+   */
+  Plane * get_owner();
+  
+  /**
+   * @return the danger value indicating we are as certain as we possibly can be that 
+   * there is/will be an aircraft in this square at some time
+   */
+  double get_plane_danger() const;
+  
+  /**
    * Modifies the map to store the cost of the path which begins at each square and
    * takes a straight line to the goal, effectively creating a simplified version of
    * a best cost grid.
@@ -178,6 +199,14 @@ public:
    */
   void calculate_distance_costs( unsigned int goal_x, unsigned int goal_y, 
                                  double danger_adjust );
+  
+  /**
+   * Adds cost to grid squares on the left of the aircraft, effectively implementing
+   * a preference for right-hand turns when path planning using A*.
+   * @param plane The "owner" of this BC grid, from whose starting location and
+   *              toward whose goal we will be adding cost.
+   */
+  void encourage_right( );
   
   /**
    * Output the map at a given time; for troubleshooting only
@@ -257,7 +286,7 @@ private:
    * @param time The number of seconds in the future for which the plane's danger was
    *             just set
    */
-  void set_danger_field( double bearing, double unweighted_danger,
+  void set_danger_buffer( double bearing, double unweighted_danger,
                          natural x, natural y, int time );
   
   /**
@@ -272,7 +301,8 @@ private:
   void placeDanger(double angle, vector<estimate> &e, double closest, double other,
                    int x, int y, double danger);//places the data into the estimate struct
   void dangerRecurse(estimate e, int destination[], vector<estimate> &theFuture, int & time);
-  
+  void turn(double startingAngle, double endAngle, vector<estimate> &e, int &x, int &y);
+
   // the weighting applied to danger estimates in the future
   vector< double > danger_ratings;
   
@@ -282,6 +312,9 @@ private:
   // The danger space is a bit strange due to the fact that it's an array of maps,
   // where each position in the array corresponds to a time.
   vector< map > * danger_space;
+  
+  // The "owner" of this danger grid, for whom we will calculate distance costs &c.
+  Plane * owner;
   
 #ifdef OVERLAYED
   vector< map > overlayed; // Used only when dumping output
@@ -300,6 +333,7 @@ danger_grid::danger_grid( vector< Plane > * set_of_aircraft, const double width,
   aircraft = set_of_aircraft;
   map_res = resolution;
   distance_costs_initialized = false;
+  owner = &( (*set_of_aircraft)[ plane_id ] );
   
 #ifdef DEBUG
   assert( set_of_aircraft->size() != 0 );
@@ -329,9 +363,16 @@ danger_grid::danger_grid( vector< Plane > * set_of_aircraft, const double width,
   fill_danger_space( plane_id );
 }
 
-danger_grid::danger_grid( const danger_grid * dg)
+danger_grid::danger_grid( const danger_grid * dg, vector< Plane > * set_of_aircraft,
+                          const natural plane_id )
 {  
   danger_space = new vector< map >( dg->get_danger_space() );
+  owner = &( (*set_of_aircraft)[ plane_id ] );
+#ifdef DEBUG
+  assert( owner == get_owner() );
+  assert( (*owner).getId() >= 0 );
+  assert( (*owner).getLocation().getWidth() > 0 );
+#endif
 }
 
 danger_grid::~danger_grid()
@@ -410,7 +451,7 @@ void danger_grid::fill_danger_space( const natural plane_id )
             
             // . . . and then add a bit of "fuzziness" (danger around the predicted
             // square, so that other planes don't come too close)
-            set_danger_field( bearing, d, x, y, time );
+            set_danger_buffer( bearing, d, x, y, time );
             
   #ifdef OVERLAYED
             overlayed[0].add_danger_at((*current_est).x,
@@ -452,7 +493,7 @@ void danger_grid::fill_danger_space( const natural plane_id )
             
             // . . . and then add a bit of "fuzziness" (danger around the predicted
             // square, so that other planes don't come too close)
-            set_danger_field( bearing, d, x, y, time );
+            set_danger_buffer( bearing, d, x, y, time );
             
 #ifdef OVERLAYED
             overlayed[0].add_danger_at((*current_est).x,
@@ -471,149 +512,67 @@ void danger_grid::fill_danger_space( const natural plane_id )
   } // end for each plane in the list
 }
 
-void danger_grid::set_danger_field( double bearing, double unweighted_danger,
-                                    natural x, natural y, int time )
+void danger_grid::set_danger_buffer( double bearing, double unweighted_danger,
+                                     natural x, natural y, int time )
 {
   double d = unweighted_danger * field_weight;
 
   // These buffer zones have been made wider in light of A*'s propensity for taking
   // diagonals when we allow it.
-  /*switch( named_bearing )
-  {
-    case N:*/
-		///////
-		/*CHANGED TO ADD FIELD ALL THE WAY ROUND TO PREVENT SNEAKY BASTARDS*/
-		//////
-      // dag left+down
-      (*danger_space)[ time ].safely_add_danger_at( x - 1, y + 1, d );
-      // straight left
-      (*danger_space)[ time ].safely_add_danger_at( x - 1, y , d );
-      // dag left+up
-      (*danger_space)[ time ].safely_add_danger_at( x - 1, y - 1, d );
-      // straight up
-      (*danger_space)[ time ].safely_add_danger_at( x , y - 1, d );
-      // dag right+up
-      (*danger_space)[ time ].safely_add_danger_at( x + 1, y - 1, d );
-      // straight right
-      (*danger_space)[ time ].safely_add_danger_at( x + 1, y , d );
-      // dag right+down
-      (*danger_space)[ time ].safely_add_danger_at( x + 1, y + 1, d );
-			// straight down
-			(*danger_space)[time].safely_add_danger_at(x,y+1,d);
-      /*break;
-    case NE:
-      // straight left
-      (*danger_space)[ time ].safely_add_danger_at( x - 1, y , d );
-      // dag left+up
-      (*danger_space)[ time ].safely_add_danger_at( x - 1, y - 1, d );
-      // straight up
-      (*danger_space)[ time ].safely_add_danger_at( x , y - 1, d );
-      // dag right+up
-      (*danger_space)[ time ].safely_add_danger_at( x + 1, y - 1, d );
-      // straight right
-      (*danger_space)[ time ].safely_add_danger_at( x + 1, y , d );
-      // dag right+down
-      (*danger_space)[ time ].safely_add_danger_at( x + 1, y + 1, d );
-      // straight down
-      (*danger_space)[ time ].safely_add_danger_at( x , y + 1, d );
-      break;
-    case E:
-      // dag left+up
-      (*danger_space)[ time ].safely_add_danger_at( x - 1, y - 1, d );
-      // straight up
-      (*danger_space)[ time ].safely_add_danger_at( x , y - 1, d );
-      // dag right+up
-      (*danger_space)[ time ].safely_add_danger_at( x + 1, y - 1, d );
-      // straight right
-      (*danger_space)[ time ].safely_add_danger_at( x + 1, y , d );
-      // dag right+down
-      (*danger_space)[ time ].safely_add_danger_at( x + 1, y + 1, d );
-      // straight down
-      (*danger_space)[ time ].safely_add_danger_at( x , y + 1, d );
-      // dag left+down
-      (*danger_space)[ time ].safely_add_danger_at( x - 1, y + 1, d );
-      break;
-    case SE:
-      // straight up
-      (*danger_space)[ time ].safely_add_danger_at( x , y - 1, d );
-      // dag right+up
-      (*danger_space)[ time ].safely_add_danger_at( x + 1, y - 1, d );
-      // straight right
-      (*danger_space)[ time ].safely_add_danger_at( x + 1, y , d );
-      // dag right+down
-      (*danger_space)[ time ].safely_add_danger_at( x + 1, y + 1, d );
-      // straight down
-      (*danger_space)[ time ].safely_add_danger_at( x , y + 1, d );
-      // dag left+down
-      (*danger_space)[ time ].safely_add_danger_at( x - 1, y + 1, d );
-      // straight left
-      (*danger_space)[ time ].safely_add_danger_at( x - 1, y , d );
-      break;
-    case S:
-      // dag right+up
-      (*danger_space)[ time ].safely_add_danger_at( x + 1, y - 1, d );
-      // straight right
-      (*danger_space)[ time ].safely_add_danger_at( x + 1, y , d );
-      // dag right+down
-      (*danger_space)[ time ].safely_add_danger_at( x + 1, y + 1, d );
-      // straight down
-      (*danger_space)[ time ].safely_add_danger_at( x , y + 1, d );
-      // dag left+down
-      (*danger_space)[ time ].safely_add_danger_at( x - 1, y + 1, d );
-      // straight left
-      (*danger_space)[ time ].safely_add_danger_at( x - 1, y , d );
-      // dag left+up
-      (*danger_space)[ time ].safely_add_danger_at( x - 1, y - 1, d );
-      break;
-    case SW:
-      // straight right
-      (*danger_space)[ time ].safely_add_danger_at( x + 1, y , d );
-      // dag right+down
-      (*danger_space)[ time ].safely_add_danger_at( x + 1, y + 1, d );
-      // straight down
-      (*danger_space)[ time ].safely_add_danger_at( x , y + 1, d );
-      // dag left+down
-      (*danger_space)[ time ].safely_add_danger_at( x - 1, y + 1, d );
-      // straight left
-      (*danger_space)[ time ].safely_add_danger_at( x - 1, y , d );
-      // dag left+up
-      (*danger_space)[ time ].safely_add_danger_at( x - 1, y - 1, d );
-      // straight up
-      (*danger_space)[ time ].safely_add_danger_at( x , y - 1, d );
-      break;
-    case W:
-      // dag right+down
-      (*danger_space)[ time ].safely_add_danger_at( x + 1, y + 1, d );
-      // straight down
-      (*danger_space)[ time ].safely_add_danger_at( x , y + 1, d );
-      // dag left+down
-      (*danger_space)[ time ].safely_add_danger_at( x - 1, y + 1, d );
-      // straight left
-      (*danger_space)[ time ].safely_add_danger_at( x - 1, y , d );
-      // dag left+up
-      (*danger_space)[ time ].safely_add_danger_at( x - 1, y - 1, d );
-      // straight up
-      (*danger_space)[ time ].safely_add_danger_at( x , y - 1, d );
-      // dag right+up
-      (*danger_space)[ time ].safely_add_danger_at( x + 1, y - 1, d );
-      break;
-    case NW:
-      // straight down
-      (*danger_space)[ time ].safely_add_danger_at( x , y + 1, d );
-      // dag left+down
-      (*danger_space)[ time ].safely_add_danger_at( x - 1, y + 1, d );
-      // straight left
-      (*danger_space)[ time ].safely_add_danger_at( x - 1, y , d );
-      // dag left+up
-      (*danger_space)[ time ].safely_add_danger_at( x - 1, y - 1, d );
-      // straight up
-      (*danger_space)[ time ].safely_add_danger_at( x , y - 1, d );
-      // dag right+up
-      (*danger_space)[ time ].safely_add_danger_at( x + 1, y - 1, d );
-      // straight right
-      (*danger_space)[ time ].safely_add_danger_at( x + 1, y , d );
-      break;
-  } // end switch case*/
+  
+  // dag left+down
+  (*danger_space)[ time ].safely_add_danger_at( x - 1, y + 1, d );
+  // straight left
+  (*danger_space)[ time ].safely_add_danger_at( x - 1,   y  , d );
+  // dag left+up
+  (*danger_space)[ time ].safely_add_danger_at( x - 1, y - 1, d );
+  // straight up
+  (*danger_space)[ time ].safely_add_danger_at(   x  , y - 1, d );
+  // dag right+up
+  (*danger_space)[ time ].safely_add_danger_at( x + 1, y - 1, d );
+  // straight right
+  (*danger_space)[ time ].safely_add_danger_at( x + 1,   y  , d );
+  // dag right+down
+  (*danger_space)[ time ].safely_add_danger_at( x + 1, y + 1, d );
+  // straight down
+  (*danger_space)[ time ].safely_add_danger_at(   x ,  y + 1, d);
+  
+  /*
+  // Begin squares that are 2 away from current location
+  // dag less left+down
+  (*danger_space)[ time ].safely_add_danger_at( x - 1, y + 2, d );
+  // dag left+down
+  (*danger_space)[ time ].safely_add_danger_at( x - 2, y + 2, d );
+  // dag left+less down
+  (*danger_space)[ time ].safely_add_danger_at( x - 2, y + 1, d );
+  // straight left
+  (*danger_space)[ time ].safely_add_danger_at( x - 2,   y  , d );
+  // dag left+up
+  (*danger_space)[ time ].safely_add_danger_at( x - 2, y - 2, d );
+  // dag left+less up
+  (*danger_space)[ time ].safely_add_danger_at( x - 2, y - 1, d );
+  // dag less left+up
+  (*danger_space)[ time ].safely_add_danger_at( x - 1, y - 2, d );
+  // straight up
+  (*danger_space)[ time ].safely_add_danger_at(   x  , y - 2, d );
+  // dag less right+up
+  (*danger_space)[ time ].safely_add_danger_at( x + 1, y - 2, d );
+  // dag right+up
+  (*danger_space)[ time ].safely_add_danger_at( x + 2, y - 2, d );
+  // dag right+less up
+  (*danger_space)[ time ].safely_add_danger_at( x + 2, y - 1, d );
+  // straight right
+  (*danger_space)[ time ].safely_add_danger_at( x + 2,   y  , d );
+  // dag right+less down
+  (*danger_space)[ time ].safely_add_danger_at( x + 2, y + 1, d );
+  // dag right+down
+  (*danger_space)[ time ].safely_add_danger_at( x + 2, y + 2, d );
+  // dag less right+down
+  (*danger_space)[ time ].safely_add_danger_at( x + 1, y + 2, d );
+  // straight down
+  (*danger_space)[ time ].safely_add_danger_at(   x ,  y + 2, d);
+   
+   */
 }
 
 void danger_grid::set_danger_scale( )
@@ -688,6 +647,16 @@ double danger_grid::get_res() const
   return (*danger_space)[ 0 ].get_resolution();
 }
 
+Plane * danger_grid::get_owner()
+{
+  return owner;
+}
+
+double danger_grid::get_plane_danger() const
+{
+  return plane_danger;
+}
+
 vector< map > danger_grid::get_danger_space() const
 {
   return (*danger_space);
@@ -743,6 +712,20 @@ vector< estimate > danger_grid::calculate_future_pos( Plane & plane, int &time )
   
   if((x2-x1)<0)//positive means that the plane is headed to the left aka west
     angle=(-1)*angle;//the plane goes from -180 to +180
+
+	//if a turn needs to be made to correct for the bearing
+	if(fabs(angle)-fabs(plane.getBearing())>22.5)
+	{
+		turn(plane.getBearing(),angle,theFuture,x1,y1);
+		theFuture.push_back(estimate(-1,-1,-1));
+		xDistance=fabs((double)x2-x1),yDistance=fabs((double)y2-y1);
+		distance = sqrt((double)(xDistance*xDistance)+(yDistance*yDistance));
+		angle=(180-RADtoDEGREES*(asin((double)xDistance/(double)distance)));
+		if(y2<y1)
+				angle=(RADtoDEGREES*(asin((double)xDistance/(double)distance)));
+		if((x2-x1)<0)//positive means that the plane is headed to the left aka west
+			angle=(-1)*angle;//the plane goes from -180 to +180
+	}
   
   //find closest straight line
   double neighbors[2];
@@ -1023,6 +1006,35 @@ void danger_grid::placeDanger(double angle, vector<estimate> &e, double closest,
   }
 }
 
+void danger_grid::turn(double startingAngle, double endAngle, vector<estimate> &e, int &x, int &y)
+{
+	bool negative=false;
+	if(startingAngle<0)
+		negative=true;
+
+	if(fabs((double)endAngle)-fabs((double)startingAngle) <22.5)
+	{
+		return;//your done turning
+	}
+	e.push_back(estimate(-1,-1,-1));
+	if(negative)
+	{
+		placeDanger(-22.5,e,0,-45,x,y,.5);
+		turn(startingAngle-22.5,endAngle, e, e[e.size()-1].x,e[e.size()-1].y);
+		x=e[e.size()-1].x;
+		y=e[e.size()-1].y;
+	}
+		
+	else
+	{
+		placeDanger(22.5,e,0,45,x,y,.5);
+		turn(startingAngle+22.5,endAngle, e, e[e.size()-1].x,e[e.size()-1].y);
+		x=e[e.size()-1].x;
+		y=e[e.size()-1].y;
+	}
+	return;
+}
+
 danger_grid::bearing_t danger_grid::name_bearing( double the_bearing )
 {
   the_bearing = fmod(the_bearing, 360); // modular division for floats
@@ -1102,6 +1114,10 @@ void danger_grid::calculate_distance_costs( unsigned int goal_x, unsigned int go
     }
   }
   
+  // Add a bit of cost to the left side of the aircraft to encourage it to
+  // take avoidance maneuvers to the right
+  //encourage_right( );
+  
   distance_costs_initialized = true;
   
   vector< map > * old_danger_space = danger_space;
@@ -1124,6 +1140,172 @@ void danger_grid::calculate_distance_costs( unsigned int goal_x, unsigned int go
     }
   }
   delete old_danger_space;
+}
+
+void danger_grid::encourage_right( )
+{
+  bool reached_edge_of_grid;
+  vector< vector< bool> > in_list_of_pts;
+  vector< coord > pts;
+  natural deviation_min = 12;
+  natural deg_per_deviation = 6; // how far left we deviate each time
+  
+  
+  // Intially, no squares are present in the list of points; intialize it to false.
+  in_list_of_pts.resize( get_width_in_squares() ); 
+  for( unsigned int x = 0; x < get_width_in_squares(); x++ )
+  {
+    in_list_of_pts[ x ].resize( get_height_in_squares(), false );
+  }
+  
+  Position start_pos = (*owner).getLocation();
+  
+  // For each deviation from a straight line to the goal that we're adding cost to . . .
+  for( natural i = 0; i < 4; i++ )
+  {
+    reached_edge_of_grid = false;
+    
+    // Starting adding cost to squares which are four times the
+    // "resolution" distance from the plane start; get closer to the plane as the
+    // angle widens
+    natural dist = 4 * (natural)get_res();
+    natural deviation = i*deg_per_deviation + deviation_min;
+    double plane_bearing = (*owner).getBearing();
+    
+#ifdef DEBUG_DG
+    cout << "Plane says its bearing is " << plane_bearing;
+    cout << ", which gets named " << map_tools::bearing_to_string( (*owner).get_named_bearing() ) << endl;
+    cout << "At round " << i << " we're working with deviation " << deviation << endl;
+#endif
+    
+    // Until we have added squares all the way to the edge . . .
+    while( !reached_edge_of_grid )
+    {
+      natural the_x, the_y;
+      
+      // Get the grid square which is one resolution-length farther away than the last
+      
+      double end_lat, end_lon;
+      // Get the ending point in latitude and longitude
+      map_tools::calculate_point( start_pos.getLat(), start_pos.getLon(), 
+                                  dist, plane_bearing - deviation,
+                                  end_lat, end_lon );
+      double d_from_origin = 
+        map_tools::calculate_distance_between_points( start_pos.getUpperLeftLatitude(), 
+                                                      start_pos.getUpperLeftLongitude(),
+                                                      end_lat, end_lon, "meters");
+      
+      double bearing; // in radians!
+      
+      if( d_from_origin > -EPSILON && d_from_origin < EPSILON ) // d == 0
+      {
+        bearing = 0;
+      }
+      else
+      {
+        bearing = map_tools::calculate_bearing_in_rad( start_pos.getUpperLeftLatitude(), 
+                                                       start_pos.getUpperLeftLongitude(),
+                                                       end_lat, end_lon );
+        
+        if( bearing > 0 )
+        {
+          if( bearing < PI/2 )
+          {
+            bearing -= PI/2;
+          }
+          else
+            bearing = PI/2 - bearing;
+        }
+        bearing = fmod( bearing, PI/2 );
+      }
+      
+#ifdef DEBUG_DG
+      if( bearing > 0.001 )
+      {
+        cout << "That bearing of " << bearing << "is gonna break things!" << endl;
+        cout << "Your point was (" << end_lat << ", " << end_lon << ")" << endl;
+      }
+      assert( bearing < 0.001 );
+      assert( bearing > -PI/2 - 0.01 );
+#endif
+      
+      the_x = (int)( (int)(cos( bearing ) * d_from_origin + 0.5) / get_res() );
+      the_y = -(int)( (int)(sin( bearing ) * d_from_origin - 0.5) / get_res() );
+      
+#ifdef DEBUG_DG
+      assert( (int)the_x < start_pos.getWidth() + 5 );
+      assert( (int)the_y < start_pos.getHeight() + 5 );
+      assert( the_x >= 0 );
+      assert( the_y >= 0 );
+#endif
+      
+      // If we've reached the edge of the grid, the thing we just pushed back will
+      // serve as the "marker" indicating we've moved to the next deviation width
+      if( the_x >= get_width_in_squares() || the_y >= get_height_in_squares() )
+      {
+        reached_edge_of_grid = true;
+        
+        // Add this to the list of points anyway, as a marker that we're moving to
+        // the next deviation
+        pts.push_back( coord(the_x, the_y) );
+      }
+      else if( the_x == 0 || the_y == 0 ) // these are unsigned, so they'll never be 
+      {                                  // less than zero
+        reached_edge_of_grid = true;
+        
+        // This point is perfectly fine
+        if( !in_list_of_pts[ the_x ][ the_y ] )
+        {
+          pts.push_back( coord(the_x, the_y) );
+          in_list_of_pts[ the_x ][ the_y ] = true;
+#ifdef DEBUG_DG
+          cout << "Added to list: (" << the_x << ", " << the_y << ")" << endl;
+#endif
+        }
+        
+        // Add to the list a marker indicating we're moving to the next deviation
+        pts.push_back( coord( start_pos.getWidth() + 100, start_pos.getHeight() + 100 ) );
+      }
+      else
+      {
+        // If we haven't already added this (x, y) to the list of things to which
+        // we will add cost . . .
+        if( !in_list_of_pts[ the_x ][ the_y ] )
+        {
+          pts.push_back( coord(the_x, the_y) ); // add it.
+          in_list_of_pts[ the_x ][ the_y ] = true;
+#ifdef DEBUG_DG
+          cout << "Added to list: (" << the_x << ", " << the_y << ")" << endl;
+#endif
+        }
+      }
+
+      dist += (natural)get_res(); // increase the distance for the next round
+    } // end while we haven't reached the edge
+  } // end for each deviation from a straight line
+  
+  double added_cost = get_plane_danger() * 0.00001; // begin with the highest cost we will add
+  
+  pts.pop_back(); // the last thing we added was a marker
+  
+  while( !pts.empty() )
+  {
+    coord back = pts.back();
+    
+    // If this is not a marker . . .
+    if( back.x < get_width_in_squares() && back.y < get_height_in_squares() )
+    {
+      // Add cost at this square
+      dist_map->add_danger_at( back.x, back.y, added_cost);
+
+      pts.pop_back(); // done with this point
+    }
+    else // this was a marker
+    {
+      pts.pop_back(); // nuke it!
+      added_cost *= 0.8; // decrease the cost we're adding for the next round
+    }
+  }
 }
 
 double danger_grid::get_dist_cost_at( unsigned int x_pos, unsigned int y_pos ) const
