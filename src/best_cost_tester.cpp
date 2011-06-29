@@ -184,7 +184,6 @@ int main()
   best_cost bc( &test_set, width_of_field, height_of_field, resolution, 1 );
   best_cost bc1( &test_set1, width_of_field, height_of_field, resolution, 2 );
   
-  /*
   best_cost bc2( &test_set2, width_of_field, height_of_field, resolution, 2 );
   best_cost bc3( &test_set3, width_of_field, height_of_field, resolution, 2 );
   best_cost bc4( &test_set4, width_of_field, height_of_field, resolution, 2 );
@@ -223,7 +222,6 @@ int main()
   best_cost bc37( &test_set37, width_of_field, height_of_field, resolution, 2 );
   best_cost bc38( &test_set38, width_of_field, height_of_field, resolution, 2 );
   best_cost bc39( &test_set39, width_of_field, height_of_field, resolution, 2 );
-  */
   
   bc1.dump( 0 );
   

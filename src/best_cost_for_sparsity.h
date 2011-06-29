@@ -162,11 +162,13 @@ private:
    * @param starting_sqr The square to which all other squares' distance is calculated
    * @param list_of_sqrs A reference to a vector containing some number of squares
    *                     whose distance to the starting square will be calculated
+   * @param bearing The bearing from the goal to the plane
    * @return The address of the coordinate in the list_of_sqrs with minimum distance
    *         from the starting square
    */
   coord get_branching_sqr( const coord starting_sqr, 
-                           vector< coord > * list_of_sqrs );
+                           vector< coord > * list_of_sqrs,
+                           bearing_t bearing );
   
   /**
    * Returns an array of the squares which will update their neighbors 
@@ -288,6 +290,11 @@ best_cost::~best_cost()
 
 void best_cost::initialize_path( )
 {
+  // Increase the travel cost to search a smaller area
+  const double travel_cost = 1;
+  // the cost of traversing a diagonal
+  const double dag_travel_cost = SQRT_2 * travel_cost;
+  
   // Initialize the best cost at the goal to the map cost for all times
   for( int t = 0; t < n_secs; t++ )
     bc->set_danger_at( goal.x, goal.y, t, (*mc)(goal.x, goal.y, t) );
@@ -336,11 +343,11 @@ void best_cost::initialize_path( )
     while( !start_has_been_updated && updating_cells.size() > 0 )
     {
 #ifdef DEBUG
-      assert( updating_cells.size() <= branch_width );
+      assert( (int)updating_cells.size() <= branch_width );
       assert( updating_cells.size() > 0 );
 #endif
       
-      branching_sqr = new coord( get_branching_sqr( start, &updating_cells ) );
+      branching_sqr = new coord( get_branching_sqr( start, &updating_cells, branching_to_plane ) );
       cout << "Branching sqr is (" << (*branching_sqr).x << ", " << (*branching_sqr).y << ")" << endl;
       
       branching_to_plane = name_bearing( calculate_euclidean_bearing(
@@ -348,7 +355,7 @@ void best_cost::initialize_path( )
 
       find_updating_sqrs( (*branching_sqr), branching_to_plane, t, &cells_to_change );
 #ifdef DEBUG
-      assert( cells_to_change.size() <= branch_width );
+      assert( (int)cells_to_change.size() <= branch_width );
       assert( cells_to_change.size() > 0 );
 #endif
       
@@ -363,35 +370,44 @@ void best_cost::initialize_path( )
         
         double lowest_cost_so_far = numeric_limits<double>::max( );
         
-#ifdef DEBUG_BC
-        /*
-        cout << "Potential mins are: " << endl;
-        for( vector< coord >::iterator p_min = updating_cells.begin();
-            p_min != updating_cells.end(); ++p_min )
+        vector< coord > adj_cells;
+        adj_cells.reserve( 8 );
+        if( (*changing_sqr).x + 1 < n_sqrs_w )
         {
-          cout << "   (" << (*p_min).x << ", " <<
-          (*p_min).y << ")" << endl;
+          adj_cells.push_back( coord((*changing_sqr).x + 1, (*changing_sqr).y) );
+          
+          if( (*changing_sqr).y + 1 < n_sqrs_h )
+            adj_cells.push_back( coord((*changing_sqr).x + 1, (*changing_sqr).y + 1, 'd') );
+          
+          if( (*changing_sqr).y > 0 )
+            adj_cells.push_back( coord((*changing_sqr).x + 1, (*changing_sqr).y - 1, 'd') );
         }
-         */
-#endif
         
-        // Each of the updating cells is potentially the min-cost reachable sqr
-        for( vector< coord >::iterator p_min = updating_cells.begin();
-            p_min != updating_cells.end(); ++p_min )
+        if( (*changing_sqr).y + 1 < n_sqrs_h )
+          adj_cells.push_back( coord((*changing_sqr).x, (*changing_sqr).y + 1) );
+        
+        if( (*changing_sqr).y > 0 )
+          adj_cells.push_back( coord((*changing_sqr).x, (*changing_sqr).y - 1) );
+        
+        if( (*changing_sqr).x > 0 )
         {
-          /* we'll consider everything reachable 
-          // If this square is adjacent to the one we're changing . . .
-          if( ( (int)(*p_min).x - (int)(*changing_sqr).x <= 1 &&
-                (int)(*p_min).x - (int)(*changing_sqr).x >= -1 ) &&
-              ( (int)(*p_min).y - (int)(*changing_sqr).y <= 1 &&
-                (int)(*p_min).y - (int)(*changing_sqr).y >= -1 ) )
-          { */
-          double distance = 
-          get_euclidean_dist_between( (*p_min).x, (*p_min).y,
-                                     (*changing_sqr).x, (*changing_sqr).y );
+          adj_cells.push_back( coord((*changing_sqr).x - 1, (*changing_sqr).y) );
+          
+          if( (*changing_sqr).y + 1 < n_sqrs_h )
+            adj_cells.push_back( coord((*changing_sqr).x - 1, (*changing_sqr).y + 1, 'd') );
+          
+          if( (*changing_sqr).y > 0 )
+            adj_cells.push_back( coord((*changing_sqr).x - 1, (*changing_sqr).y - 1, 'd') );
+        }
+        
+        // Each of the adjacent cells is potentially the min-cost reachable sqr
+        for( vector< coord >::iterator p_min = adj_cells.begin();
+            p_min != adj_cells.end(); ++p_min )
+        {
+          double distance = ( (*p_min).tag == 'd' ? dag_travel_cost : travel_cost );
           
           double bc_with_p_min = (*bc)( (*p_min).x, (*p_min).y, t ) + distance +
-          map_weight * danger_of_changing_sqr;
+            map_weight * danger_of_changing_sqr;
           
           // If this is the lowest cost we've seen so far, and the BC at this 
           // square doesn't incorporate a plane danger . . .
@@ -405,16 +421,15 @@ void best_cost::initialize_path( )
             
             lowest_cost_so_far = bc_with_p_min;
           }
+          
+          /*
           else
           {            
             cout << "Didn't change bc at (" << (*changing_sqr).x << ", " <<
             (*changing_sqr).y << ") to " << bc_with_p_min << " because bc with pmin is " << bc_with_p_min << endl;
             
           }
-          /*
-          } // end if square is reachable
-           
-           Add this back if not considering everything reachable
+          
            */
         } // end for each square in updating_cells
       
@@ -569,12 +584,49 @@ unsigned int best_cost::get_height_in_squares() const
 
 
 coord best_cost::get_branching_sqr( const coord starting_sqr, 
-                                    vector< coord > * list_of_sqrs )
+                                    vector< coord > * list_of_sqrs,
+                                    bearing_t bearing )
 {
 #ifdef DEBUG
   if( (*list_of_sqrs).size() == 0 )
     assert( false );
 #endif
+  
+  if( bearing == N || bearing == S || bearing == E || bearing == W )
+  { // return the closest square
+    double min_d = 10000000;
+    double d_to_crnt;
+    coord * closest_sqr;
+    
+    for( vector< coord >::iterator crnt_sqr = (*list_of_sqrs).begin(); 
+        crnt_sqr != (*list_of_sqrs).end(); ++crnt_sqr )
+    {
+      d_to_crnt = sqrt( ((*crnt_sqr).x - start.x)*((*crnt_sqr).x - start.x) + 
+                       ((*crnt_sqr).y - start.y)*((*crnt_sqr).y - start.y) );
+      if( d_to_crnt < min_d )
+      {
+        min_d = d_to_crnt;
+        closest_sqr = &(*crnt_sqr);
+      }
+    }
+    
+#ifdef DEBUG_BC
+    cout << "Given the choices ";
+    for( vector< coord >::iterator crnt_sqr = (*list_of_sqrs).begin(); 
+        crnt_sqr != (*list_of_sqrs).end(); ++crnt_sqr )
+    {
+      cout << "(" << (*crnt_sqr).x << ", " << (*crnt_sqr).y << "), ";
+    }
+    cout << endl << "...we chose ("<< (*closest_sqr).x << ", " << (*closest_sqr).y << ") " << endl;
+#endif
+    
+#ifdef DEBUG
+    assert( (*closest_sqr).x < n_sqrs_w );
+    assert( (*closest_sqr).y < n_sqrs_h );
+#endif
+    
+    return (*closest_sqr);
+  }
   
   vector< double > d_to_sqr;
   d_to_sqr.resize( (*list_of_sqrs).size() );
@@ -618,6 +670,7 @@ coord best_cost::get_branching_sqr( const coord starting_sqr,
       return (*branching_sqr);
     }
   }
+  assert( branching_sqr != NULL );
 }
 
 void best_cost::find_updating_sqrs( const coord branching_sqr,
@@ -972,51 +1025,7 @@ void best_cost::find_updating_sqrs( const coord branching_sqr,
             }
           }
         }
-      } // end if x > 0if( branching_sqr.x > 0 ) // safe to add squares that are 1 left
-      {
-        if( branching_sqr.y > 0 )
-        {
-          if( branching_sqr.y > 1 )
-          {
-            if( branching_sqr.y > 2 )
-            {
-              if( branching_sqr.y > 3 )
-              {
-                if( branching_sqr.y > 4 )
-                  (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y - 5, t) );
-                
-                (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y - 4, t) );
-              }
-              
-              (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y - 3, t) );
-            }
-            
-            (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y - 2, t) );
-          }
-          
-          (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y - 1, t) );
-        }
-        
-        (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y, t) );
-        
-        if( branching_sqr.y + 1 < n_sqrs_h )
-        {
-          (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y + 1, t) );
-          
-          if( branching_sqr.y + 2 < n_sqrs_h )
-          {
-            (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y + 2, t) );
-            
-            if( branching_sqr.y + 3 < n_sqrs_h )
-            {
-              (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y + 3, t) );
-              
-              if( branching_sqr.y + 4 < n_sqrs_h )
-                (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y + 4, t) );
-            }
-          }
-        }
-      } // end if x > 0
+      } // end if y > 0
     } // end if S
     else if( branching_to_plane == SW )
     {
@@ -1034,7 +1043,6 @@ void best_cost::find_updating_sqrs( const coord branching_sqr,
               (*out_updating_cells).push_back( coord(branching_sqr.x - 3, branching_sqr.y - 1, t) );
             }
           }
-          
           if( branching_sqr.y > 0 )
             (*out_updating_cells).push_back( coord(branching_sqr.x - 2, branching_sqr.y - 1, t) );
           
@@ -1171,7 +1179,8 @@ void best_cost::find_updating_sqrs( const coord branching_sqr,
     } // end if NW
   } // end if branch_width == 10
 #ifdef DEBUG
-  assert( (*out_updating_cells).size() <= branch_width );
+  cout << endl << endl << "Gonna break cause size of updating cells is " << (*out_updating_cells).size() << endl;
+  assert( (int)(*out_updating_cells).size() <= branch_width );
 #endif
 }
 
