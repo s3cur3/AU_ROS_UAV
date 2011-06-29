@@ -165,8 +165,8 @@ private:
    * @return The address of the coordinate in the list_of_sqrs with minimum distance
    *         from the starting square
    */
-  coord get_closest_sqr( const coord starting_sqr, 
-                         vector< coord > * list_of_sqrs );
+  coord get_branching_sqr( const coord starting_sqr, 
+                           vector< coord > * list_of_sqrs );
   
   /**
    * Returns an array of the squares which will update their neighbors 
@@ -311,10 +311,7 @@ void best_cost::initialize_path( )
     // opposite of the bearing from the plane to the goal
     bearing_t branching_to_plane = reverse_bearing( (*owner).get_named_bearing_to_dest() );  
     
-#ifdef DEBUG_BC
-    cout << "We say the bearing from the dest to the plane is " << bearing_to_string(branching_to_plane) << endl;
-#endif
-    
+    cout << "                                        Setting sqrs close to start " << endl;
     // The first time we run, the squares that will update their neighbors' true best
     // cost is simply the branch_width squares adjacent to the goal which are closest
     // to the plane
@@ -324,14 +321,18 @@ void best_cost::initialize_path( )
     {
       bc->set_danger_at( (*init_sqr).x, (*init_sqr).y, t, 
                          get_euclidean_dist_between( goal.x, goal.y, (*init_sqr).x, (*init_sqr).y ) + 
-                         map_weight * (*mc)( (*init_sqr).x, (*init_sqr).y, t ) );
+                         map_weight * ((*mc)( (*init_sqr).x, (*init_sqr).y, t ) + 
+                                       (*mc)( goal.x, goal.y, t )) );
     }
+    
+    cout << "First of updating cells is (" << updating_cells.front().x << ", " << updating_cells.front().y << ")" << endl;
     
     coord * branching_sqr;
     
     // The squares we are changing in each round of the while loop
     vector< coord > cells_to_change;
     
+    cout << "                                        Entering while " << endl;
     while( !start_has_been_updated && updating_cells.size() > 0 )
     {
 #ifdef DEBUG
@@ -339,18 +340,12 @@ void best_cost::initialize_path( )
       assert( updating_cells.size() > 0 );
 #endif
       
-      branching_sqr = new coord( get_closest_sqr( start, &updating_cells ) );
-#ifdef DEBUG_BC
-      cout << "  Euclidean bearing from branching sqr to start is " << calculate_euclidean_bearing(
-                                                                                      (*branching_sqr).x, (*branching_sqr).y, start.x, start.y ) << endl;
-#endif
+      branching_sqr = new coord( get_branching_sqr( start, &updating_cells ) );
+      cout << "Branching sqr is (" << (*branching_sqr).x << ", " << (*branching_sqr).y << ")" << endl;
+      
       branching_to_plane = name_bearing( calculate_euclidean_bearing(
         (*branching_sqr).x, (*branching_sqr).y, start.x, start.y ) );
-#ifdef DEBUG_BC
-      cout << "  Calculated bearing from branching square (" <<
-      (*branching_sqr).x << ", " << (*branching_sqr).y << ") to be " << bearing_to_string(branching_to_plane) << endl;
-#endif
-      
+
       find_updating_sqrs( (*branching_sqr), branching_to_plane, t, &cells_to_change );
 #ifdef DEBUG
       assert( cells_to_change.size() <= branch_width );
@@ -368,48 +363,59 @@ void best_cost::initialize_path( )
         
         double lowest_cost_so_far = numeric_limits<double>::max( );
         
+#ifdef DEBUG_BC
+        /*
+        cout << "Potential mins are: " << endl;
+        for( vector< coord >::iterator p_min = updating_cells.begin();
+            p_min != updating_cells.end(); ++p_min )
+        {
+          cout << "   (" << (*p_min).x << ", " <<
+          (*p_min).y << ")" << endl;
+        }
+         */
+#endif
+        
         // Each of the updating cells is potentially the min-cost reachable sqr
         for( vector< coord >::iterator p_min = updating_cells.begin();
             p_min != updating_cells.end(); ++p_min )
         {
+          /* we'll consider everything reachable 
           // If this square is adjacent to the one we're changing . . .
           if( ( (int)(*p_min).x - (int)(*changing_sqr).x <= 1 &&
                 (int)(*p_min).x - (int)(*changing_sqr).x >= -1 ) &&
               ( (int)(*p_min).y - (int)(*changing_sqr).y <= 1 &&
                 (int)(*p_min).y - (int)(*changing_sqr).y >= -1 ) )
+          { */
+          double distance = 
+          get_euclidean_dist_between( (*p_min).x, (*p_min).y,
+                                     (*changing_sqr).x, (*changing_sqr).y );
+          
+          double bc_with_p_min = (*bc)( (*p_min).x, (*p_min).y, t ) + distance +
+          map_weight * danger_of_changing_sqr;
+          
+          // If this is the lowest cost we've seen so far, and the BC at this 
+          // square doesn't incorporate a plane danger . . .
+          if( bc_with_p_min < lowest_cost_so_far )
           {
-            double bc_of_p_min = (*bc)( (*p_min).x, (*p_min).y, t );
+            cout << "Changed bc at (" << (*changing_sqr).x << ", " <<
+            (*changing_sqr).y << ") to " << bc_with_p_min << " because bc with pmin is " << bc_with_p_min << endl;
             
-            // If this is the lowest cost we've seen so far, and the BC at this 
-            // square doesn't incorporate a plane danger . . .
-            if( bc_of_p_min < lowest_cost_so_far && 
-                bc_of_p_min < ( danger_of_changing_sqr + (plane_danger*0.9) ) )
-            {
-              double distance = 
-                get_euclidean_dist_between( (*p_min).x, (*p_min).y,
-                                            (*changing_sqr).x, (*changing_sqr).y );
-              
-              
-              cout << "Changed bc at (" << (*changing_sqr).x << ", " <<
-                (*changing_sqr).y << ") to " << bc_of_p_min + distance +
-                map_weight * danger_of_changing_sqr << " because bc of pmin is " << bc_of_p_min << endl;
-              
-              bc->set_danger_at( (*changing_sqr).x, (*changing_sqr).y, t, 
-                                 bc_of_p_min + distance +
-                                 map_weight * danger_of_changing_sqr );
-            }
-            else
-            {
-              double distance = 
-              get_euclidean_dist_between( (*p_min).x, (*p_min).y,
-                                         (*changing_sqr).x, (*changing_sqr).y );
-              
-              cout << "Didn't change bc at (" << (*changing_sqr).x << ", " <<
-              (*changing_sqr).y << ") to " << bc_of_p_min + distance +
-              map_weight * danger_of_changing_sqr << " because bc of pmin is " << bc_of_p_min << endl;
-
-            }
-          } 
+            bc->set_danger_at( (*changing_sqr).x, (*changing_sqr).y, t, 
+                              bc_with_p_min  );
+            
+            lowest_cost_so_far = bc_with_p_min;
+          }
+          else
+          {            
+            cout << "Didn't change bc at (" << (*changing_sqr).x << ", " <<
+            (*changing_sqr).y << ") to " << bc_with_p_min << " because bc with pmin is " << bc_with_p_min << endl;
+            
+          }
+          /*
+          } // end if square is reachable
+           
+           Add this back if not considering everything reachable
+           */
         } // end for each square in updating_cells
       
         if( (*changing_sqr).x == start.x && (*changing_sqr).y == start.y )
@@ -418,7 +424,7 @@ void best_cost::initialize_path( )
 #ifdef DEBUG_BC
           cout << "BC at start is " << (*bc)( start.x, start.y, t ) << endl << endl;
 #endif
-        }
+        } // end if start has been updated
         
 #ifdef DEBUG_BC
         cout << "    Changed sqr: (" << (*changing_sqr).x << ", " << (*changing_sqr).y << ")" << endl;
@@ -444,6 +450,8 @@ void best_cost::initialize_path( )
     }
     
     updating_cells.clear();
+    
+    cout << "                                      Finished a time step " << endl;
   } // end for each time step
   
   danger_threshold = (*bc)( start.x, start.y, start.t );
@@ -452,10 +460,11 @@ void best_cost::initialize_path( )
 void best_cost::minimize_cost()
 {
   // Increase the travel cost to search a smaller area
-  const double travel_cost = res;
+  const double travel_cost = 1.0;
   // the cost of traversing a diagonal
-  const double dag_travel_cost = SQRT_2 * travel_cost;
+  const double dag_travel_cost = SQRT_2 * 1.0;
   
+  cout << "                                      Beginning min cost" << endl;
   while( to_do.size() != 0 )
   {
     // Note that variable names i and j come from
@@ -467,26 +476,17 @@ void best_cost::minimize_cost()
     // The squares whose best cost could change based on the value of i
     vector< coord > neighbors;
     
-    // Unlike the situation in "Highly parallelizable . . . ", we can't get away with
-    // considering only the up, down, left, and right neighbors (ignoring diagonals)
+    // Since we're using square buffers around planes, we can get away with 
+    // considering only the up, down, left, and right neighbors (ignoring diagonals),
+    // as in "Highly parallelizable . . . "
     if( i.x + 1 < n_sqrs_w ) // Only add neighbor if it is a legal square
     {
       neighbors.push_back( coord( i.x + 1, i.y, i.t ) ); // right neighbor
-      
-      if( i.y + 1 < n_sqrs_h )
-       neighbors.push_back( coord( i.x + 1, i.y + 1, i.t, 'd' ) ); // down-right neighbor
-      if( i.y > 0 )
-       neighbors.push_back( coord( i.x + 1, i.y - 1, i.t, 'd' ) ); // up-right neighbor
     }
     
     if( i.x > 0 )
     {
       neighbors.push_back( coord( i.x - 1, i.y, i.t ) ); // left neighbor
-      
-      if( i.y + 1 < n_sqrs_h )
-       neighbors.push_back( coord( i.x - 1, i.y + 1, i.t, 'd' ) ); // down-left neighbor
-      if( i.y > 0 )
-       neighbors.push_back( coord( i.x - 1, i.y - 1, i.t, 'd' ) ); // down-right neighbor
     }
     
     if( i.y + 1 < n_sqrs_h )
@@ -521,8 +521,8 @@ void best_cost::minimize_cost()
           in_to_do[ j->x ][ j->y ][ j->t ] = true;
         }
       }
-    }
-  }
+    } // end for each neighbor j of i
+  } // end while to_do.size != 0
 }
 
 void best_cost::initialize_to_do_index()
@@ -568,7 +568,7 @@ unsigned int best_cost::get_height_in_squares() const
 }
 
 
-coord best_cost::get_closest_sqr( const coord starting_sqr, 
+coord best_cost::get_branching_sqr( const coord starting_sqr, 
                                     vector< coord > * list_of_sqrs )
 {
 #ifdef DEBUG
@@ -576,38 +576,48 @@ coord best_cost::get_closest_sqr( const coord starting_sqr,
     assert( false );
 #endif
   
-  double min_d = 10000000;
-  double d_to_crnt;
-  coord * closest_sqr;
+  vector< double > d_to_sqr;
+  d_to_sqr.resize( (*list_of_sqrs).size() );
   
-  for( vector< coord >::iterator crnt_sqr = (*list_of_sqrs).begin(); 
-       crnt_sqr != (*list_of_sqrs).end(); ++crnt_sqr )
+  coord * branching_sqr;
+  
+  // find distances
+  for( natural crnt_sqr = 0; crnt_sqr < (*list_of_sqrs).size(); crnt_sqr++ )
   {
-    d_to_crnt = sqrt( ((*crnt_sqr).x - start.x)*((*crnt_sqr).x - start.x) + 
-                      ((*crnt_sqr).y - start.y)*((*crnt_sqr).y - start.y) );
-    if( d_to_crnt < min_d )
+    d_to_sqr[ crnt_sqr ] = 
+    sqrt( ((*list_of_sqrs)[ crnt_sqr ].x - start.x)*((*list_of_sqrs)[ crnt_sqr ].x - start.x) + 
+          ((*list_of_sqrs)[ crnt_sqr ].y - start.y)*((*list_of_sqrs)[ crnt_sqr ].y - start.y) );
+  }
+  
+  vector< double > original = d_to_sqr;
+  
+  sort( d_to_sqr.begin(), d_to_sqr.end() );
+  
+  // find which of the squares had the middlest distance
+  for( natural crnt_sqr = 0; crnt_sqr < (*list_of_sqrs).size(); crnt_sqr++ )
+  {
+    if( d_to_sqr[ (*list_of_sqrs).size() / 2 ] - original[ crnt_sqr ] < EPSILON && 
+       d_to_sqr[ (*list_of_sqrs).size() / 2 ] - original[ crnt_sqr ] > -EPSILON )
     {
-      min_d = d_to_crnt;
-      closest_sqr = &(*crnt_sqr);
+      branching_sqr = &( (*list_of_sqrs)[ crnt_sqr ] );
+#ifdef DEBUG_BC
+      cout << "Given the following " << (*list_of_sqrs).size() << " choices " << endl;
+      for( vector< coord >::iterator crnt_sqr = (*list_of_sqrs).begin(); 
+          crnt_sqr != (*list_of_sqrs).end(); ++crnt_sqr )
+      {
+        cout << "(" << (*crnt_sqr).x << ", " << (*crnt_sqr).y << "), ";
+      }
+      cout << endl << "...we chose ("<< (*branching_sqr).x << ", " << (*branching_sqr).y << ") " << endl;
+#endif
+      
+#ifdef DEBUG
+      assert( (*branching_sqr).x < n_sqrs_w );
+      assert( (*branching_sqr).y < n_sqrs_h );
+#endif
+      
+      return (*branching_sqr);
     }
   }
-  
-#ifdef DEBUG_BC
-  cout << "Given the choices ";
-  for( vector< coord >::iterator crnt_sqr = (*list_of_sqrs).begin(); 
-      crnt_sqr != (*list_of_sqrs).end(); ++crnt_sqr )
-  {
-    cout << "(" << (*crnt_sqr).x << ", " << (*crnt_sqr).y << "), ";
-  }
-  cout << endl << "...we chose ("<< (*closest_sqr).x << ", " << (*closest_sqr).y << ") " << endl;
-#endif
-  
-#ifdef DEBUG
-  assert( (*closest_sqr).x < n_sqrs_w );
-  assert( (*closest_sqr).y < n_sqrs_h );
-#endif
-  
-  return (*closest_sqr);
 }
 
 void best_cost::find_updating_sqrs( const coord branching_sqr,
@@ -617,6 +627,9 @@ void best_cost::find_updating_sqrs( const coord branching_sqr,
 #ifdef DEBUG
   assert( (*out_updating_cells).size() == 0 );
 #endif
+  
+  (*out_updating_cells).reserve( branch_width ); // save a bit of time later, maybe
+  
   if( branch_width == 3 )
   {
     if( branching_to_plane == N )
@@ -724,7 +737,439 @@ void best_cost::find_updating_sqrs( const coord branching_sqr,
         (*out_updating_cells).push_back( coord(branching_sqr.x, branching_sqr.y - 1, t) ); // straight up
     }
   }
-  
+  else if( branch_width == 10 )
+  {
+    if( branching_to_plane == N )
+    {
+      if( branching_sqr.y > 0 ) // safe to add squares that are up 1
+      {
+        if( branching_sqr.x > 4 ) // safe to add squares that are 5 left
+          (*out_updating_cells).push_back( coord(branching_sqr.x - 5, branching_sqr.y - 1, t) );
+        
+        if( branching_sqr.x > 3 ) // safe to add squares that are 4 left
+          (*out_updating_cells).push_back( coord(branching_sqr.x - 4, branching_sqr.y - 1, t) );
+        
+        if( branching_sqr.x > 2 ) // safe to add squares that are 3 left
+          (*out_updating_cells).push_back( coord(branching_sqr.x - 3, branching_sqr.y - 1, t) );
+        
+        if( branching_sqr.x > 1 ) // safe to add squares that are 2 left
+          (*out_updating_cells).push_back( coord(branching_sqr.x - 2, branching_sqr.y - 1, t) );
+        
+        if( branching_sqr.x > 0 ) // safe to add squares that are 1 left
+          (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y - 1, t) ); // up and left
+        
+        (*out_updating_cells).push_back( coord( branching_sqr.x, branching_sqr.y - 1, t) ); // straight up
+        
+        if( branching_sqr.x + 1 < n_sqrs_w ) // safe to add squares that are 1 right
+          (*out_updating_cells).push_back( coord(branching_sqr.x + 1, branching_sqr.y - 1, t) ); // up and right
+        
+        if( branching_sqr.x + 2 < n_sqrs_w ) // safe to add squares that are 2 right
+          (*out_updating_cells).push_back( coord(branching_sqr.x + 2, branching_sqr.y - 1, t) );
+        
+        if( branching_sqr.x + 3 < n_sqrs_w ) // safe to add squares that are 3 right
+          (*out_updating_cells).push_back( coord(branching_sqr.x + 3, branching_sqr.y - 1, t) );
+        
+        if( branching_sqr.x + 4 < n_sqrs_w ) // safe to add squares that are 4 right
+          (*out_updating_cells).push_back( coord(branching_sqr.x + 4, branching_sqr.y - 1, t) );
+      }
+    }
+    else if( branching_to_plane == NE )
+    {
+      if( branching_sqr.x > 0 )
+      {
+        if( branching_sqr.x > 1 )
+        {
+          if( branching_sqr.y > 2 )
+            (*out_updating_cells).push_back( coord(branching_sqr.x - 2, branching_sqr.y - 3, t) );
+        }
+        if( branching_sqr.y > 1 )
+          (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y - 2, t) );
+      }
+      
+      if( branching_sqr.y > 0 )
+      {
+        if( branching_sqr.y > 1 )
+          (*out_updating_cells).push_back( coord(  branching_sqr.x  , branching_sqr.y - 2, t) );
+        
+        (*out_updating_cells).push_back( coord(  branching_sqr.x  , branching_sqr.y - 1, t) );
+      }
+      
+      if( branching_sqr.x + 1 < n_sqrs_w )
+      {
+        if( branching_sqr.y > 0 )
+          (*out_updating_cells).push_back( coord(branching_sqr.x + 1, branching_sqr.y - 1, t) );
+        
+        if( branching_sqr.y + 1 < n_sqrs_h )
+          (*out_updating_cells).push_back( coord(branching_sqr.x + 1,   branching_sqr.y  , t) );
+      }
+      
+      
+      if( branching_sqr.x + 2 < n_sqrs_w )
+      {
+        (*out_updating_cells).push_back( coord(branching_sqr.x + 2,   branching_sqr.y  , t) );
+        
+        if( branching_sqr.y + 1 < n_sqrs_h )
+        {
+          (*out_updating_cells).push_back( coord(branching_sqr.x + 2, branching_sqr.y + 1, t) );
+        }
+      }
+      
+      if( branching_sqr.x + 3 < n_sqrs_w )
+      {
+        if( branching_sqr.y + 1 < n_sqrs_h )
+        {
+          (*out_updating_cells).push_back( coord(branching_sqr.x + 3, branching_sqr.y + 1, t) );
+        
+          if( branching_sqr.y + 2 < n_sqrs_h )
+            (*out_updating_cells).push_back( coord(branching_sqr.x + 3, branching_sqr.y + 2, t) );
+        }
+      }
+    } // end if NE
+    else if( branching_to_plane == E )
+    {
+      if( branching_sqr.x + 1 < n_sqrs_w ) // safe to add squares that are 1 left
+      {
+        if( branching_sqr.y > 0 )
+        {
+          if( branching_sqr.y > 1 )
+          {
+            if( branching_sqr.y > 2 )
+            {
+              if( branching_sqr.y > 3 )
+              {
+                if( branching_sqr.y > 4 )
+                  (*out_updating_cells).push_back( coord(branching_sqr.x + 1, branching_sqr.y - 5, t) );
+                
+                (*out_updating_cells).push_back( coord(branching_sqr.x + 1, branching_sqr.y - 4, t) );
+              }
+              
+              (*out_updating_cells).push_back( coord(branching_sqr.x + 1, branching_sqr.y - 3, t) );
+            }
+            
+            (*out_updating_cells).push_back( coord(branching_sqr.x + 1, branching_sqr.y - 2, t) );
+          }
+          
+          (*out_updating_cells).push_back( coord(branching_sqr.x + 1, branching_sqr.y - 1, t) );
+        }
+        
+        (*out_updating_cells).push_back( coord(branching_sqr.x + 1, branching_sqr.y, t) );
+        
+        if( branching_sqr.y + 1 < n_sqrs_h )
+        {
+          (*out_updating_cells).push_back( coord(branching_sqr.x + 1, branching_sqr.y + 1, t) );
+          
+          if( branching_sqr.y + 2 < n_sqrs_h )
+          {
+            (*out_updating_cells).push_back( coord(branching_sqr.x + 1, branching_sqr.y + 2, t) );
+            
+            if( branching_sqr.y + 3 < n_sqrs_h )
+            {
+              (*out_updating_cells).push_back( coord(branching_sqr.x + 1, branching_sqr.y + 3, t) );
+              
+              if( branching_sqr.y + 4 < n_sqrs_h )
+                (*out_updating_cells).push_back( coord(branching_sqr.x + 1, branching_sqr.y + 4, t) );
+            }
+          }
+        }
+      } // end if x > 0
+    } // end if E
+    else if( branching_to_plane == SE )
+    {
+      if( branching_sqr.x > 0 )
+      {
+        if( branching_sqr.x > 1 )
+        {
+          if( branching_sqr.y + 3 < n_sqrs_h )
+            (*out_updating_cells).push_back( coord(branching_sqr.x - 2, branching_sqr.y + 3, t) );
+        }
+        if( branching_sqr.y + 2 < n_sqrs_h )
+        {
+          (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y + 2, t) );
+          
+          if( branching_sqr.y + 3 < n_sqrs_h )
+          {
+            (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y + 3, t) );
+          }
+        }
+      }
+      
+      if( branching_sqr.y + 1 < n_sqrs_h )
+      {
+        if( branching_sqr.y + 2 < n_sqrs_h )
+          (*out_updating_cells).push_back( coord(branching_sqr.x, branching_sqr.y + 2, t) );
+        
+        (*out_updating_cells).push_back( coord(branching_sqr.x, branching_sqr.y + 1, t) );
+      }
+      
+      if( branching_sqr.x + 1 < n_sqrs_w )
+      {
+        (*out_updating_cells).push_back( coord(branching_sqr.x + 1, branching_sqr.y, t) );
+        
+        if( branching_sqr.y + 1 < n_sqrs_h )
+          (*out_updating_cells).push_back( coord(branching_sqr.x + 1, branching_sqr.y + 1, t) );
+      }
+      
+      
+      if( branching_sqr.x + 2 < n_sqrs_w )
+      {
+        (*out_updating_cells).push_back( coord(branching_sqr.x + 2,   branching_sqr.y  , t) );
+        
+        if( branching_sqr.y > 0 )
+        {
+          (*out_updating_cells).push_back( coord(branching_sqr.x + 2, branching_sqr.y - 1, t) );
+        }
+      }
+      
+      if( branching_sqr.x + 3 < n_sqrs_w )
+      {
+        if( branching_sqr.y > 1 )
+          (*out_updating_cells).push_back( coord(branching_sqr.x + 3, branching_sqr.y - 2, t) );
+      }
+    } // end if SE
+    else if( branching_to_plane == S )
+    {
+      if( branching_sqr.y > 0 ) // safe to add squares that are 1 down
+      {
+        if( branching_sqr.x > 0 )
+        {
+          if( branching_sqr.x > 1 )
+          {
+            if( branching_sqr.x > 2 )
+            {
+              if( branching_sqr.x > 3 )
+              {
+                if( branching_sqr.x > 4 )
+                  (*out_updating_cells).push_back( coord(branching_sqr.x - 5, branching_sqr.y + 1, t) );
+                
+                (*out_updating_cells).push_back( coord(branching_sqr.x - 4, branching_sqr.y + 1, t) );
+              }
+              
+              (*out_updating_cells).push_back( coord(branching_sqr.x - 3, branching_sqr.y + 1, t) );
+            }
+            
+            (*out_updating_cells).push_back( coord(branching_sqr.x - 3, branching_sqr.y + 1, t) );
+          }
+          
+          (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y + 1, t) );
+        }
+        
+        (*out_updating_cells).push_back( coord(branching_sqr.x, branching_sqr.y + 1, t) );
+        
+        if( branching_sqr.x + 1 < n_sqrs_w )
+        {
+          (*out_updating_cells).push_back( coord(branching_sqr.x + 1, branching_sqr.y + 1, t) );
+          
+          if( branching_sqr.x + 2 < n_sqrs_w )
+          {
+            (*out_updating_cells).push_back( coord(branching_sqr.x + 2, branching_sqr.y + 1, t) );
+            
+            if( branching_sqr.x + 3 < n_sqrs_w )
+            {
+              (*out_updating_cells).push_back( coord(branching_sqr.x + 3, branching_sqr.y + 1, t) );
+              
+              if( branching_sqr.x + 4 < n_sqrs_w )
+                (*out_updating_cells).push_back( coord(branching_sqr.x + 4, branching_sqr.y + 1, t) );
+            }
+          }
+        }
+      } // end if x > 0if( branching_sqr.x > 0 ) // safe to add squares that are 1 left
+      {
+        if( branching_sqr.y > 0 )
+        {
+          if( branching_sqr.y > 1 )
+          {
+            if( branching_sqr.y > 2 )
+            {
+              if( branching_sqr.y > 3 )
+              {
+                if( branching_sqr.y > 4 )
+                  (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y - 5, t) );
+                
+                (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y - 4, t) );
+              }
+              
+              (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y - 3, t) );
+            }
+            
+            (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y - 2, t) );
+          }
+          
+          (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y - 1, t) );
+        }
+        
+        (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y, t) );
+        
+        if( branching_sqr.y + 1 < n_sqrs_h )
+        {
+          (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y + 1, t) );
+          
+          if( branching_sqr.y + 2 < n_sqrs_h )
+          {
+            (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y + 2, t) );
+            
+            if( branching_sqr.y + 3 < n_sqrs_h )
+            {
+              (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y + 3, t) );
+              
+              if( branching_sqr.y + 4 < n_sqrs_h )
+                (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y + 4, t) );
+            }
+          }
+        }
+      } // end if x > 0
+    } // end if S
+    else if( branching_to_plane == SW )
+    {
+      if( branching_sqr.x > 0 )
+      {
+        if( branching_sqr.x > 1 )
+        {
+          if( branching_sqr.x > 2 )
+          {
+            if( branching_sqr.y > 0 )
+            {
+              if( branching_sqr.y > 1 )
+                (*out_updating_cells).push_back( coord(branching_sqr.x - 3, branching_sqr.y - 2, t) );
+                
+              (*out_updating_cells).push_back( coord(branching_sqr.x - 3, branching_sqr.y - 1, t) );
+            }
+          }
+          
+          if( branching_sqr.y > 0 )
+            (*out_updating_cells).push_back( coord(branching_sqr.x - 2, branching_sqr.y - 1, t) );
+          
+          (*out_updating_cells).push_back( coord(branching_sqr.x - 2, branching_sqr.y, t) );
+        }
+        if( branching_sqr.y + 1 < n_sqrs_h )
+        {
+          (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y + 1, t) );
+        }
+        (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y, t) );
+
+      }
+      
+      if( branching_sqr.y + 1 < n_sqrs_h )
+      {
+        (*out_updating_cells).push_back( coord(branching_sqr.x, branching_sqr.y + 1, t) );
+        
+        if( branching_sqr.y + 2 < n_sqrs_h )
+          (*out_updating_cells).push_back( coord(branching_sqr.x, branching_sqr.y + 2, t) );
+      }
+      
+      if( branching_sqr.x + 1 < n_sqrs_w )
+      {        
+        if( branching_sqr.y + 2 < n_sqrs_h )
+          (*out_updating_cells).push_back( coord(branching_sqr.x + 1, branching_sqr.y + 2, t) );
+        
+        if( branching_sqr.x + 2 < n_sqrs_w )
+        {          
+          if( branching_sqr.y > 2 )
+          {
+            (*out_updating_cells).push_back( coord(branching_sqr.x + 2, branching_sqr.y - 3, t) );
+          }
+        }
+      }
+    }
+    else if( branching_to_plane == W )
+    {
+      if( branching_sqr.x > 0 ) // safe to add squares that are 1 left
+      {
+        if( branching_sqr.y > 0 )
+        {
+          if( branching_sqr.y > 1 )
+          {
+            if( branching_sqr.y > 2 )
+            {
+              if( branching_sqr.y > 3 )
+              {
+                if( branching_sqr.y > 4 )
+                  (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y - 5, t) );
+                
+                (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y - 4, t) );
+              }
+              
+              (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y - 3, t) );
+            }
+            
+            (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y - 2, t) );
+          }
+          
+          (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y - 1, t) );
+        }
+        
+        (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y, t) );
+        
+        if( branching_sqr.y + 1 < n_sqrs_h )
+        {
+          (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y + 1, t) );
+          
+          if( branching_sqr.y + 2 < n_sqrs_h )
+          {
+            (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y + 2, t) );
+            
+            if( branching_sqr.y + 3 < n_sqrs_h )
+            {
+              (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y + 3, t) );
+              
+              if( branching_sqr.y + 4 < n_sqrs_h )
+                (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y + 4, t) );
+            }
+          }
+        }
+      } // end if x > 0
+    } // end if W
+    else if( branching_to_plane == NW )
+    {
+      if( branching_sqr.x > 0 )
+      {
+        if( branching_sqr.x > 2 )
+        {
+          if( branching_sqr.y + 1 < n_sqrs_h )
+          {
+            if( branching_sqr.y + 2 < n_sqrs_h )
+              (*out_updating_cells).push_back( coord(branching_sqr.x - 3, branching_sqr.y + 2, t) );
+            
+            (*out_updating_cells).push_back( coord(branching_sqr.x - 3, branching_sqr.y + 1, t) );
+          }
+        }
+        
+        if( branching_sqr.x > 1 )
+        {
+          (*out_updating_cells).push_back( coord(branching_sqr.x - 2, branching_sqr.y, t) );
+          
+          if( branching_sqr.y + 1 < n_sqrs_h )
+            (*out_updating_cells).push_back( coord(branching_sqr.x - 2, branching_sqr.y + 1, t) );
+        }
+        
+        if( branching_sqr.y > 0 )
+          (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y - 1, t) );
+        
+        (*out_updating_cells).push_back( coord(branching_sqr.x - 1, branching_sqr.y, t) );
+      }
+      
+      if( branching_sqr.y > 0 )
+      {
+        if( branching_sqr.y > 1 )
+          (*out_updating_cells).push_back( coord(  branching_sqr.x  , branching_sqr.y - 2, t) );
+        
+        (*out_updating_cells).push_back( coord(  branching_sqr.x  , branching_sqr.y - 1, t) );
+      }
+      
+      if( branching_sqr.x + 1 < n_sqrs_w )
+      {
+        if( branching_sqr.y > 1 )
+          (*out_updating_cells).push_back( coord(branching_sqr.x + 1, branching_sqr.y - 2, t) );
+      }
+      
+      if( branching_sqr.x + 2 < n_sqrs_w )
+      {        
+        if( branching_sqr.y > 2 )
+        {
+          (*out_updating_cells).push_back( coord(branching_sqr.x + 2, branching_sqr.y - 3, t) );
+        }
+      }
+    } // end if NW
+  } // end if branch_width == 10
 #ifdef DEBUG
   assert( (*out_updating_cells).size() <= branch_width );
 #endif

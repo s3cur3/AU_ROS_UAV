@@ -166,10 +166,10 @@ namespace map_tools
   
   /**
    * Calculates the distance between two points in a plane using the Pythagorean
-   * theorem.
+   * theorem. Note that this will be in GRID SQUARES.
    * @param x_1, y_1 The x and y coordinates of the first point
    * @param x_2, y_2 The x and y coordinates of the other point
-   * @return The calculated distance between (x_1, y_1) and (x_2, y_2)
+   * @return The calculated distance between (x_1, y_1) and (x_2, y_2), in grid squares
    */
   double get_euclidean_dist_between( int x_1, int y_1,
                                      int x_2, int y_2 );
@@ -408,7 +408,7 @@ double map_tools::to_radians( double angle_in_degrees )
 }
 
 double map_tools::get_euclidean_dist_between( int x_1, int y_1,
-                                             int x_2, int y_2 )
+                                              int x_2, int y_2 )
 {
   return sqrt( (x_2 - x_1)*(x_2 - x_1) + (y_2 - y_1)*(y_2 - y_1) );
 }

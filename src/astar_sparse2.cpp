@@ -213,7 +213,7 @@ bool MapSearchNode::IsGoal( MapSearchNode &nodeGoal )
 // is specific to the application
 bool MapSearchNode::GetSuccessors( AStarSearch<MapSearchNode> *astarsearch, MapSearchNode *parent_node )
 {
-  //cout << endl << "(" << x << ", " << y << ") : " << timestep << endl;
+  cout << endl << "(" << x << ", " << y << ") : " << timestep << endl;
   point temp;
   temp.x = x;
   temp.y = y;
@@ -294,7 +294,7 @@ bool MapSearchNode::GetSuccessors( AStarSearch<MapSearchNode> *astarsearch, MapS
       parent_bearing = NE;
     }
     
-    //cout << "My parent is: " << parent_x << ", " << parent_y << ", " << parent_node->timestep << endl;
+    cout << "My parent is: " << parent_x << ", " << parent_y << ", " << parent_node->timestep << endl;
   } 
 
   // update our time step
@@ -337,7 +337,7 @@ bool MapSearchNode::GetSuccessors( AStarSearch<MapSearchNode> *astarsearch, MapS
     lesser_y = s_y - sparse_expansion;
   }
 
-  for (int i = 0; i < 5; i++){
+  for (int i = 1; i < 4; i++){
     //cout << "Greater X: " << greater_x << " and Lesser X: " << lesser_x << " and Greater Y: " << greater_y << " and Lesser Y: " << lesser_y <<endl;
     //cout << "X: " << x << " --> " << x + movex[r[i]] << endl;
     //cout << "Y: " << y << " --> " << y + movey[r[i]] << endl;
@@ -360,7 +360,7 @@ bool MapSearchNode::GetSuccessors( AStarSearch<MapSearchNode> *astarsearch, MapS
 	(int)x + movex[r[i]] >= lesser_x && (int)x + movex[r[i]] <= greater_x &&
 	(int)y + movey[r[i]] >= lesser_y && (int)y + movey[r[i]] <= greater_y){
       legal_moves.insert(r[i]);
-      //cout << " GO: X -- " << x+movex[r[i]] << ", " << y+movey[r[i]] << " at time: " << time_z << " ---- "  << bc_grid->get_pos(x+movex[r[i]], y+movey[r[i]], time_z) << endl;
+      cout << " GO: X -- " << x+movex[r[i]] << ", " << y+movey[r[i]] << " at time: " << time_z << " ---- "  << bc_grid->get_pos(x+movex[r[i]], y+movey[r[i]], time_z) << endl;
     }
   }
 
@@ -801,6 +801,41 @@ point astar_point(best_cost *bc, int startx, int starty, int endx, int endy, int
   else
     num_steps = min_y;
 
+  int k = planeid;
+  if (k == 2){
+  for (int a = 0; a < 3; a++){
+    cout << k << ": " << a << endl;
+    cout << "\033[1;34m    ";
+    for (int x = 0; x < MAP_WIDTH; x++){
+      if (x < 10)
+	cout << "0" << x << " ";
+      else
+	cout << x << " ";
+    }
+    cout << "\033[0m" << endl;
+    for (int y = 0; y < MAP_HEIGHT; y++){
+      if (y < 10)
+	cout << "0" << y << ": ";
+      else
+	cout << y << ": " ;
+      for (int x = 0; x < MAP_WIDTH; x++){
+	if (x == startx && y == starty)
+	  cout << "\033[1;3" << k%8 << "mPP \033[0m";
+	else if (x == endx && y == endy)
+	  cout << "\033[1;35m0"<< round(bc->get_pos(x,y,a)) <<  " \033[0m";
+	else if (round(bc->get_pos(x, y, a)) > 99)
+	  cout << "\033[0;31m99\033[0m" << " " ;
+	else if (round(bc->get_pos(x, y, a)) < 10)
+	  cout << "0" << round(bc->get_pos(x, y, a)) << " ";
+	else
+	  cout << round(bc->get_pos(x, y, a)) << " ";
+      }
+      cout << endl;
+    }
+    cout << endl;
+  }
+  }
+
   // Markers for our movement
   point forward;
   point backward;
@@ -1054,7 +1089,7 @@ point astar_point(best_cost *bc, int startx, int starty, int endx, int endy, int
 	sparse = false; // failed to find a clear path
 	  
 	// Death, Despair, Disaster...a plane will probably be in this spot in the future that we want to avoid
-	//cout << "Danger: (" << x << ", " << avgy << ", " << time_select << ") has " << danger_grid << " vs tolerable " << euclidean_danger << endl;
+	cout << "Danger: (" << avgx << ", " << avgy << ", " << time_select << ") has " << danger_grid << " vs tolerable " << euclidean_danger << endl;
 	danger_point.x = avgx;
 	danger_point.y = avgy;
 	danger_point.t = time_select;
@@ -1075,7 +1110,7 @@ point astar_point(best_cost *bc, int startx, int starty, int endx, int endy, int
 	  // code here
 	  
 	  // Death, Despair, Disaster...a plane will probably be in this spot in the future that we want to avoid
-	  //cout << "Danger: (" << x << ", " << avgy << ", " << time_select << ") has " << danger_grid << " vs tolerable " << euclidean_danger << endl;
+	  cout << "Danger: (" << x << ", " << avgy << ", " << time_select << ") has " << danger_grid << " vs tolerable " << euclidean_danger << endl;
 	  danger_point.x = avgx;
 	  danger_point.y = avgy;
 	  danger_point.t = time_select;
@@ -1098,7 +1133,7 @@ point astar_point(best_cost *bc, int startx, int starty, int endx, int endy, int
 	  // code here
 	  
 	  // Death, Despair, Disaster...a plane will probably be in this spot in the future that we want to avoid
-	  //cout << "Danger: (" << avgx << ", " << y << ", " << time_select << ") has " << danger_grid << " vs tolerable " << euclidean_danger << endl;
+	  cout << "Danger: (" << avgx << ", " << y << ", " << time_select << ") has " << danger_grid << " vs tolerable " << euclidean_danger << endl;
 	  danger_point.x = avgx;
 	  danger_point.y = avgy;
 	  danger_point.t = time_select;
@@ -1154,15 +1189,19 @@ point astar_point(best_cost *bc, int startx, int starty, int endx, int endy, int
     else
       cheb = y;
 
-    if (a_st.x == endx || a_st.y == endy || cheb < 3){
+    
+    if (a_st.x == endx || a_st.y == endy /*|| cheb < 3 */){
       //cout << "staight line " << endl;
       straight_line = true;    
       //getchar();
+    } else {
+      straight_line = false;
     }
+  
 
     // move tracks the x,y position of the A-star path
     //cout << "X: " << opt.x << " vs " << a_st.x << " AND Y: " << opt.y << " vs. " << a_st.y << " on T: " << opt.t << " vs. " << a_st.t << endl;
-    //cout << "OPT: (" << opt.x << ", " << opt.y << ") versus A_ST (" << a_st.x << ", " << a_st.y << ") at " << opt.t << " vs. " << a_st.t << endl;
+    cout << "OPT: (" << opt.x << ", " << opt.y << ") versus A_ST (" << a_st.x << ", " << a_st.y << ") at " << opt.t << " vs. " << a_st.t << endl;
     //cout << "At time " << a_st.t << " we will move to " << a_st.x << ", " << a_st.y << endl;
 
     // Paths have diverged...end loop

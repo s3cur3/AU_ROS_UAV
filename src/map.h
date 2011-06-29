@@ -33,8 +33,8 @@
 
 #ifdef OUTPUT_CSV
 #include "write_to_log.h"
-//const string output_path = "/Volumes/DATA/Dropbox/school/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/log/map/";
-const string output_path = "/mnt/hgfs/Dropbox/school/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/log/map/";
+const string output_path = "/Volumes/DATA/Dropbox/school/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/log/map/";
+//const string output_path = "/mnt/hgfs/Dropbox/school/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/log/map/";
 #endif
 
 #ifdef OUTPUT_CSV
@@ -352,6 +352,8 @@ void map::dump( ) const
   unsigned int mult = 1;
   cout << endl << " Danger ratings:" << endl;
   cout << "    ";
+  
+  // Print the column labels along the top
   for( unsigned int top_guide = 0; top_guide < the_map.size(); ++top_guide )
   {
     if( top_guide < 10 )
@@ -363,11 +365,13 @@ void map::dump( ) const
   
   for( unsigned int right_index = 0; right_index < the_map[ 0 ].size(); ++right_index )
   {
+    // Print the row labels on the far left
     if( right_index < 10 )
       cout << " " << right_index << " ";
     else
       cout << right_index << " ";
     
+    // Print the values themselves
     for( unsigned int left_index = 0; left_index < the_map.size(); ++left_index )
     {
       if( the_map[ left_index ][ right_index ].danger < EPSILON &&
@@ -378,15 +382,16 @@ void map::dump( ) const
       else
       {
         if( the_map[ left_index ][ right_index ].danger > 1000000 )
-          printf( "in " );
+          printf( " in" );
         else if( (the_map[ left_index ][ right_index ].danger)*mult - mult > -EPSILON )
           printf("%3.0f", (the_map[ left_index ][ right_index ].danger)*mult );
         else
           printf( "%2.0f ", (the_map[ left_index ][ right_index ].danger)*mult );
       }
     }
-  }
     cout << endl;
+
+  }
 
 #ifdef OUTPUT_CSV
   stringstream ss( stringstream::out );
