@@ -45,7 +45,7 @@ static const unsigned int look_behind = 2;
 
 // This is defined in the constructor to be a bit greater than:
 // sqrt( (width in squares)^2 + (height in squares) ^2) 
-static double plane_danger;
+static double default_plane_danger;
 
 #ifndef RADIAN_CONSTANTS
 #define RADIAN_CONSTANTS
@@ -72,7 +72,7 @@ public:
    * @param the_map A map which is already set up with a width, height, resolution,
    * etc.
    */
-  danger_grid( vector< Plane > & set_of_aircraft, const map the_map );
+  danger_grid( vector< Plane > & set_of_aircraft, const bc::map the_map );
   
   /**
    * The constructor for the danger grid. It will set up a map per the parameters
@@ -102,16 +102,21 @@ public:
    *                 in the set_of_aircraft vector
    */
   danger_grid( const danger_grid * dg, vector< Plane > * set_of_aircraft,
-              const natural plane_id );
+               const natural plane_id );
   
   /**
    * The copy constructor; takes a reference to a danger grid and makes this object
    * a duplicate.
    * @param dg A reference to another danger grid
-   * @param flag The flag -- if this is set to "infinity", we will initialize all
-   *             squares to the max double value
+   * @param set_of_aircraft A vector array containing the aircraft that need to
+   *                        be considered
+   * @param plane_id The ID of this danger grid's "owner" (should be its position
+   *                 in the set_of_aircraft vector
+   * @param flag The flag -- if this is set to "heuristic", we will initialize all
+   *             squares to the straight-line cost to the goal
    */
-  danger_grid( const danger_grid * dg, string flag );
+  danger_grid( const danger_grid * dg, vector< Plane > * set_of_aircraft,
+               const natural plane_id, string flag );
   
   /**
    * The destructor for the danger_grid object
@@ -177,7 +182,7 @@ public:
    * compatibility with future updates which predict plane locations in the PAST.
    */
   unsigned int get_pred_space_time_in_secs() const;
-  vector< map > get_danger_space() const;
+  vector< bc::map > get_danger_space() const;
   double get_res() const;
   
   /**
@@ -187,21 +192,16 @@ public:
   Plane * get_owner();
   
   /**
+   * Gives the "threshold" value indicating that there is a plane in the square.
+   * Requires a time because the threshold may change depending on the danger
+   * rating at the goal.
+   *
+   * NOTE: Returns -1 if this has not been initialized.
+   * @param time The number of seconds in the future for which you're inquiring
    * @return the danger value indicating we are as certain as we possibly can be that 
    * there is/will be an aircraft in this square at some time
    */
-  double get_plane_danger() const;
-  
-  /**
-   * Modifies the map to store the cost of the path which begins at each square and
-   * takes a straight line to the goal, effectively creating a simplified version of
-   * a best cost grid.
-   * Tyler is adding this here to avoid using a "wrapper" for the straight-line
-   * heuristic.
-   * @param goal_x The x coordinate for the goal
-   * @param goal_y The y coordinate for the goal
-   */
-  void calculate_distance_costs( unsigned int goal_x, unsigned int goal_y );
+  double get_plane_danger( int time ) const;
   
   /**
    * Modifies the map to store the cost of the path which begins at each square and
@@ -215,7 +215,7 @@ public:
    * @param danger_adjust The amount we multiply a danger rating by
    */
   void calculate_distance_costs( unsigned int goal_x, unsigned int goal_y, 
-                                 double danger_adjust );
+                                 const danger_grid * dg, double danger_adjust );
   
   /**
    * Adds cost to grid squares on the left of the aircraft, effectively implementing
@@ -323,24 +323,26 @@ private:
   // the weighting applied to danger estimates in the future
   vector< double > danger_ratings;
   
+  vector< double > plane_danger;
+  
   // the set of aircraft with which we are concerned
   vector< Plane > * aircraft;
   
   // The danger space is a bit strange due to the fact that it's an array of maps,
   // where each position in the array corresponds to a time.
-  vector< map > * danger_space;
+  vector< bc::map > * danger_space;
   
   // The "owner" of this danger grid, for whom we will calculate distance costs &c.
   Plane * owner;
   
 #ifdef OVERLAYED
-  vector< map > overlayed; // Used only when dumping output
+  vector< bc::map > overlayed; // Used only when dumping output
 #endif
   
   double map_res;
   
-  map * dist_map;
-  map * encouraged_right;
+  bc::map * dist_map;
+  bc::map * encouraged_right;
   bool distance_costs_initialized;
 };
 
@@ -363,16 +365,16 @@ danger_grid::danger_grid( vector< Plane > * set_of_aircraft, const double width,
   
   natural sqrs_wide = map_tools::find_width_in_squares( width, height, resolution );
   natural sqrs_high = map_tools::find_height_in_squares( width, height, resolution );
-  plane_danger = sqrt( sqrs_wide * sqrs_wide + sqrs_high * sqrs_high ) * 2.5;
+  default_plane_danger = sqrt( sqrs_wide * sqrs_wide + sqrs_high * sqrs_high ) * 2.5;
   
 #ifdef OVERLAYED
   overlayed.push_back( map( width, height, resolution ) );
 #endif
 
-  map set_up( width, height, resolution );
+  bc::map set_up( width, height, resolution );
   // Make danger_space a set of maps, with one map for each second in time that
   // we will work with.
-  danger_space = new vector< map >( look_ahead + look_behind + 1, set_up );
+  danger_space = new vector< bc::map >( look_ahead + look_behind + 1, set_up );
 
   // Set up the danger ratings
   set_danger_scale( );
@@ -384,7 +386,7 @@ danger_grid::danger_grid( vector< Plane > * set_of_aircraft, const double width,
 danger_grid::danger_grid( const danger_grid * dg, vector< Plane > * set_of_aircraft,
                           const natural plane_id )
 {  
-  danger_space = new vector< map >( dg->get_danger_space() );
+  danger_space = new vector< bc::map >( dg->get_danger_space() );
   owner = &( (*set_of_aircraft)[ plane_id ] );
 #ifdef DEBUG
   assert( owner == get_owner() );
@@ -393,17 +395,17 @@ danger_grid::danger_grid( const danger_grid * dg, vector< Plane > * set_of_aircr
 #endif
 }
 
-danger_grid::danger_grid( const danger_grid * dg, string flag )
+danger_grid::danger_grid( const danger_grid * dg, vector< Plane > * set_of_aircraft,
+                         const natural plane_id,  string flag )
 {
-  if( flag != "infinity" )
+  owner = &( (*set_of_aircraft)[ plane_id ] );
+  if( flag != "heuristic" )
     cout << "You're using the wrong constructor." << endl;
-  assert( flag == "infinity" );
+  assert( flag == "heuristic" );
   
-  map inf( dg->get_width_in_squares() * dg->get_res(), 
-           dg->get_height_in_squares() * dg->get_res(),
-           dg->get_res(), numeric_limits<double>::max( ) );
-  
-  danger_space = new vector< map >( dg->get_pred_space_time_in_secs(), inf );
+  calculate_distance_costs( (*set_of_aircraft)[ plane_id ].getFinalDestination().getX(),
+                            (*set_of_aircraft)[ plane_id ].getFinalDestination().getY(),
+                            dg, 1.0 );
 }
 
 danger_grid::~danger_grid()
@@ -436,7 +438,7 @@ void danger_grid::fill_danger_space( const natural plane_id )
       // Set the danger at the plane's starting location
       (*danger_space)[0 + look_behind].
       add_danger_at( (*current_plane).getLocation().getX(),
-                    (*current_plane).getLocation().getY(), plane_danger);
+                    (*current_plane).getLocation().getY(), default_plane_danger);
 #ifdef OVERLAYED
       overlayed[0].add_danger_at((*current_plane).getLocation().getX(),
                                  (*current_plane).getLocation().getY(), 1.0);
@@ -610,7 +612,7 @@ void danger_grid::set_danger_buffer( double bearing, double unweighted_danger,
 void danger_grid::set_danger_scale( )
 {
   // For now, we aren't scaling anything down
-  danger_ratings.resize( look_behind + look_ahead + 1, plane_danger );
+  danger_ratings.resize( look_behind + look_ahead + 1, default_plane_danger );
 }
 
 double danger_grid::get_danger_at( unsigned int x_pos, unsigned int y_pos,
@@ -688,12 +690,15 @@ Plane * danger_grid::get_owner()
   return owner;
 }
 
-double danger_grid::get_plane_danger() const
+double danger_grid::get_plane_danger( int time ) const
 {
-  return plane_danger;
+  if( plane_danger[ time ] < EPSILON )
+    return -1.0;
+  
+  return plane_danger[ time ];
 }
 
-vector< map > danger_grid::get_danger_space() const
+vector< bc::map > danger_grid::get_danger_space() const
 {
   return (*danger_space);
 }
@@ -1131,21 +1136,17 @@ void danger_grid::dump_est( vector< estimate > dump_me )
   }
 }
 
-void danger_grid::calculate_distance_costs( unsigned int goal_x, unsigned int goal_y )
-{
-  calculate_distance_costs( goal_x, goal_y, 1.0 );
-}
-
 void danger_grid::calculate_distance_costs( unsigned int goal_x, unsigned int goal_y,
-                                            double danger_adjust )
+                                            const danger_grid * dg, double danger_adjust )
 {
   // This will store the cost of travelling from each square to the goal
-  dist_map = new map( get_width_in_squares() * get_res(), get_height_in_squares() * get_res(),
-                      get_res() );
+  dist_map = new bc::map( dg->get_width_in_squares() * dg->get_res(), 
+                          dg->get_height_in_squares() * dg->get_res(),
+                          dg->get_res() );
   
-  for( unsigned int crnt_x = 0; crnt_x <  get_width_in_squares(); crnt_x++ )
+  for( unsigned int crnt_x = 0; crnt_x <  dg->get_width_in_squares(); crnt_x++ )
   {
-    for( unsigned int crnt_y = 0; crnt_y < get_height_in_squares(); crnt_y++ )
+    for( unsigned int crnt_y = 0; crnt_y < dg->get_height_in_squares(); crnt_y++ )
     {
       dist_map->set_danger_at(crnt_x, crnt_y, sqrt( (crnt_x - goal_x)*(crnt_x - goal_x) + 
                          (crnt_y - goal_y)*(crnt_y - goal_y) ) );
@@ -1160,26 +1161,31 @@ void danger_grid::calculate_distance_costs( unsigned int goal_x, unsigned int go
   
   distance_costs_initialized = true;
   
-  vector< map > * old_danger_space = danger_space;
-  danger_space = new vector< map >( look_ahead + look_behind + 1, (*dist_map) );
+  danger_space = new vector< bc::map >( look_ahead + look_behind + 1, (*dist_map) );
   
-  for( unsigned int crnt_x = 0; crnt_x <  get_width_in_squares(); crnt_x++ )
+  double d_at_goal;
+  
+  for( unsigned int crnt_t = 0; crnt_t <= look_ahead; crnt_t++ )
   {
-    for( unsigned int crnt_y = 0; crnt_y < get_height_in_squares(); crnt_y++ )
+    d_at_goal = (*dg).get_danger_at(goal_x, goal_y, crnt_t);
+    
+    plane_danger.push_back( d_at_goal + (default_plane_danger*0.4) );
+    
+    for( unsigned int crnt_x = 0; crnt_x <  dg->get_width_in_squares(); crnt_x++ )
     {
-      for( unsigned int crnt_t = 0; crnt_t < look_ahead; crnt_t++ )
+      for( unsigned int crnt_y = 0; crnt_y < dg->get_height_in_squares(); crnt_y++ )
       {
-        double crnt_danger = (*old_danger_space)[ crnt_t ].get_danger_at( crnt_x, crnt_y );
-        if( crnt_danger > EPSILON )
+        double crnt_danger = (*dg).get_danger_at( crnt_x, crnt_y, crnt_t );
+        
+        if( crnt_danger > EPSILON || d_at_goal > EPSILON )
         {
-          (*danger_space)[crnt_t].set_danger_at( crnt_x, crnt_y,
-                                             danger_adjust * crnt_danger + 
-                                             dist_map->get_danger_at( crnt_x, crnt_y ) );
+          (*danger_space)[crnt_t + look_behind].set_danger_at( crnt_x, crnt_y,
+                                                 danger_adjust * crnt_danger + d_at_goal +
+                                                 dist_map->get_danger_at( crnt_x, crnt_y ) );
         }
       }
     }
   }
-  delete old_danger_space;
 }
 
 void danger_grid::encourage_right( )
@@ -1324,7 +1330,7 @@ void danger_grid::encourage_right( )
     } // end while we haven't reached the edge
   } // end for each deviation from a straight line
   
-  double added_cost = get_plane_danger() * 0.1; // begin with the highest cost we will add
+  double added_cost = default_plane_danger * 0.1; // begin with the highest cost we will add
   
   pts.pop_back(); // the last thing we added was a marker
   

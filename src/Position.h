@@ -28,6 +28,8 @@ private:
 	//position within the grid
 	int x;//long
 	int y;//lat
+  double decimal_x; // decimal version of the x and y coordinates
+  double decimal_y;
 	//position on the earth
 	double lat;//y
 	double lon;//x
@@ -49,6 +51,7 @@ private:
  	double height_in_meters;
 	//functions for converting between systems
   void latLonToXY( int & out_x, int & out_y);
+  void lat_lon_to_decimal_xy( double & out_x, double & out_y);
 	int lonToX();
 	int latToY();
     
@@ -70,6 +73,8 @@ public:
 	double getLon() const;
 	int getX();
 	int getY();
+  double getDecimalX() const;
+  double getDecimalY() const;
 	int getWidth(); // in grid squares
 	int getHeight(); // in grid squares
 	double getUpperLeftLongitude();
@@ -103,6 +108,7 @@ void Position::setLatLon( double latitude, double longitude )
   lon = longitude;
   lat = latitude;
   latLonToXY( x, y );
+  lat_lon_to_decimal_xy( decimal_x, decimal_y );
 }
 
 int Position::getX() // TY changed this to return an int instead of a double
@@ -110,6 +116,16 @@ int Position::getX() // TY changed this to return an int instead of a double
 
 int Position::getY() // TY changed this to return an int instead of a double
 {return y;}
+
+double Position::getDecimalX() const
+{ 
+  return decimal_x;
+}
+
+double Position::getDecimalY() const
+{
+  return decimal_y;
+}
 
 void Position::setXY(int x1, int y1)
 {
@@ -119,6 +135,9 @@ void Position::setXY(int x1, int y1)
 #endif
   x=x1;
   y=y1;
+  decimal_x = x1;
+  decimal_y = y1;
+  
 //  cout << "You just set (x,y) to (" << x << ", " << y << ")" << endl;
 //  cout<<lat<<"    "<<lon<<endl;
   xy_to_latlon( lat, lon );
@@ -177,9 +196,6 @@ Position::Position(double upperLeftLongitude, double upperLeftLatitude,
     
   set_up_grid_parms();
   
-  /*
-  setLon(longitude);
-	setLat(latitude); */
   setLatLon( latitude, longitude );
 }
 
@@ -196,9 +212,6 @@ Position::Position(double upperLeftLongitude, double upperLeftLatitude, // THOMA
     
   set_up_grid_parms();
   
-  /*
-  setLon(longitude);
-	setLat(latitude); */
   setLatLon( latitude, longitude );
 }
 
@@ -324,6 +337,54 @@ void Position::latLonToXY( int & out_x, int & out_y)
   assert( out_y < h );
   assert( out_x >= 0 );
   assert( out_y >= 0 );
+#endif
+}
+
+void Position::lat_lon_to_decimal_xy( double & out_x, double & out_y)
+{
+  double d_from_origin = map_tools::calculate_distance_between_points(
+                                                                      top_left_lat, top_left_long,
+                                                                      lat, lon, "meters");
+  double bearing; // in radians!
+  
+  if( d_from_origin > -EPSILON && d_from_origin < EPSILON )
+  {
+    bearing = 0;
+  }
+  else
+  {
+    bearing = map_tools::calculate_bearing_in_rad( top_left_lat, top_left_long,
+                                                   lat, lon );
+    
+    if( bearing > 0 )
+    {
+      if( bearing < PI/2 )
+      {
+        bearing -= PI/2;
+      }
+      else
+        bearing = PI/2 - bearing;
+    }
+    bearing = fmod( bearing, PI/2 );
+  }
+  
+#ifdef DEBUG
+  if( bearing > 0.001 )
+  {
+    cout << "That bearing of " << bearing << "is gonna break things!" << endl;
+    cout << "Your point was (" << lat << ", " << lon << ")" << endl;
+  }
+  assert( bearing < 0.001 );
+  assert( bearing > -PI/2 - 0.01 );
+#endif
+  out_x = (cos( bearing ) * d_from_origin) / resolution;
+  out_y = -(sin( bearing ) * d_from_origin) / resolution;
+  
+#ifdef DEBUG
+  assert( (int)out_x < w );
+  assert( (int)out_y < h );
+  assert( (int)out_x >= 0 );
+  assert( (int)out_y >= 0 );
 #endif
 }
 

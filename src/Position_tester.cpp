@@ -8,7 +8,7 @@
 #include <cstdlib>
 #include <string>
 #include <iostream>
-#include "best_cost_with_fields.h"
+#include "best_cost_straight_lines.h"
 #include "map_tools.h"
 #include "Plane_fixed.h"
 #include <time.h>
@@ -19,7 +19,7 @@
 
 
 // For Tyler's sandbox
-//#include <sstream>
+#include <sstream>
 //#include <time.h>
 //#include <iostream>
 //#include <fstream>
@@ -53,7 +53,7 @@ std::string double_to_string(const double & d)
 
 int main()
 {
-  int run = 2;
+  int run = 1;
   
   // The origin
   Position plane_1_start( upper_left_longitude, upper_left_latitude,
@@ -66,6 +66,25 @@ int main()
                              width_in_degrees_longitude, height_in_degrees_latitude,
                              10, 10, resolution );
   cout << endl << "Pos is " << plane_1_start.getX() << ", " << plane_1_start.getY() << endl << endl;
+  
+  
+  if( run == 1 )
+  {
+    cout << endl << "Pos is " << plane_1_start.getDecimalX() << ", " << plane_1_start.getDecimalY() << endl << endl;
+    
+    plane_1_start.setLatLon( upper_left_latitude - 0.000000001, upper_left_longitude + 0.000000001);
+    
+    cout << endl << "Pos is " << double_to_string( plane_1_start.getDecimalX() ) << ", " << 
+      double_to_string( plane_1_start.getDecimalY() ) << endl << endl;
+    
+    plane_1_start.setLatLon( upper_left_latitude - height_in_degrees_latitude, 
+                             upper_left_longitude + width_in_degrees_longitude);
+    
+    cout << endl << "Pos is " << double_to_string( plane_1_start.getDecimalX() ) << ", " << 
+    double_to_string( plane_1_start.getDecimalY() ) << endl << endl;
+
+
+  }
   
   if( run == 2 )
   {
