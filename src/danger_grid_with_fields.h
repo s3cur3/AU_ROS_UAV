@@ -46,6 +46,8 @@ static const unsigned int look_behind = 2;
 // This is defined in the constructor to be a bit greater than:
 // sqrt( (width in squares)^2 + (height in squares) ^2) 
 static double default_plane_danger;
+static double default_scaling;
+static double inverse_default_scaling;
 
 #ifndef RADIAN_CONSTANTS
 #define RADIAN_CONSTANTS
@@ -58,7 +60,7 @@ const double DEGREEStoRAD = PI/180;//Conversion factor from Degrees to Radians
 // the amount we'll multiply danger values by when adding the buffer zones (the 
 // danger around the predicted squares, to keep other aircraft from coming too
 // close)
-static const double field_weight = 1.0;
+static const double field_weight = 0.6;
 
 class danger_grid
 {
@@ -365,7 +367,9 @@ danger_grid::danger_grid( vector< Plane > * set_of_aircraft, const double width,
   
   natural sqrs_wide = map_tools::find_width_in_squares( width, height, resolution );
   natural sqrs_high = map_tools::find_height_in_squares( width, height, resolution );
-  default_plane_danger = sqrt( sqrs_wide * sqrs_wide + sqrs_high * sqrs_high ) * 2.5;
+  default_scaling = 10;
+  inverse_default_scaling = 1/default_scaling;
+  default_plane_danger = sqrt( sqrs_wide * sqrs_wide + sqrs_high * sqrs_high ) * default_scaling;
   
 #ifdef OVERLAYED
   overlayed.push_back( map( width, height, resolution ) );
@@ -571,6 +575,10 @@ void danger_grid::set_danger_buffer( double bearing, double unweighted_danger,
   // straight down
   (*danger_space)[ time ].safely_add_danger_at(   x ,  y + 1, d);
   
+  
+  // Scale the danger down slightly so A* will not treat collision distances
+  // the same as conflict distance
+  d *= field_weight;
   
   // Begin squares that are 2 away from current location
   // dag less left+down
@@ -1171,7 +1179,7 @@ void danger_grid::calculate_distance_costs( unsigned int goal_x, unsigned int go
   {
     d_at_goal = (*dg).get_danger_at(goal_x, goal_y, crnt_t);
     
-    plane_danger.push_back( d_at_goal + (default_plane_danger*0.4) );
+    plane_danger.push_back( d_at_goal + (default_plane_danger*inverse_default_scaling) );
     
     for( unsigned int crnt_x = 0; crnt_x <  dg->get_width_in_squares(); crnt_x++ )
     {

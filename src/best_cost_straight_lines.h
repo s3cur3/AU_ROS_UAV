@@ -33,7 +33,7 @@
 #define SQRT_2 1.41421356
 
 #include <vector>
-#include "danger_grid_with_fields.h"
+#include "danger_grid_with_turns.h"
 #include "Position.h"
 #include <math.h>
 #include <cstdlib>
