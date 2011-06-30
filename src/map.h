@@ -33,8 +33,8 @@
 
 #ifdef OUTPUT_CSV
 #include "write_to_log.h"
-const string output_path = "/Volumes/DATA/Dropbox/school/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/log/map/";
-//const string output_path = "/mnt/hgfs/Dropbox/school/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/log/map/";
+//const string output_path = "/Volumes/DATA/Dropbox/school/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/log/map/";
+const string output_path = "/mnt/hgfs/Dropbox/school/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/log/map/";
 #endif
 
 #ifdef OUTPUT_CSV
@@ -394,51 +394,6 @@ namespace bc
       cout << endl;
       
     }
-    
-#ifdef OUTPUT_CSV
-    stringstream ss( stringstream::out );
-    unsigned long int time = clock() / (CLOCKS_PER_SEC / 1000);
-    ss << output_path << "map_output_" << time << ".csv";
-    string filename = ss.str();
-    
-    ofstream csv;
-    csv.open( filename.c_str() );
-    if( csv.is_open() )
-    {
-      csv << "\n" << " Danger ratings:" << "\n";
-      csv << ",";
-      for( unsigned int top_guide = 0; top_guide < the_map.size(); ++top_guide )
-      {
-        csv << top_guide << ",";
-      }
-      csv << "\n";
-      
-      for( unsigned int right_index = 0; right_index < the_map[ 0 ].size(); ++right_index )
-      {
-        csv << right_index << ",";
-        
-        for( unsigned int left_index = 0; left_index < the_map.size(); ++left_index )
-        {
-          if( the_map[ left_index ][ right_index ].danger < EPSILON &&
-             the_map[ left_index ][ right_index ].danger > -EPSILON )
-          {
-            csv << ",";// leave this square blank
-          }
-          else
-          {
-            if( (the_map[ left_index ][ right_index ].danger)*mult - mult > -EPSILON )
-              csv << (int)( (the_map[ left_index ][ right_index ].danger) * mult ) << ",";
-            else
-              csv << int( (the_map[ left_index ][ right_index ].danger)*mult ) << ",";
-          }
-        }
-        csv << "\n";
-        
-      }
-      csv.close();
-      cout << "Made the file" << endl;
-    }
-#endif
   }
   
   void map::dump_big_numbers( ) const
@@ -481,10 +436,6 @@ namespace bc
       }
       cout << endl;
     }
-    
-#ifdef OUTPUT_CSV
-    dump_csv( "" );
-#endif
   }
   
   void map::dump_csv( string prefix ) const

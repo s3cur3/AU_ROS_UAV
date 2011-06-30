@@ -333,6 +333,11 @@ void Position::latLonToXY( int & out_x, int & out_y)
   out_y = -(int)( (int)(sin( bearing ) * d_from_origin - 0.5) / resolution );
   
 #ifdef DEBUG
+  if( out_x >= w || out_y >= h )
+  {
+    cout << "You calculated (x, y) of (" << out_x << ", " << out_y << ") from bearing " << endl;
+    cout << bearing*RADtoDEGREES << " and dist from origin " << d_from_origin << endl;
+  }
   assert( out_x < w );
   assert( out_y < h );
   assert( out_x >= 0 );

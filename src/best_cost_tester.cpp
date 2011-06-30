@@ -8,7 +8,6 @@
 #include <cstdlib>
 #include <string>
 #include <iostream>
-//#include "best_cost_final.h"
 #include "best_cost_straight_lines.h"
 #include "map_tools.h"
 #include <time.h>
@@ -35,16 +34,29 @@ using namespace std;
 // If it says "const," it's because it remains constant for our
 // airfield.
 double resolution = 10; // meters per grid square
+
+// Constants for the Auburn field
 const double upper_left_longitude = -85.490363;
 const double upper_left_latitude = 32.592425;
 const double width_in_degrees_longitude = 0.005002;
 const double height_in_degrees_latitude = -0.003808;
 
+// Constants for the 1km final field
+//const double upper_left_longitude = -115.808173;
+//const double upper_left_latitude = 37.244956;
+//const double width_in_degrees_longitude = 0.011283;
+//const double height_in_degrees_latitude = -0.009023;
+
 // for testing only; returns a position whose latitude and longitude are randomized
 Position randomized_position()
 {
+  // for the Auburn test field
   double longitude = ( (double)( rand() % 5002 ) / 1000000 ) + upper_left_longitude;
   double latitude = -( (double)( rand() % 3808 ) / 1000000 ) + upper_left_latitude;
+  
+  // For the final 1km test field
+//  double longitude = upper_left_longitude + ( (double)( rand() % 11282999 ) / 1000000000 );
+//  double latitude = upper_left_latitude - ( (double)( rand() % 9023009 ) / 1000000000 );
   
   // cout << "Starting long " << longitude << endl << "Starting lat " << latitude << endl;
   
@@ -101,8 +113,6 @@ int main()
   
   natural num_planes = 20;
   
-  //vector< Plane > test_set = randomized_planes( num_planes );
-  
   vector< Plane > test_set;
   
   // The origin
@@ -115,16 +125,29 @@ int main()
   // The farthest corner
   Position plane_1_end(  upper_left_longitude, upper_left_latitude,
                        width_in_degrees_longitude, height_in_degrees_latitude,
-                       upper_left_longitude + width_in_degrees_longitude - 0.00001,
-                       upper_left_latitude + height_in_degrees_latitude + 0.00001, resolution );
+                       0, 40, resolution );
   Position other_plane_end(  upper_left_longitude, upper_left_latitude,
                        width_in_degrees_longitude, height_in_degrees_latitude,
                        20, 40, resolution );
   
+  Position plane_2_start(  upper_left_longitude, upper_left_latitude,
+                       width_in_degrees_longitude, height_in_degrees_latitude,
+                       0, 41, resolution );
+  
   test_set.push_back( Plane( 0, other_plane_end, plane_1_end ) );
   test_set[0].update( plane_1_start, plane_1_end, 30 );
   
-  test_set.push_back( Plane( 1, other_plane_start, other_plane_end ) );
+  test_set.push_back( Plane( 1, plane_2_start, other_plane_end ) );
+  
+  
+  Position plane_3_start(  upper_left_longitude, upper_left_latitude,
+                         width_in_degrees_longitude, height_in_degrees_latitude,
+                         15, 20, resolution );
+  
+  plane_3_start.setLatLon(upper_left_latitude, 
+                          -85.489251);
+  test_set.push_back( Plane( 2, plane_3_start, other_plane_end ) );
+  
   test_set[0].setDestination(5, 5);
   vector< Plane > test_set1 = randomized_planes( num_planes );
   vector< Plane > test_set2 = randomized_planes( num_planes );
@@ -181,7 +204,9 @@ int main()
   
   cout << "Here, width is " << width_of_field << " and height is " << height_of_field << endl;
   
-  best_cost bc( &test_set, width_of_field, height_of_field, resolution, 1 );
+//  while( time(NULL) - seconds < 60 )
+  
+  best_cost bc( &test_set, width_of_field, height_of_field, resolution, 0 );
   best_cost bc1( &test_set1, width_of_field, height_of_field, resolution, 2 );
   best_cost bc2( &test_set2, width_of_field, height_of_field, resolution, 2 );
   best_cost bc3( &test_set3, width_of_field, height_of_field, resolution, 2 );
@@ -222,20 +247,22 @@ int main()
   best_cost bc38( &test_set38, width_of_field, height_of_field, resolution, 2 );
   best_cost bc39( &test_set39, width_of_field, height_of_field, resolution, 2 );
 
+  
   /*
   for( int t = 0; t < 21; t++ )
     cout << "Plane danger at t=" << t << " is " << bc1.get_plane_danger(t) << endl;
    */
   
-  /*
-  bc1.dump( 0 );
   
-  bc1.dump( 5 );
-  
-  bc1.dump( 7 );
-  
-  bc1.dump( 8 );
-  */
+  bc.dump( 0 );
+  bc.dump_csv( 0, "", "asdf" );
+//  
+//  bc1.dump( 1 );
+//  
+//  bc1.dump( 7 );
+//  
+//  bc1.dump( 20 );
+
  
   seconds = time(NULL);
   cout << "End time:   " << seconds << endl;

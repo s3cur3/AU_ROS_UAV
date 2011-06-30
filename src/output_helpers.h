@@ -6,6 +6,7 @@
 //
 
 #include <iomanip>
+#include <sstream>
 
 
 #ifndef TO_STRING

@@ -619,6 +619,8 @@ double danger_grid::get_danger_at( unsigned int x_pos, unsigned int y_pos,
                                    int seconds ) const
 {
 #ifdef DEBUG
+  if( seconds > (int)( danger_space->size() - look_behind ) )
+    cout << "Time " << seconds << " doesn't exist.";
   assert( seconds < (int)( danger_space->size() - look_behind ) );
   assert( seconds >= -(int)look_behind );
   assert( x_pos < UINT_MAX && y_pos < UINT_MAX );

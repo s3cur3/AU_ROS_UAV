@@ -33,8 +33,8 @@ using namespace map_tools;
 // Global data
 // The world map
 
-const int MAP_WIDTH = 41;
-const int MAP_HEIGHT = 37;
+ int MAP_WIDTH = 51;
+ int MAP_HEIGHT = 50;
 const int ROUTE_ABANDONED = 1; // if 1, says if search terminated
 best_cost *bc_grid;
 const int MAX_TIME = 20; // 20 steps into the future...I think
@@ -77,22 +77,12 @@ point danger_point;
 queue<point> a_path;
 
 
-int astar_map[ MAP_WIDTH * MAP_HEIGHT ];
+int astar_map[0];
 // map helper functions
 
 int GetMap( int x, int y )
 {
-
-  if( x < 0 ||
-      x >= MAP_WIDTH ||
-      y < 0 ||
-      y >= MAP_HEIGHT
-      )
-    {
-      return 9;	 
-    }
-
-  return astar_map[(y*MAP_WIDTH)+x];
+  return 0;
 }
 
 
@@ -756,6 +746,9 @@ int other_main(int startx, int starty, int endx, int endy, int planeid ){
 // Returns the point of divergence between provable optimal path and a-star path
 point astar_point(best_cost *bc, int startx, int starty, int endx, int endy, int planeid, bearing_t current_bear)
 {
+  int MAP_WIDTH = bc->get_width_in_squares();
+  int MAP_HEIGHT = bc->get_height_in_squares();
+  
   //cout << planeid << " : (" << startx << ", " << starty << ") --> (" << endx << ", " << endy << ")" << endl;
   while (!expan.empty()){
     expan.pop();
