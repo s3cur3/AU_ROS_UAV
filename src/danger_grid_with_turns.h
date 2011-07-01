@@ -301,7 +301,7 @@ private:
   void placeDanger(double angle, vector<estimate> &e, double closest, double other,
                    int x, int y, double danger);//places the data into the estimate struct
   void dangerRecurse(estimate e, int destination[], vector<estimate> &theFuture, int & time);
-  void turn(double startingAngle, double endAngle, vector<estimate> &e, int &x, int &y);
+  void turn(double startingAngle, double endAngle, vector<estimate> &e, int &x, int &y, int x2, int y2);
   
   // the weighting applied to danger estimates in the future
   vector< double > danger_ratings;
@@ -690,49 +690,50 @@ vector< bc::map > danger_grid::get_danger_space() const
   return (*danger_space);
 }
 
-/**
- a function for predicting planes. most of the work is done in the recursive calling of
- danger recurse but this guy starts the whole process. relies on dangerRecurse(), neighoboringAngles(),
- and placeDanger(). it is built to be called 2 times. use the same variable for time in each instances.
- it decides which point, the final destination or just the goal, to fly to based on the value in time.
- if time is =0 it assumes the destination is where it is going otherwise it assumes it is flying from the
- destination to the goal. if there is only a goal then the destination will be the goal based on the way that
- planes and the telemetry data works.note this prediction is based on 2 assumptions: a flat cartesian grid in
- which the planes exist and that the planes can point turn. in later editions the point turning assumption
- will, hopefully, be dropped. the cartesian grid will always be an assumption as A* only works in a cartesian grid
- so there is no reason to do anything else.
- input:(yes there is more to this function than just a description)
- plane: the plane whose path you are predicting
- time: the time from which you are starting prediction, must be >=0
- output:
- a vector that contains estimates of the planes path. as the plane traves through time a (0,0,-1) estimate is inserter
- as a time marker.
- **/
+/** 
+	a function for predicting planes. most of the work is done in the recursive calling of 
+	danger recurse but this guy starts the whole process. relies on dangerRecurse(), neighoboringAngles(),
+	and placeDanger(). it is built to be called 2 times. use the same variable for time in each instances.
+	it decides which point, the final destination or just the goal, to fly to based on the value in time.
+	if time is =0 it assumes the destination is where it is going otherwise it assumes it is flying from the 
+	destination to the goal. if there is only a goal then the destination will be the goal based on the way that 
+	planes and the telemetry data works.note this prediction is based on 2 assumptions: a flat cartesian grid in
+	which the planes exist and that the planes can point turn. in later editions the point turning assumption
+	will, hopefully, be dropped. the cartesian grid will always be an assumption as A* only works in a cartesian grid
+	so there is no reason to do anything else. 
+	input:(yes there is more to this function than just a description)
+		plane: the plane whose path you are predicting
+		time: the time from which you are starting prediction, must be >=0
+	output:
+		a vector that contains estimates of the planes path. as the plane traves through time a (0,0,-1) estimate is inserter
+		as a time marker.
+**/
 vector< estimate > danger_grid::calculate_future_pos( Plane & plane, int &time )
 {
-  
+  bool turned=false;
   vector< estimate > theFuture;
-  
+	theFuture.reserve(1);
+
   Position current, destination;
   if(time==0)//meaning that the plane is now moving towards it's next goal be it an avoidance point or a final destination
-  {
-    current=plane.getLocation();
-    destination=plane.getDestination();
+	{
+  	current=plane.getLocation();
+  	destination=plane.getDestination();
   }
-  else//will always be called twice. if it moving to its final goal the distance will be 0 and it will break out immediatly
-  {
-    destination=plane.getFinalDestination();
-    current=plane.getDestination();
-  }
-  
+	else//will always be called twice. if it moving to its final goal the distance will be 0 and it will break out immediatly
+	{
+		destination=plane.getFinalDestination();
+		current=plane.getDestination();  
+	}
+
   //distance formula: line to destination
   int x1=current.getX(),x2=destination.getX(),y1=current.getY(),y2=destination.getY();
   double xDistance=( fabs((double)x2-x1) ),yDistance=( fabs((double)y2-y1) );
   double distance = sqrt((double)(xDistance*xDistance)+(yDistance*yDistance));
-  
+
   if(xDistance==0&&yDistance==0)//your there!!!!!!!(hopefully) or your next destination was your goal
   {return theFuture;}
-  
+
   //find the angle to the waypoint
   double angle=(180-RADtoDEGREES*(asin((double)xDistance/(double)distance)));
   if(y2<y1)
@@ -740,7 +741,114 @@ vector< estimate > danger_grid::calculate_future_pos( Plane & plane, int &time )
   
   if((x2-x1)<0)//positive means that the plane is headed to the left aka west
     angle=(-1)*angle;//the plane goes from -180 to +180
-  
+
+	//if a turn needs to be made to correct for the bearing
+	if(time==0)
+	{
+	double bearing = plane.getBearing();
+	map_tools::bearing_t bearingNamed = plane.get_named_bearing();
+	cout<<"My names bearing(before shit happens) is:"<<map_tools::bearing_to_string(bearingNamed)<<endl;
+	if( bearingNamed == map_tools::N ) //headed north
+    {
+      bearing=0;
+    }
+    else if( bearingNamed == map_tools::NW ) //headed northwest
+    {
+      bearing=-45;
+    }
+    else if( bearingNamed == map_tools::W ) //headed west
+    {
+      bearing=-90;
+    }        
+    else if( bearingNamed == map_tools::SW ) //headed southwest
+    {
+      bearing=-135;
+    }
+    else if( bearingNamed == map_tools::S ) //headed south
+    {
+    	bearing=180;
+    }
+    else if( bearingNamed == map_tools::SE ) //headed southeast
+    {
+      bearing=135;
+    }
+    else if( bearingNamed == map_tools::E ) //headed east
+    {
+      bearing=90;
+    }
+    else //headed northeast
+    {
+      bearing=45;
+    }
+  if(fabs(fabs(angle)-fabs(bearing))>22.5)
+	{
+		turned=true;
+		printf("\e[31;40m\wTurning check out how I do!\e[0m\n");
+		printf("Oh heres my info :) %f  %f  %f\n", angle,bearing, plane.getBearing());
+		turn(bearing,angle,theFuture,x1,y1,x2,y2);
+		x1=theFuture[theFuture.size()-2].x;
+		y1=theFuture[theFuture.size()-2].y;
+		printf("My starting x,y after the turn: %d,%d\n",x1,y1);
+		xDistance=fabs((double)x2-x1),yDistance=fabs((double)y2-y1);
+		distance = sqrt((double)(xDistance*xDistance)+(yDistance*yDistance));
+		angle=(180-RADtoDEGREES*(asin((double)xDistance/(double)distance)));
+		if(y2<y1)
+				angle=(RADtoDEGREES*(asin((double)xDistance/(double)distance)));
+		if((x2-x1)<0)//positive means that the plane is headed to the left aka west
+			angle=(-1)*angle;//the plane goes from -180 to +180
+		printf("Oh heres my new angle %f",angle);
+
+	/*	////printing the turn
+		int x=plane.getLocation().getWidth()+1, y=plane.getLocation().getHeight()+1;
+	int grid[x][y];
+	for(int i=0; i<plane.getLocation().getHeight()+1; i++)
+		for(int j=0; j<plane.getLocation().getWidth()+1; j++)
+		{
+			if(j==current.getX() && i==current.getY())
+			grid[j][i]=5;
+			else
+			grid[j][i]=0;
+		}
+
+	for(int i=0; i<y; i++)
+		grid[0][i]=i;
+	for(int i=0; i<x; i++)
+		grid[i][0]=i;
+	
+	int seconds=1;
+	for(int i=0; i<theFuture.size(); i++)
+	{
+		if(theFuture[i].danger!=-1)
+		{
+			//cout<<"Time:"<<seconds<<" X:"<<theFuture[i].x<<" Y:"<<theFuture[i].y<<" Danger:"<<theFuture[i].danger<<endl;
+			if(grid[theFuture[i].x][theFuture[i].y]==0)
+			grid[theFuture[i].x][theFuture[i].y]=(int)(10*theFuture[i].danger);
+		}
+		else
+		{		seconds++; }
+		
+	}
+
+	for(int i=0; i<plane.getLocation().getHeight(); i++)
+	{	
+	for (int j=0; j<plane.getLocation().getWidth(); j++)
+	{
+			if(grid[j][i]!=0)
+			printf( " \033[22;32m%1d\e[0m ", grid[j][i]);
+			else
+			printf( " %1d ", grid[j][i]);
+	}			
+	cout<<endl;
+
+	}
+	cout<<endl;
+	*/
+
+
+	}
+  }
+
+	//printf("My x,y after the turn(maybe): %d,%d\n",x1,y1);
   //find closest straight line
   double neighbors[2];
   neighoboringAngles(angle, neighbors[0], neighbors[1]);
@@ -760,54 +868,108 @@ vector< estimate > danger_grid::calculate_future_pos( Plane & plane, int &time )
     danger=1-(angle/otherAngle);//because you can't use 0 find the inverse of the displacement to the other angel.
   
   //place displacement percentage in closest square and then place the remainder in the other square
+	//cout<<"Placing danger"<<x1<<","<<y1<<endl;
   placeDanger(angle, theFuture, closestAngle, otherAngle, x1, y1, danger);
   //start the branching
   int dest[2]={x2,y2};//can't pass it without a name :(
-  theFuture.push_back(estimate(0,0,-1));
-  time++;
-  if(theFuture[1].danger>.3)
-    dangerRecurse(theFuture[1], dest, theFuture, time);
-  else
-    dangerRecurse(theFuture[0],dest,theFuture,time);
+	if(!turned)
+	theFuture.push_back(estimate(0,0,-1));
+	time++;
+
+  if(theFuture[theFuture.size()-2].danger>.3)
+    dangerRecurse(theFuture[theFuture.size()-2], dest, theFuture, time);
+	else
+  dangerRecurse(theFuture[theFuture.size()-3],dest,theFuture,time);
   
-  //add prediction to one square ahead of goal
-  //find closest straight line from target bearing
-  angle=plane.getBearingToDest();
+	//add prediction to one square ahead of goal
+	//find closest straight line from target bearing
+	angle=plane.getBearingToDest();
   neighoboringAngles(angle, neighbors[0], neighbors[1]);
   if(fabs(angle-neighbors[0])>=fabs(angle-neighbors[1]))//distance
   {closestAngle=neighbors[1]; otherAngle=neighbors[0];}
   else
   {closestAngle=neighbors[0]; otherAngle=neighbors[1];}
-  
-  danger=1;
-  
+	
+	danger=1;
+	
   //now add the danger ahead of the goal to theFuture
-  placeDanger(angle, theFuture, closestAngle, otherAngle, x2, y2, danger);
-  
-  //2 seconds ho!!!!(like land ho! not the street-corner kind)
-  theFuture.push_back(estimate(0,0,-1));
+  placeDanger(angle, theFuture, closestAngle, otherAngle, x2, y2, danger);	
+
+	//2 seconds ho!!!!(like land ho! not the street-corner kind)
+	theFuture.push_back(estimate(0,0,-1));
   //now add the danger ahead of the goal to theFuture(btw this is all you need since were assuming a line at this point)
-  placeDanger(angle, theFuture, closestAngle, otherAngle, theFuture[theFuture.size()-3].x, theFuture[theFuture.size()-3].y, danger);
-  
-  //3 seconds ho!!!!(this time I need a good night)
-  theFuture.push_back(estimate(0,0,-1));
+  placeDanger(angle, theFuture, closestAngle, otherAngle, theFuture[theFuture.size()-3].x, theFuture[theFuture.size()-3].y, danger);	
+
+	//3 seconds ho!!!!(this time I need a good night)
+	theFuture.push_back(estimate(0,0,-1));
   //now add the danger ahead of the goal to theFuture(btw this is all you need since were assuming a line at this point)
-  placeDanger(angle, theFuture, closestAngle, otherAngle, theFuture[theFuture.size()-3].x, theFuture[theFuture.size()-3].y, danger);
-  
-  
+  placeDanger(angle, theFuture, closestAngle, otherAngle,  theFuture[theFuture.size()-3].x, theFuture[theFuture.size()-3].y, danger);	
+	/*
+//#ifdef DEBUG_TURN
+	//here is where we find out what this shit looks like
+	cout<<"The path predicted for plane "<<plane.getId()<<" from "<<current.getX()<<","<<current.getY()<<" to "<<destination.getX()<<","<<destination.getY()<<endl;
+	cout<<"The planes bearing is:"<<map_tools::bearing_to_string(plane.get_named_bearing())<<endl;
+	int x=plane.getLocation().getWidth()+1, y=plane.getLocation().getHeight()+1;
+	int grid[x][y];
+	for(int i=0; i<plane.getLocation().getHeight()+1; i++)
+		for(int j=0; j<plane.getLocation().getWidth()+1; j++)
+		{
+			if(j==current.getX() && i==current.getY())
+			grid[j][i]=5;
+			else
+			grid[j][i]=0;
+		}
+
+	for(int i=0; i<y; i++)
+		grid[0][i]=i;
+	for(int i=0; i<x; i++)
+		grid[i][0]=i;
+	
+	int seconds=1;
+	for(int i=0; i<theFuture.size(); i++)
+	{
+		if(theFuture[i].danger!=-1)
+		{
+			//cout<<"Time:"<<seconds<<" X:"<<theFuture[i].x<<" Y:"<<theFuture[i].y<<" Danger:"<<theFuture[i].danger<<endl;
+			if(grid[theFuture[i].x][theFuture[i].y]==0)
+			grid[theFuture[i].x][theFuture[i].y]=(int)(10*theFuture[i].danger);
+		}
+		else
+		{		seconds++; }
+		
+	}
+
+	for(int i=0; i<plane.getLocation().getHeight(); i++)
+	{	
+	for (int j=0; j<plane.getLocation().getWidth(); j++)
+	{
+			if(grid[j][i]!=0)
+			printf( " \033[22;32m%1d\e[0m ", grid[j][i]);
+			else
+			printf( " %1d ", grid[j][i]);
+	}			
+	cout<<endl;
+
+	}
+	cout<<endl;
+	
+	for(int i=0; i<theFuture.size(); i++)
+		cout<<theFuture[i].x<<","<<theFuture[i].y<<endl;
+//#endif
+  */
   return theFuture;
 }
 
 /**
- the recursive function that calculates the planes path
- input:
- e: an "estimate"
- destination[]: a pair of x,y that represents where the plane is going
- theFuture: a vector of estimates
- time: an int used for calculating the total time the plane is predicted for
- output:
- it returns both a vector of extimates and the total time value
- **/
+	the recursive function that calculates the planes path
+	input:
+		e: an "estimate"
+		destination[]: a pair of x,y that represents where the plane is going
+		theFuture: a vector of estimates
+		time: an int used for calculating the total time the plane is predicted for
+	output:
+		it returns both a vector of extimates and the total time value
+**/
 void danger_grid::dangerRecurse(estimate e, int destination[], vector<estimate> &theFuture,int &time)
 {
   
@@ -819,7 +981,7 @@ void danger_grid::dangerRecurse(estimate e, int destination[], vector<estimate> 
   
   double xDistance=( fabs((double)x2-x1) ), yDistance=( fabs((double)y2-y1) );
   if(xDistance==0&&yDistance==0)//your there!!!!!!!(hopefully)
-  {/*theFuture.push_back(estimate(0,0,-1));*/return;}
+		{/*theFuture.push_back(estimate(0,0,-1));*/return;}
   double distance = sqrt((double)(xDistance*xDistance)+(yDistance*yDistance));
   
   //find the angle to the waypoint
@@ -851,26 +1013,26 @@ void danger_grid::dangerRecurse(estimate e, int destination[], vector<estimate> 
   placeDanger(angle, theFuture, closestAngle, otherAngle, x1, y1, danger);
   int nextPos = (int)theFuture.size()-2;
   //branch it up now
-  theFuture.push_back(estimate(0,0,-1));
-  time++;
+	theFuture.push_back(estimate(0,0,-1));
+	time++;
   if(theFuture[nextPos+2].danger>.3)
     dangerRecurse(theFuture[nextPos+2], dest, theFuture, time);
   //default branch
-  else
-    dangerRecurse(theFuture[nextPos],dest,theFuture, time);
+	else
+  dangerRecurse(theFuture[nextPos],dest,theFuture, time);
   
-  
+  return;
 }
 
 /**
- a function that finds the neighbors of a given angle
- input:
- angle: the angle you are finding the neighbors of
- first and second: both are out parameters only 0s are expected in
- output:
- first: the closest angle
- second: the next closest angle
- **/
+	a function that finds the neighbors of a given angle
+	input:
+		angle: the angle you are finding the neighbors of
+		first and second: both are out parameters only 0s are expected in
+	output:
+		first: the closest angle
+		second: the next closest angle
+**/
 
 void danger_grid::neighoboringAngles(double angle, double &first, double &second)
 {
@@ -900,26 +1062,26 @@ void danger_grid::neighoboringAngles(double angle, double &first, double &second
 }
 
 /**
- input:
- angle: the bearing from the location to the goal location
- e: a vector of "estimates"
- closest: the angle that is closest to angle that bisects a neighboring square
- other: the next closest angle
- x: the x location in the grid(of the current location not the one that you place the danger in)
- y: the y location in the grid
- output:
- e is changed to contain the the estimated danger in the new location
- **/
+	input:
+		angle: the bearing from the location to the goal location
+		e: a vector of "estimates" 
+		closest: the angle that is closest to angle that bisects a neighboring square
+		other: the next closest angle
+		x: the x location in the grid(of the current location not the one that you place the danger in)
+		y: the y location in the grid
+	output:
+		e is changed to contain the the estimated danger in the new location
+	**/
 void danger_grid::placeDanger(double angle, vector<estimate> &e, double closest, double other, int x, int y, double danger)
 {
-  double dangerCeiling=.4;
-  double remainingDanger=1-danger;
-  if(danger>=dangerCeiling)
-    danger=dangerCeiling;
-  if(remainingDanger>=dangerCeiling)
-    remainingDanger=dangerCeiling;
-  
-  
+	double dangerCeiling=.4;
+	double remainingDanger=1-danger;
+	if(danger>=dangerCeiling)
+		danger=dangerCeiling;
+	if(remainingDanger>=dangerCeiling)
+		remainingDanger=dangerCeiling;
+		
+	
   if(angle>0)//to the right
   {
     if(closest==0)//north && northeast
@@ -1018,6 +1180,314 @@ void danger_grid::placeDanger(double angle, vector<estimate> &e, double closest,
       e.push_back(estimate(x-1,y+1,remainingDanger));//majority in SW
     }
   }
+}
+
+void danger_grid::turn(double startingAngle, double endAngle, vector<estimate> &e, int &x, int &y, int x2, int y2)
+{
+	//cout<<"I'm turning!";
+	int inside_outside=2;//decided which estimated position to pick 3 is outside 2 is inside
+	//inside makes for a wider turn outside makes for a sharer turn 2 tends to be a better choice
+	double rightDistance,leftDistance;
+
+	switch((int) startingAngle)
+	{
+		case 0://NORTH(yes this is a lazy way to do it but it shouldn't be any less efficent just a bit longer lines wise
+		
+		rightDistance=sqrt( (x2-(x+1))*(x2-(x+1)) + (y2-(y))*(y2-(y)) );
+		leftDistance=sqrt( (x2-(x-1))*(x2-(x-1)) + (y2-(y))*(y2-(y)) );
+		//printf("I'm going north!");
+		while(fabs(fabs((double)endAngle)-fabs((double)startingAngle)) >22.5)
+		{
+		printf("I'm looping starting angle:%f",startingAngle);
+			if(rightDistance<=leftDistance)
+			{
+				placeDanger(22.5 , e , 0 , 45 , x,y,.5);
+				e.push_back(estimate(0,0,-1));
+				x=e[e.size()-inside_outside].x;
+				y=e[e.size()-inside_outside].y;
+				if(endAngle>startingAngle)//pretty sure it will always trigger here but i could be wrong
+					startingAngle+=22.5;
+				else
+					startingAngle-=22.5;
+			}
+		
+			else
+			{
+				placeDanger(-22.5 , e , 0 , -45 , x,y,.5);
+				e.push_back(estimate(0,0,-1));
+				x=e[e.size()-inside_outside].x;
+				y=e[e.size()-inside_outside].y;
+				if(endAngle>startingAngle)
+					startingAngle+=22.5;
+				else
+					startingAngle-=22.5;
+			}
+		}
+		break;
+
+		case 45://NORTHEAST
+
+		rightDistance=sqrt( (x2-(x+1))*(x2-(x+1)) + (y2-(y+1))*(y2-(y+1)) );
+		leftDistance=sqrt( (x2-(x-1))*(x2-(x-1)) + (y2-(y-1))*(y2-(y-1)) );
+
+		while(fabs(fabs((double)endAngle)-fabs((double)startingAngle)) >22.5)
+		{
+			if(rightDistance<=leftDistance)
+			{
+				placeDanger(67.5 , e , 45 , 90 , x,y,.5);
+				e.push_back(estimate(0,0,-1));
+				x=e[e.size()-inside_outside].x;
+				y=e[e.size()-inside_outside].y;
+				if(endAngle>startingAngle)
+					startingAngle+=22.5;
+				else
+					startingAngle-=22.5;
+			}
+		
+			else
+			{
+				placeDanger(22.5 , e , 45 , 0 , x,y,.5);
+				e.push_back(estimate(0,0,-1));
+				x=e[e.size()-inside_outside].x;
+				y=e[e.size()-inside_outside].y;
+				if(endAngle>startingAngle)
+					startingAngle+=22.5;
+				else
+					startingAngle-=22.5;
+			}
+		}
+		break;
+
+		case 90://EAST
+
+		rightDistance=sqrt( (x2-(x))*(x2-(x)) + (y2-(y+1))*(y2-(y+1)) );
+		leftDistance=sqrt( (x2-(x))*(x2-(x)) + (y2-(y-1))*(y2-(y-1)) );
+
+		while(fabs(fabs((double)endAngle)-fabs((double)startingAngle)) >22.5)
+		{
+			if(rightDistance<=leftDistance)
+			{
+				placeDanger(112.5 , e , 90 , 135 , x,y,.5);
+				e.push_back(estimate(0,0,-1));
+				x=e[e.size()-inside_outside].x;
+				y=e[e.size()-inside_outside].y;
+				if(endAngle>startingAngle)
+					startingAngle+=22.5;
+				else
+					startingAngle-=22.5;
+			}
+		
+			else
+			{
+				placeDanger(67.5 , e , 90 , 45 , x,y,.5);
+				e.push_back(estimate(0,0,-1));
+				x=e[e.size()-inside_outside].x;
+				y=e[e.size()-inside_outside].y;
+				if(endAngle>startingAngle)
+					startingAngle+=22.5;
+				else
+					startingAngle-=22.5;
+			}
+		}
+		break;
+
+		case 135://SOUTHEAST
+
+		rightDistance=sqrt( (x2-(x-1))*(x2-(x-1)) + (y2-(y+1))*(y2-(y+1)) );
+		leftDistance=sqrt( (x2-(x+1))*(x2-(x+1)) + (y2-(y-1))*(y2-(y-1)) );
+
+		while(fabs(fabs((double)endAngle)-fabs((double)startingAngle)) >22.5)
+		{
+			if(rightDistance<=leftDistance)
+			{
+				placeDanger(157.5 , e , 135 , 180 , x,y,.5);
+				e.push_back(estimate(0,0,-1));
+				x=e[e.size()-inside_outside].x;
+				y=e[e.size()-inside_outside].y;
+				if(endAngle>startingAngle)
+					startingAngle+=22.5;
+				else
+					startingAngle-=22.5;
+			}
+		
+			else
+			{
+				placeDanger(112.5 , e , 135 , 90 , x,y,.5);
+				e.push_back(estimate(0,0,-1));
+				x=e[e.size()-inside_outside].x;
+				y=e[e.size()-inside_outside].y;
+				if(endAngle>startingAngle)
+					startingAngle+=22.5;
+				else
+					startingAngle-=22.5;
+			}
+		}
+		break;
+
+		case 180://SOUTH
+		case -180://SOUTH (awwwww yeaaaaaaa)
+		
+		rightDistance=sqrt( (x2-(x-1))*(x2-(x-1)) + (y2-(y))*(y2-(y)) );
+		leftDistance=sqrt( (x2-(x+1))*(x2-(x+1)) + (y2-(y))*(y2-(y)) );
+
+		while(fabs(fabs((double)endAngle)-fabs((double)startingAngle)) >22.5)
+		{
+			if(rightDistance<=leftDistance)
+			{
+				placeDanger(-157.5 , e , -180 , -135 , x,y,.5);
+				e.push_back(estimate(0,0,-1));
+				x=e[e.size()-inside_outside].x;
+				y=e[e.size()-inside_outside].y;
+				if(endAngle>startingAngle)
+					startingAngle+=22.5;
+				else
+					startingAngle-=22.5;
+			}
+		
+			else
+			{
+				placeDanger(157.5 , e , 180 , 135 , x,y,.5);
+				e.push_back(estimate(0,0,-1));
+				x=e[e.size()-inside_outside].x;
+				y=e[e.size()-inside_outside].y;
+				if(endAngle>startingAngle)
+					startingAngle+=22.5;
+				else
+					startingAngle-=22.5;
+			}
+		}
+		break;
+
+		case -135://SOUTHWEST
+		
+		rightDistance=sqrt( (x2-(x-1))*(x2-(x-1)) + (y2-(y-1))*(y2-(y-1)) );
+		leftDistance=sqrt( (x2-(x+1))*(x2-(x+1)) + (y2-(y-1))*(y2-(y-1)) );
+
+		while(fabs(fabs((double)endAngle)-fabs((double)startingAngle)) >22.5)
+		{
+			if(rightDistance<=leftDistance)
+			{
+				placeDanger(-112.5 , e , -135 , -90 , x,y,.5);
+				e.push_back(estimate(0,0,-1));
+				x=e[e.size()-inside_outside].x;
+				y=e[e.size()-inside_outside].y;
+				if(endAngle>startingAngle)
+					startingAngle+=22.5;
+				else
+					startingAngle-=22.5;
+			}
+		
+			else
+			{
+				placeDanger(-157.5 , e , -135 , -180 , x,y,.5);
+				e.push_back(estimate(0,0,-1));
+				x=e[e.size()-inside_outside].x;
+				y=e[e.size()-inside_outside].y;
+				if(endAngle>startingAngle)
+					startingAngle+=22.5;
+				else
+					startingAngle-=22.5;
+			}
+		}
+		break;
+
+		case -90://SOUTH
+		
+		rightDistance=sqrt( (x2-(x))*(x2-(x)) + (y2-(y-1))*(y2-(y-1)) );
+		leftDistance=sqrt( (x2-(x))*(x2-(x)) + (y2-(y+1))*(y2-(y+1)) );
+
+		while(fabs(fabs((double)endAngle)-fabs((double)startingAngle)) >22.5)
+		{
+			if(rightDistance<=leftDistance)
+			{
+				placeDanger(-67.5 , e , -90 , -45 , x,y,.5);
+				e.push_back(estimate(0,0,-1));
+				x=e[e.size()-inside_outside].x;
+				y=e[e.size()-inside_outside].y;
+				if(endAngle>startingAngle)
+					startingAngle+=22.5;
+				else
+					startingAngle-=22.5;
+			}
+		
+			else
+			{
+				placeDanger(-112.5 , e , -90 , -135 , x,y,.5);
+				e.push_back(estimate(0,0,-1));
+				x=e[e.size()-inside_outside].x;
+				y=e[e.size()-inside_outside].y;
+				if(endAngle>startingAngle)
+					startingAngle+=22.5;
+				else
+					startingAngle-=22.5;
+			}
+		}
+		break;
+
+		case -45://NORTHWEST
+		
+		rightDistance=sqrt( (x2-(x+1))*(x2-(x+1)) + (y2-(y-1))*(y2-(y-1)) );
+		leftDistance=sqrt( (x2-(x-1))*(x2-(x-1)) + (y2-(y+1))*(y2-(y+1)) );
+
+		while(fabs(fabs((double)endAngle)-fabs((double)startingAngle)) >22.5)
+		{
+			if(rightDistance<=leftDistance)
+			{
+				placeDanger(-22.5 , e , -45 , 0 , x,y,.5);
+				e.push_back(estimate(0,0,-1));
+				x=e[e.size()-inside_outside].x;
+				y=e[e.size()-inside_outside].y;
+				if(endAngle>startingAngle)
+					startingAngle+=22.5;
+				else
+					startingAngle-=22.5;
+			}
+		
+			else
+			{
+				placeDanger(-67.5 , e , -45 , -90 , x,y,.5);
+				e.push_back(estimate(0,0,-1));
+				x=e[e.size()-inside_outside].x;
+				y=e[e.size()-inside_outside].y;
+				if(endAngle>startingAngle)
+					startingAngle+=22.5;
+				else
+					startingAngle-=22.5;
+			}
+		}
+		break;
+
+		default:
+			cout<<"Hmmm thats rather strange why are you here?"<<endl;
+	}
+	
+	/*bool negative=false;
+	if(startingAngle<0)
+		negative=true;
+
+	if(fabs(fabs((double)endAngle)-fabs((double)startingAngle)) <22.5)
+		return;//your done turning
+	printf("NOT RETURNING YET BITCHHHHHH!");
+	if(negative)
+	{
+		placeDanger(-22.5,e,0,-45,x,y,.5);
+		e.push_back(estimate(0,0,-1));
+		if(endAngle>startingAngle)
+		turn(startingAngle+22.5,endAngle, e, e[e.size()-2].x,e[e.size()-2].y);
+		else
+		turn(startingAngle-22.5,endAngle, e, e[e.size()-2].x,e[e.size()-2].y);
+	}
+		
+	else
+	{
+		placeDanger(22.5,e,0,45,x,y,.5);
+		e.push_back(estimate(0,0,-1));
+		if(endAngle>startingAngle)
+		turn(startingAngle+22.5,endAngle, e, e[e.size()-2].x,e[e.size()-2].y);
+		else
+		turn(startingAngle-22.5,endAngle, e, e[e.size()-2].x,e[e.size()-2].y);
+	}*/
+	return;
 }
 
 danger_grid::bearing_t danger_grid::name_bearing( double the_bearing )

@@ -261,13 +261,11 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
     
     point a_Star;
     a_Star = astar_point( &bc, startx, starty, endx, endy, planeId, bearingNamed );
+
+#ifdef DEBUG
     ROS_ERROR("\033[22;31m Still here, doing my A* thing on plane %d . . .", planeId );
-    
-#ifdef DEBUG
     cout << "Told A* plane has a bearing of " << bearing_to_string( bearingNamed ) << endl;
-#endif
-    
-#ifdef DEBUG
+
     //  unsigned int time = clock() / (CLOCKS_PER_SEC / 1000);
     //  unsigned int t = 0;
     //  
