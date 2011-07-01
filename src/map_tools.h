@@ -287,30 +287,40 @@ double map_tools::calculate_distance_between_points( double latitude_1, double l
                                                      double latitude_2, double longitude_2,
                                                      string units )
 {    
-    double the_distance;
-    double d_lat = to_radians( latitude_2 - latitude_1 );
-    double d_long = to_radians( longitude_2 - longitude_1 );
-    double sin_d_lat=sin( d_lat / 2);
-    double sin_d_long=sin( d_long / 2);
-    double a = ( sin_d_lat * sin_d_lat +
-                 cos( to_radians(latitude_1) ) * cos( to_radians(latitude_2) ) * 
-                 sin_d_long * sin_d_long );
-    double c = 2 * atan2( sqrt(a), sqrt(1 - a) );
-    
-    the_distance = fabs(earth_radius * c); // make sure it's positive
-    
-    if( units == "feet" )
-        return the_distance * 3.28083989501312;
-    if( units == "yards" )
-        return the_distance * 3.28083989501312 / 3;
-    if( units == "miles" )
-        return the_distance * 3.28083989501312 / 5280;
-    if( units == "kilometers" )
-        return the_distance / 1000;
-    if( units == "attoparsecs" )
-        return the_distance * 32.4077649;
-    else
-        return the_distance;
+  double the_distance;
+  double d_lat = to_radians( latitude_2 - latitude_1 );
+  double d_long = to_radians( longitude_2 - longitude_1 );
+  double sin_d_lat = sin( d_lat / 2);
+  double sin_d_long = sin( d_long / 2);
+  double a = ( sin_d_lat * sin_d_lat +
+              cos( to_radians(latitude_1) ) * cos( to_radians(latitude_2) ) * 
+              sin_d_long * sin_d_long );
+  double c = 2 * atan2( sqrt(a), sqrt(1 - a) );
+  
+  the_distance = fabs(earth_radius * c); // make sure it's positive
+  
+#ifdef DEBUG
+  if( the_distance > 100000 )
+  {
+    cout << "You broke the distance calc. You gave us these coordinates: " << endl;
+    cout << "Point 1: " << latitude_1 << ", " << longitude_1 << endl;
+    cout << "Point 2: " << latitude_2 << ", " << longitude_2 << endl;
+  }
+  assert( the_distance < 100000 );
+#endif
+  
+  if( units == "feet" )
+    return the_distance * 3.28083989501312;
+  if( units == "yards" )
+    return the_distance * 3.28083989501312 / 3;
+  if( units == "miles" )
+    return the_distance * 3.28083989501312 / 5280;
+  if( units == "kilometers" )
+    return the_distance / 1000;
+  if( units == "attoparsecs" )
+    return the_distance * 32.4077649;
+  else
+    return the_distance;
 }
 
 void map_tools::calculate_point( double latitude_1, double longitude_1, 

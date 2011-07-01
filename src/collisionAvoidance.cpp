@@ -19,6 +19,7 @@
 #include "astar_sparse0.cpp"
 #include "telemetry_data_out.h"
 #include "Position.h"
+#include <map>
 
 #ifdef DEBUG
 #include "output_helpers.h"
@@ -64,6 +65,8 @@ int planesmade;
 //keeps count of the number of services requested
 int the_count;
 
+std::map< int, int > last_callback_updated;
+
 void makeField();
 
 /**
@@ -108,16 +111,16 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 #endif
   
   // If this is not a dummy goal
-  if( !(goalSrv.response.latitude + 1000 < EPSILON && goalSrv.response.longitude + 1000 < EPSILON) )
+  if( !(goalSrv.response.latitude < -900 && goalSrv.response.longitude < -900) &&
+      !( (int)destLon == 0 && (int)destLat == 0 ) )
   {
-    
 #ifdef DEBUG
     //print out the tele data for use with x-plane
     ofstream tele;
     string path;
-    
+        
 #ifdef TYLERS_PC
-    //path = "/mnt/hgfs/Dropbox/school/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/teledata/";
+    path = "/mnt/hgfs/Dropbox/school/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/teledata/";
 #endif
     
     path+=to_string(planeId);
@@ -130,18 +133,7 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
     {
       unsigned int timestamp = clock() / (CLOCKS_PER_SEC / 1000); // should give ms; be sure to include time.h
       
-      //  stuff to print for x-plane
-      //int Plane ID
-      //double currentLatitude
-      //double currentLongitude
-      //double currentAltitude
-      //double groundSpeed
-      //double destLatitude
-      //double destLongitude
-      //double targetBearing
-      //double Timestamp (in milliseconds, doesn't matter where you start)
-      
-      
+      //  create files for x-plane
       tele << planeId <<"\n"<< double_to_string(currentLat) << "\n" << double_to_string(currentLon);
       tele << "\n" << currentAlt << "\n" <<	gSpeed << "\n" << double_to_string(destLat);
       tele << "\n" << double_to_string(destLon) << "\n" << double_to_string(bearing) << "\n";
@@ -150,12 +142,14 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
       tele.close();
     }
 #endif
-    
+#ifdef DEBUG
+    assert( (int)currentLon != 0 && (int)currentLat != 0 );
+    assert( (int)destLon != 0 && (int)destLat != 0 );
+#endif
         
     // make the positions
     //update the plane's current location
     Position current = Position(upperLeftLon,upperLeftLat,lonWidth,latWidth,currentLon,currentLat,res);
-    
     
 #ifdef COLLISIONTESTING
     // if this plane ID is not in the plane_locs vector, increase the size of the
@@ -177,54 +171,32 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
     //Don't die, just print
     if( collision_occurred( planeId ) )
       cout << " Ya dun fucked up." << endl;
-
 #endif
     
     // The plane's next location, be it the goal or an avoidance waypoint
-    Position next;
-    //if next is good . . .
-    if(destLat<=upperLeftLat && destLon>=upperLeftLon && destLat>0 && destLon<0)
-    {
-      next = Position(upperLeftLon,upperLeftLat,lonWidth,latWidth,destLon,destLat,res);
-#ifdef DEBUG
-      /*
-       assert( next.getLon() < -85.484 );
-       assert( next.getLon() > -85.4915 );
-       assert( next.getLat() > 32.5882 );
-       assert( next.getLat() < 32.593 );
-       */
-#endif
-    }
-    else
-    {
-      next = Position(current);
-      
-#ifdef DEBUG
-      /*
-       assert( next.getLon() < -85.484 );
-       assert( next.getLon() > -85.4915 );
-       assert( next.getLat() > 32.5882 );
-       assert( next.getLat() < 32.593 );
-       */
-#endif
-      ROS_INFO("\033[22;31m next is current");
-    }
+    Position next = Position(upperLeftLon,upperLeftLat,lonWidth,latWidth,destLon,destLat,res);
     
-    // If it's a new plane
-    //its a new plane
+#ifdef DEBUG
+    assert( (int)next.getLat() != 0 );
+    assert( (int)current.getLat() != 0 );
+#endif
+
+    // If it's a new plane . . .
     if( planes.find(planeId) == planes.end() )
     {
       planes[ planeId ] = Plane( planeId, current, next );
       
 #ifdef DEBUG
-      cout<<"Current location for plane"<<planeId<<" "<< planes[ planeId ].getLocation().getX()<<
-      " "<<planes[ planeId ].getLocation().getY()<<endl;
-      printf("   Which is %f, %f \n", planes[ planeId ].getLocation().getLon(), 
-             planes[ planeId ].getLocation().getLat() );
-      cout<<"Next location for plane"<<planeId<<" "<<planes[ planeId ].getDestination().getX()<<
-      " "<<planes[ planeId ].getDestination().getY()<<endl;
+//      cout<<"Current location for plane"<<planeId<<" "<< planes[ planeId ].getLocation().getX()<<
+//      " "<<planes[ planeId ].getLocation().getY()<<endl;
+//      printf("   Which is %f, %f \n", planes[ planeId ].getLocation().getLon(), 
+//             planes[ planeId ].getLocation().getLat() );
+//      cout<<"Next location for plane"<<planeId<<" "<<planes[ planeId ].getDestination().getX()<<
+//      " "<<planes[ planeId ].getDestination().getY()<<endl;
 #endif
     }
+    
+    last_callback_updated[ planeId ] = the_count;
     
     // Set the plane's final destination based on what the goal service told us
     planes[planeId].setFinalDestination(goalSrv.response.longitude, goalSrv.response.latitude);
@@ -268,11 +240,8 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
     
     // Begin A*ing
     point a_Star;
-    vector<Plane> planes2;
-    for( int i=0; i<planes.size(); i++ )
-      planes2.push_back(planes[i]);
     
-    best_cost bc = best_cost(&planes2,fieldWidth,fieldHeight,res,planeId);
+    best_cost bc = best_cost(&planes,fieldWidth,fieldHeight,res,planeId);
     
     a_Star=astar_point(&bc,startx,starty,endx,endy,planeId,bearingNamed);
     ROS_ERROR("\033[22;31m Still here, doing my A* thing . . .");
@@ -302,12 +271,12 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
     //  cout << "This plane's lon == " << double_to_string( planes[ planeId ].getLocation().getLon()) << endl;
     //  cout << "This plane's x == " << double_to_string( planes[ planeId ].getLocation().getX()) << endl;
     //  cout << "This plane's y == " << double_to_string( planes[ planeId ].getLocation().getY()) << endl;
-    cout << "In case you forgot, this is plane " << planeId << ", traveling " << 
-    bearing_to_string( planes[ planeId ].get_named_bearing() ) << endl;
-    cout << "A* says to go to (" << a_Star.x << ", " << a_Star.y << ")" << endl;
+//    cout << "In case you forgot, this is plane " << planeId << ", traveling " << 
+//    bearing_to_string( planes[ planeId ].get_named_bearing() ) << endl;
+//    cout << "A* says to go to (" << a_Star.x << ", " << a_Star.y << ")" << endl;
     
-    bc.dump( 0 );
-    bc.dump( 1 );
+    //bc.dump( 0 );
+    //bc.dump( 1 );
 #endif
     
     if( planeId == 0 )
@@ -414,14 +383,17 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
     
     //where to go next
     Position aStar(upperLeftLon,upperLeftLat,lonWidth,latWidth,a_Star.x,a_Star.y,res);
+#ifdef DEBUG
+    assert( (int)aStar.getLat() != 0 );
+#endif
     
 #ifdef DEBUG
-    cout << "aStar.getLat() == " << aStar.getLat() << endl;
-    cout << "aStar.getLon() == " << aStar.getLon() << endl;
-    cout << "aStar.getX() == " << aStar.getX() << endl;
-    cout << "aStar.getY() == " << aStar.getY() << endl;
-    
-    cout << "You set it's (x, y) to (" << a_Star.x << ", " << a_Star.y << ")" << endl;
+//    cout << "aStar.getLat() == " << aStar.getLat() << endl;
+//    cout << "aStar.getLon() == " << aStar.getLon() << endl;
+//    cout << "aStar.getX() == " << aStar.getX() << endl;
+//    cout << "aStar.getY() == " << aStar.getY() << endl;
+//    
+//    cout << "You set it's (x, y) to (" << a_Star.x << ", " << a_Star.y << ")" << endl;
     /*
      assert( aStar.getLat() > 32.5882 );
      assert( aStar.getLat() < 32.593 );
@@ -431,7 +403,6 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 #endif
     
     // The service to command a plane to go to a location
-    bool newQueue=false;
     AU_UAV_ROS::GoToWaypoint srv;
     
     srv.request.planeID = planeId;
@@ -454,21 +425,36 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
      if(findGoal.call(goalSrv))
      cout<<goalSrv.response.longitude<<" "<<goalSrv.response.latitude<<endl;*/
     
-    //update plane so others see it going to new goal
+    // Update plane so others see it going to new goal
     planes[planeId].update(current,next,gSpeed);  
     
-  } // end if this is an okay goal
-  else if( the_count > 60 )
-  {
-    ROS_ERROR("\n Um... did you kill a plane? \n");
+    //                        Garbage collection                                   //
+    vector< int > delete_these_keys;
+    for( map< int, Plane >::iterator crnt_plane = planes.begin(); crnt_plane != planes.end();
+         ++crnt_plane )
+    {      
+      int crnt_id = (*crnt_plane).second.getId();
+      
+      if( last_callback_updated[ crnt_id ] < (the_count - (2 * planes.size()) ) &&
+          planes.size() > 7 )
+      {
+        // Current plane hasn't been updated in the last 2 rounds of callbacks.
+        // This *probably* means it's dead.
+        delete_these_keys.push_back( crnt_id );
+      }
+    }
+    for( vector< int >::iterator key = delete_these_keys.begin(); key != delete_these_keys.end();
+        ++key )
+    {
+      planes.erase( (*key) );
+      ROS_ERROR(" Yo dawg, I heard you like deleting plane %d", (*key) );
+    }
+    //                        End garbage collection                               //
     
-    // This plane had a collision; kill it!
-    planes.erase( planeId );
-  }
+  } // end if this is an okay goal
   else // Bad goals are normal in the first couple rounds of updates
   {
-    ROS_ERROR("Bad goal returned %f,%f",goalSrv.response.latitude,goalSrv.response.longitude);
-    planes[planeId].setFinalDestination(planes[planeId].getLocation().getLon(), planes[planeId].getLocation().getLat());
+    ROS_ERROR("Either you had a destination lat-lon of (0, 0) or you had a bad goal returned: %f,%f",goalSrv.response.latitude,goalSrv.response.longitude);
   }
   
   cout << "End of callback " << endl << endl;
@@ -544,13 +530,13 @@ void makeField()
       map_tools::calculate_distance_between_points( upperLeftLat, upperLeftLon,
                                                    upperLeftLat + latWidth, upperLeftLon,
                                                    "meters"); 
-    cout << endl;
-    cout << "You've selected a field with upper left longitude: " << upperLeftLon << endl;
-    cout << "                              upper left latitude: " << upperLeftLat << endl;
-    cout << "                           width in deg longitude: " << lonWidth << endl;
-    cout << "                            width in deg latitude: " << latWidth << endl;
-    cout << "                                  width in meters: " << fieldWidth << endl;
-    cout << "                                 height in meters: " << fieldHeight << endl;
+//    cout << endl;
+//    cout << "You've selected a field with upper left longitude: " << upperLeftLon << endl;
+//    cout << "                              upper left latitude: " << upperLeftLat << endl;
+//    cout << "                           width in deg longitude: " << lonWidth << endl;
+//    cout << "                            width in deg latitude: " << latWidth << endl;
+//    cout << "                                  width in meters: " << fieldWidth << endl;
+//    cout << "                                 height in meters: " << fieldHeight << endl;
   }
   
 	else
@@ -558,49 +544,3 @@ void makeField()
 		ROS_ERROR("Cannot open field data");
 	}
 }
-
-/*
-map_tools::bearing_t name_bearing( double the_bearing )
-{
-  the_bearing = fmod(the_bearing, 360); // modular division for floats
-  
-  if( the_bearing > -22.5 && the_bearing <= 22.5 )
-    return map_tools::N;
-  else if( the_bearing > 22.5 && the_bearing <= 67.5 )
-    return map_tools::NE;
-  else if( the_bearing > 67.5 && the_bearing <= 112.5 )
-    return map_tools::E;
-  else if( the_bearing > 112.5 && the_bearing <= 157.5 )
-    return map_tools::SE;
-  else if( the_bearing > 157.5 && the_bearing <= 202.5 )
-    return map_tools::S;
-  else if( the_bearing > 202.5 && the_bearing <= 247.5 )
-    return map_tools::SW;
-  else if( the_bearing > 247.5 && the_bearing <= 292.5 )
-    return map_tools::W;
-  else if( the_bearing > 292.5 && the_bearing <= 337.5 )
-    return map_tools::NW;
-  else if( the_bearing > -67.5 && the_bearing <= -22.5 )
-    return map_tools::NW;
-  else if( the_bearing > -112.5 && the_bearing <= -67.5 )
-    return map_tools::W;
-  else if( the_bearing > -157.5 && the_bearing <= -112.5 )
-    return map_tools::SW;
-  else if( the_bearing > -202.5 && the_bearing <= -157.5 )
-    return map_tools::S;
-  else if( the_bearing > -247.5 && the_bearing <= -202.5 )
-    return map_tools::SE;
-  else if( the_bearing > -292.5 && the_bearing <= -247.5 )
-    return map_tools::E;
-  else if( the_bearing > -337.5 && the_bearing <= -292.5 )
-    return map_tools::NW;
-  else
-  {
-#ifdef DEBUG
-    assert( the_bearing > -361 && the_bearing < 361 );
-#endif
-    return map_tools::N;
-  }
-}
- */
-

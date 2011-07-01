@@ -1,5 +1,5 @@
 //
-//  best_cost_final.h
+//  best_cost_straight_lines.h
 //  AU_UAV_ROS
 //
 //  Created by Tyler Young on 5/31/11.
@@ -11,16 +11,15 @@
 // P. N. Stiles and I. S. Glickstein's "Highly parallelizable route planner based
 // on cellular automata algorithms."
 //
-// This should provide a much more precise (yet still consistently underestimating)
-// heuristic than the baseline heuristic:
-//     weighing factor * danger at node n + straight line distance from n to goal,
-// as used in the old best_cost_grid class.
+// The following heuristic is used to estimate the cost of traveling from a node
+// n to the goal:
+//     weighing factor * danger at node n + weighing factor * danger at goal +
+//        straight line distance from n to goal
 //
 // Unlike best_cost.h, this class adds a "field" around each aircraft, extending
 // in the direction of the aircraft's travel. This means that when A* works with the
 // grid, there is some cost associated with coming close to another aircraft.
-// Additionally, we've fixed a (rather important) error in the compuation of the
-// initial path.
+// 
 
 
 #define DEBUG
@@ -33,6 +32,7 @@
 #define SQRT_2 1.41421356
 
 #include <vector>
+#include <map>
 #include "danger_grid_with_turns.h"
 #include "Position.h"
 #include <math.h>
@@ -68,7 +68,7 @@ public:
    *
    * Note that the width, height, and resolution may be in any units, but the units
    * must be consistent across all measurements.
-   * @param set_of_aircraft A vector array containing the aircraft that need to
+   * @param set_of_aircraft A std::map containing the aircraft that need to
    * be considered
    * @param width The width of the airspace (our x dimension)
    * @param height The height of the airspace (our y dimension)
@@ -76,8 +76,8 @@ public:
    * @param plane_id The index of the plane for which we are generating the best 
    *                 cost grid
    */
-  best_cost( vector< Plane > * set_of_aircraft, double width, double height,
-             double resolution, unsigned int plane_id );
+  best_cost( std::map< int, Plane > * set_of_aircraft, double width, double height,
+            double resolution, unsigned int plane_id );
    
   /**
    * The overloaded ( ) operator. Allows simple access to the cost rating of a
@@ -163,12 +163,12 @@ private:
   double danger_threshold;
 };
 
-best_cost::best_cost( vector< Plane > * set_of_aircraft,
+best_cost::best_cost( std::map< int, Plane > * set_of_aircraft,
                       double width, double height, double resolution, 
                       unsigned int plane_id)
 {
 #ifdef DEBUG
-  assert( plane_id < set_of_aircraft->size() );
+  assert( (*set_of_aircraft).find( plane_id ) != (*set_of_aircraft).end() );
   assert( set_of_aircraft->size() != 0 );
   assert( set_of_aircraft->size() < 1000000000 );
   assert( resolution > EPSILON );
@@ -198,7 +198,7 @@ best_cost::best_cost( vector< Plane > * set_of_aircraft,
   // the likelihood of encountering an aircraft at each square at each time.
   // This is consulted when calculating the best cost from a given square.
   mc = new danger_grid( set_of_aircraft, width, height, resolution, plane_id );
-    
+  
   // The real meat of this class; stores the cost of the best possible path from each
   // square at each time to the goal square. Initializes each square with the 
   // following simple heuristic:
@@ -224,6 +224,7 @@ best_cost::best_cost( vector< Plane > * set_of_aircraft,
   assert( start.y < n_sqrs_h );
 #endif
 }
+
 
 // AK: DESTRUCTOR -- DESTROY mc, bc to release their memory
 best_cost::~best_cost()

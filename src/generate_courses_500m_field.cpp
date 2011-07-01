@@ -22,6 +22,17 @@ std::string double_to_text(const double & d)
   return ss.str();
 }
 
+#ifndef TO_STRING
+#define TO_STRING
+template <class T>
+inline std::string to_string( const T& t )
+{
+  std::stringstream ss;
+  ss << t;
+  return ss.str();
+}
+#endif
+
 using namespace std;
 
 #ifndef natural
@@ -37,7 +48,7 @@ const double height_in_degrees_latitude = -0.004516;
 
 int main()
 {
-  int seed = 1;
+  int seed = 175;
   natural num_planes = 8;
   natural num_waypts = 20;
   natural min_alt = 1400; // These two vars define the altitude range we'll give to
@@ -46,7 +57,7 @@ int main()
   // The directory in which to save the courses
   string course_dir = "/Volumes/DATA/Dropbox/school/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/courses/";
   //string course_dir = "/home/trescenzi/Dropbox/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/courses/";
-  string name = "final_8_500m";
+  string name = "final_" + to_string(num_planes) + "_500m";
   char defaults;
   
   cout << "You're creating a course on the 500 m by 500 m field." << endl << endl;

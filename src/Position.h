@@ -196,6 +196,9 @@ Position::Position(double upperLeftLongitude, double upperLeftLatitude,
     
   set_up_grid_parms();
   
+#ifdef DEBUG
+  assert( (int)latitude != 0 && (int)longitude != 0 );
+#endif
   setLatLon( latitude, longitude );
 }
 
@@ -212,6 +215,9 @@ Position::Position(double upperLeftLongitude, double upperLeftLatitude, // THOMA
     
   set_up_grid_parms();
   
+#ifdef DEBUG
+  assert( (int)latitude != 0 && (int)longitude != 0 );
+#endif
   setLatLon( latitude, longitude );
 }
 
@@ -337,6 +343,7 @@ void Position::latLonToXY( int & out_x, int & out_y)
   {
     cout << "You calculated (x, y) of (" << out_x << ", " << out_y << ") from bearing " << endl;
     cout << bearing*RADtoDEGREES << " and dist from origin " << d_from_origin << endl;
+    cout << "Does this surprise you? Your origin is " << top_left_lat << ", " << top_left_long << endl;
   }
   assert( out_x < w );
   assert( out_y < h );

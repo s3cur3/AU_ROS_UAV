@@ -276,6 +276,11 @@ namespace bc
   void map::add_danger_at( unsigned int x_pos, unsigned int y_pos, double new_danger )
   {
 #ifdef DEBUG
+    if( x_pos >= the_map.size() || y_pos >= the_map[1].size() )
+    {
+      cout << " Your (x, y) of (" << x_pos << ", " << y_pos << " is going to break things." << endl;
+      cout << " Map size is " << the_map.size() << " by " << the_map[1].size() << endl;
+    }
     assert( x_pos < the_map.size() );
     assert( y_pos < the_map[1].size() );
 #endif
