@@ -48,6 +48,14 @@ namespace map_tools
    * @return A string "N", "NE", "E", or what have you
    */
   string bearing_to_string( bearing_t the_bearing );
+  
+  /**
+   * Returns a string version of the enumerated type bearing_t
+   * @param the_bearing The bearing, obtainable by using name_bearing, to convert
+   *                    to a string
+   * @return 0.0 for N, 22.5 for NE, 45 for E, and so on
+   */
+  double bearing_to_double( bearing_t the_bearing );
 
   /**
    * Gives the opposite of a "named" bearing; the opposite of N is S, opposite of
@@ -241,6 +249,27 @@ string map_tools::bearing_to_string( map_tools::bearing_t the_bearing )
       return "NW";
   }
 }
+
+double map_tools::bearing_to_double( bearing_t the_bearing )
+{
+  if( the_bearing == N )
+    return 0.0;
+  else if( the_bearing == NE )
+    return 45.0;
+  else if( the_bearing == E )
+    return 90.0;
+  else if( the_bearing == SE )
+    return 135.0;
+  else if( the_bearing == S )
+    return 180.0;
+  else if( the_bearing == SW )
+    return 225.0;
+  else if( the_bearing == W )
+    return 270.0;
+  else
+    return 315.0;
+  }
+
 
 map_tools::bearing_t map_tools::reverse_bearing( map_tools::bearing_t start_bearing )
 {

@@ -66,6 +66,8 @@ int planesmade;
 int the_count;
 
 std::map< int, int > last_callback_updated;
+std::map< int, double > prev_dist;
+std::map< int, bool > needs_a_push;
 
 void makeField();
 
@@ -168,7 +170,7 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
     plane_locs[ planeId ].y = current.getY();
     plane_locs[ planeId ].t = 0;
     
-    //Don't die, just print
+    // Don't die, just print
     if( collision_occurred( planeId ) )
       cout << " Ya dun fucked up." << endl;
 #endif
@@ -196,10 +198,32 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 #endif
     }
     
+    // Make a note that this plane got a callback
     last_callback_updated[ planeId ] = the_count;
     
-    // Set the plane's final destination based on what the goal service told us
-    planes[planeId].setFinalDestination(goalSrv.response.longitude, goalSrv.response.latitude);
+    double dist_from_goal =
+      map_tools::calculate_distance_between_points( goalSrv.response.latitude, goalSrv.response.longitude, 
+                                                    current.getLat(), current.getLon(),
+                                                    "meters" );
+    
+    // If the plane is in a loop, give it a fake "break-out" goal
+    if( dist_from_goal < 45 && prev_dist[ planeId ] < dist_from_goal )
+    {
+      // "Break-out" goal is 100 meters in opposite direction of the plane's 
+      //  bearing to the real destination
+      double break_out_lat, break_out_lon;
+      bearing_t bearing_to_break_out = 
+        map_tools::reverse_bearing( planes[ planeId ].get_named_bearing_to_dest() );
+      map_tools::calculate_point( goalSrv.response.latitude, goalSrv.response.longitude,
+                                  100, bearing_to_double( bearing_to_break_out ),
+                                  break_out_lat, break_out_lon );
+      planes[ planeId ].setFinalDestination( break_out_lon, break_out_lat );
+    }
+    else
+    {
+      // Set the plane's final destination based on what the goal service told us
+      planes[planeId].setFinalDestination(goalSrv.response.longitude, goalSrv.response.latitude);
+    }
     
 #ifdef DEBUG
     ROS_INFO("You set plane %d's final destination to: %f,%f", planeId, goalSrv.response.longitude,goalSrv.response.latitude);
@@ -301,6 +325,14 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
              planeId, a_Star.x, a_Star.y, startx, starty);
     
 #endif
+    
+    // Prior to artificially updating the plane's location, make a note of where 
+    // the plane is
+    prev_dist[ planeId ] = 
+      map_tools::calculate_distance_between_points( goalSrv.response.latitude, goalSrv.response.longitude, 
+                                                    current.getLat(), current.getLon(),
+                                                    "meters" );
+    
     
     int currentx=startx;
     int currenty=starty;
@@ -419,14 +451,9 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
     if(!client.call(srv))
       ROS_ERROR("YOUR SERVICE DIDN'T GO THROUGH YOU GONA CRASH!!!");
     
-    /*goalSrv.request.planeID=planeId;
-     goalSrv.request.isAvoidanceWaypoint=true;
-     goalSrv.request.positionInQueue=0;
-     if(findGoal.call(goalSrv))
-     cout<<goalSrv.response.longitude<<" "<<goalSrv.response.latitude<<endl;*/
-    
     // Update plane so others see it going to new goal
     planes[planeId].update(current,next,gSpeed);  
+    
     
     //                        Garbage collection                                   //
     vector< int > delete_these_keys;
@@ -436,7 +463,7 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
       int crnt_id = (*crnt_plane).second.getId();
       
       if( last_callback_updated[ crnt_id ] < (the_count - (2 * planes.size()) ) &&
-          planes.size() > 7 )
+          the_count > 30 )
       {
         // Current plane hasn't been updated in the last 2 rounds of callbacks.
         // This *probably* means it's dead.
