@@ -174,21 +174,18 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
     if( collision_occurred( planeId ) )
       cout << " Ya dun fucked up." << endl;
 #endif
-    
-    // The plane's next location, be it the goal or an avoidance waypoint
-    Position next = Position(upperLeftLon,upperLeftLat,lonWidth,latWidth,destLon,destLat,res);
-    
-#ifdef DEBUG
-    assert( (int)next.getLat() != 0 );
-    assert( (int)current.getLat() != 0 );
-#endif
 
     // If it's a new plane . . .
     if( planes.find(planeId) == planes.end() )
     {
+      // . . . give it an initial destination obtained through the telemetry update  
+      Position next = Position(upperLeftLon,upperLeftLat,lonWidth,latWidth,destLon,destLat,res);
+      
       planes[ planeId ] = Plane( planeId, current, next );
       
 #ifdef DEBUG
+      assert( (int)next.getLat() != 0 );
+      assert( (int)current.getLat() != 0 );
 //      cout<<"Current location for plane"<<planeId<<" "<< planes[ planeId ].getLocation().getX()<<
 //      " "<<planes[ planeId ].getLocation().getY()<<endl;
 //      printf("   Which is %f, %f \n", planes[ planeId ].getLocation().getLon(), 
@@ -196,6 +193,15 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 //      cout<<"Next location for plane"<<planeId<<" "<<planes[ planeId ].getDestination().getX()<<
 //      " "<<planes[ planeId ].getDestination().getY()<<endl;
 #endif
+    }
+    else // it's an old plane, so . . .
+    {
+      // we need only update it's current location with the info from the telemetry
+      // update
+      planes[ planeId ].update_current( current );
+      if( current.getLat() - 37.241918 < EPSILON && current.getLat() - 37.241918 > -EPSILON &&
+          current.getLon() + 115.807031 < EPSILON && current.getLon() + 115.807031 > -EPSILON )
+        assert( false );
     }
     
     // Make a note that this plane got a callback
@@ -215,16 +221,16 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
       bearing_t bearing_to_break_out = 
         map_tools::reverse_bearing( planes[ planeId ].get_named_bearing_to_dest() );
       map_tools::calculate_point( goalSrv.response.latitude, goalSrv.response.longitude,
-                                  100, bearing_to_double( bearing_to_break_out ),
+                                  100, map_tools::bearing_to_double( bearing_to_break_out ),
                                   break_out_lat, break_out_lon );
 
       planes[ planeId ].setFinalDestination( break_out_lon, break_out_lat );
 #ifdef DEBUG
       ROS_INFO( "Set plane %d's breakout waypoint to %f, %f", planeId, break_out_lon, break_out_lat );
-      ROS_INFO( "Plane %d had a bearing of ", planes[ planeId ].getBearing() );
+      ROS_INFO( "Plane %d had a bearing of %f ", planeId, planes[ planeId ].getBearing() );
 #endif
     }
-    else
+    else // plane isn't in a loop
     {
       // Set the plane's final destination based on what the goal service told us
       planes[planeId].setFinalDestination(goalSrv.response.longitude, goalSrv.response.latitude);
@@ -234,29 +240,12 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 #endif
     }
     
-    
-    // Update the plane's current location
-    planes[planeId].update(current,next,gSpeed);
-    
-    //grab stuff for A*, if thats his real name
-    int startx=planes[planeId].getLocation().getX();
-    int starty=planes[planeId].getLocation().getY();
-    int endx=planes[planeId].getFinalDestination().getX();
-    int endy=planes[planeId].getFinalDestination().getY();
+    // grab stuff for A*, if thats his real name
+    int startx = planes[planeId].getLocation().getX();
+    int starty = planes[planeId].getLocation().getY();
+    int endx = planes[planeId].getFinalDestination().getX();
+    int endy = planes[planeId].getFinalDestination().getY();
     map_tools::bearing_t bearingNamed = planes[planeId].get_named_bearing();
-    
-#ifdef DEBUG
-    /*
-     assert( startx < 51 );
-     assert( startx >= 0);
-     assert( starty >= 0 );
-     assert( starty < 51 );
-     assert( endx < 51 );
-     assert( endx >= 0);
-     assert( endy >= 0 );
-     assert( endy < 51 );
-     */
-#endif
     
 #ifdef DEBUG
     if( planeId == 10 )
@@ -268,12 +257,15 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 #endif
     
     // Begin A*ing
+    best_cost bc = best_cost( &planes, fieldWidth, fieldHeight, res, planeId);
+    
     point a_Star;
+    a_Star = astar_point( &bc, startx, starty, endx, endy, planeId, bearingNamed );
+    ROS_ERROR("\033[22;31m Still here, doing my A* thing on plane %d . . .", planeId );
     
-    best_cost bc = best_cost(&planes,fieldWidth,fieldHeight,res,planeId);
-    
-    a_Star=astar_point(&bc,startx,starty,endx,endy,planeId,bearingNamed);
-    ROS_ERROR("\033[22;31m Still here, doing my A* thing on plane %d . . .", planeId);
+#ifdef DEBUG
+    cout << "Told A* plane has a bearing of " << bearing_to_string( bearingNamed ) << endl;
+#endif
     
 #ifdef DEBUG
     //  unsigned int time = clock() / (CLOCKS_PER_SEC / 1000);
@@ -310,24 +302,7 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 //      bc.dump( 1 );
 //    }
 #endif
-    
-    if( planeId == 0 )
-    {
-      ROS_INFO("Created bc, going into A*");
-    }
-    
-#ifdef DEBUG
-    //  stringstream prefixcomp;
-    //  prefixcomp << "For comparison \n";
-    //  prefixcomp << "For plane," << planeId << ",\nGoal:," << endx << "," << endy << ",\n";
-    //  prefixcomp << "Start:," << startx << "," << starty << ",\n";
-    //  prefixcomp << "Timestep:,1,\n";
-    //  stringstream namecomp;
-    //  t = 1;
-    //  namecomp << "plane_" << planeId << "_t_" << t << "_" << time << "_after";
-    //  bc.dump_csv( t, prefixcomp.str(), namecomp.str() );
-#endif
-    
+        
 #if defined(Outputting) || defined(GODDAMMIT)
     ROS_INFO("A* says for plane %d to go here: \033[22;32m\nx: %d\ny: %d\nFrom here:\nx: %d\ny: %d",
              planeId, a_Star.x, a_Star.y, startx, starty);
@@ -340,6 +315,33 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
       map_tools::calculate_distance_between_points( goalSrv.response.latitude, goalSrv.response.longitude, 
                                                     current.getLat(), current.getLon(),
                                                     "meters" );
+    
+    //where to go next
+    Position aStar(upperLeftLon,upperLeftLat,lonWidth,latWidth,a_Star.x,a_Star.y,res);
+    
+#ifdef DEBUG
+    assert( (int)aStar.getLat() != 0 );
+#endif
+    
+    //        Set up the service to command a plane to go to a location           //
+    AU_UAV_ROS::GoToWaypoint srv;
+    
+    srv.request.planeID = planeId;
+    srv.request.longitude = aStar.getLon();
+    srv.request.latitude = aStar.getLat();
+    srv.request.altitude = goalSrv.response.altitude;  
+    
+    //these settings mean it is an avoidance maneuver waypoint AND to clear the avoidance queue(if there was a new plane)
+    srv.request.isAvoidanceManeuver = true;
+    srv.request.isNewQueue = true;
+    
+    if(!client.call(srv))
+      ROS_ERROR("YOUR SERVICE DIDN'T GO THROUGH YOU GONA CRASH!!!");
+    
+    //                         Update the plane object                             //
+    Position next = Position( upperLeftLon, upperLeftLat, lonWidth, latWidth,
+                             aStar.getLon(), aStar.getLat(), res);
+    planes[planeId].update_intermediate_wp( next );  
     
 #ifdef DEBUG
     ROS_INFO("Plane %d was really at (%d, %d), with bearing %f, so we're updating it to...",
@@ -411,62 +413,11 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
     
 #ifdef DEBUG
     ROS_INFO("... (%d, %d)", current.getX(), current.getY() );
-    /*
-     assert( upperLeftLon < -85.49 && upperLeftLon > -85.491 );
-     assert( upperLeftLat > 32.592 && upperLeftLat < 32.593 );
-     assert( lonWidth > 0.005 && lonWidth < 0.00501 );
-     assert( latWidth > -0.00381 && latWidth < -0.00380 );
-     
-     assert( a_Star.x < 47 );
-     assert( a_Star.x >= 0 );
-     assert( a_Star.y < 43 );
-     assert( a_Star.y >= 0 );
-     
-     assert( res > 9.99 && res < 10.1 );
-     */
 #endif
     
-    //where to go next
-    Position aStar(upperLeftLon,upperLeftLat,lonWidth,latWidth,a_Star.x,a_Star.y,res);
-#ifdef DEBUG
-    assert( (int)aStar.getLat() != 0 );
-#endif
-    
-#ifdef DEBUG
-//    cout << "aStar.getLat() == " << aStar.getLat() << endl;
-//    cout << "aStar.getLon() == " << aStar.getLon() << endl;
-//    cout << "aStar.getX() == " << aStar.getX() << endl;
-//    cout << "aStar.getY() == " << aStar.getY() << endl;
-//    
-//    cout << "You set it's (x, y) to (" << a_Star.x << ", " << a_Star.y << ")" << endl;
-    /*
-     assert( aStar.getLat() > 32.5882 );
-     assert( aStar.getLat() < 32.593 );
-     assert( aStar.getLon() < -85.484 );
-     assert( aStar.getLon() > -85.4915 );
-     */
-#endif
-    
-    // The service to command a plane to go to a location
-    AU_UAV_ROS::GoToWaypoint srv;
-    
-    srv.request.planeID = planeId;
-    srv.request.longitude = aStar.getLon();
-    srv.request.latitude = aStar.getLat();
-    srv.request.altitude = goalSrv.response.altitude;//? not sure if this is allowed but hey i like cheating    
-    
-    next.setLatLon( aStar.getLat(), aStar.getLon() );
-    
-    //these settings mean it is an avoidance maneuver waypoint AND to clear the avoidance queue(if there was a new plane)
-    srv.request.isAvoidanceManeuver = true;
-    srv.request.isNewQueue = true;
-    
-    if(!client.call(srv))
-      ROS_ERROR("YOUR SERVICE DIDN'T GO THROUGH YOU GONA CRASH!!!");
-    
-    // Do a "virtual" update of the plane's position so others see it going to
-    // its new waypoint
-    planes[planeId].virtual_update(current,next,gSpeed);  
+    // Do a "virtual" update of the plane's current position so others see it going
+    // to its new waypoint
+    planes[planeId].virtual_update_current( current );  
     
     
     //                        Garbage collection                                   //
