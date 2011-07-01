@@ -92,9 +92,12 @@ public:
 	Position(double upperLeftLongitude, double upperLeftLatitude, double lonwidth, double latwidth, double longitude, double latitude, int x, int y, double resolution );
 };
 
-bool Position::operator==(Position &equal)
+bool Position::operator==(Position &rhs)
 {
-	return (y==equal.getY()&&x==equal.getX());//a bit vague
+	return ( decimal_y - rhs.getDecimalY() < EPSILON && 
+           decimal_y - rhs.getDecimalY() > -EPSILON && 
+           decimal_x - rhs.getDecimalX() < EPSILON && 
+           decimal_x - rhs.getDecimalX() > -EPSILON );
 }
 
 double Position::getLat() const

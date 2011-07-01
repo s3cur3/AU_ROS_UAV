@@ -410,7 +410,7 @@ double map_tools::calculateBearing( double latitude_1, double longitude_1,
   longitude_1 = to_radians( longitude_1 );
   longitude_2 = to_radians( longitude_2 );
   
-  double deltalon=longitude_2-longitude_1;
+  double deltalon=longitude_2 - longitude_1;
   
   double y = sin(deltalon)*cos(latitude_2);
   double x = cos(latitude_1) * sin(latitude_2) - sin(latitude_1) * cos(latitude_2) * cos(deltalon);

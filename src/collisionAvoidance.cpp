@@ -217,20 +217,25 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
       map_tools::calculate_point( goalSrv.response.latitude, goalSrv.response.longitude,
                                   100, bearing_to_double( bearing_to_break_out ),
                                   break_out_lat, break_out_lon );
+
       planes[ planeId ].setFinalDestination( break_out_lon, break_out_lat );
+#ifdef DEBUG
+      ROS_INFO( "Set plane %d's breakout waypoint to %f, %f", planeId, break_out_lon, break_out_lat );
+      ROS_INFO( "Plane %d had a bearing of ", planes[ planeId ].getBearing() );
+#endif
     }
     else
     {
       // Set the plane's final destination based on what the goal service told us
       planes[planeId].setFinalDestination(goalSrv.response.longitude, goalSrv.response.latitude);
+      
+#ifdef DEBUG
+      ROS_INFO("You set plane %d's final destination to: %f,%f", planeId, goalSrv.response.longitude,goalSrv.response.latitude);
+#endif
     }
     
-#ifdef DEBUG
-    ROS_INFO("You set plane %d's final destination to: %f,%f", planeId, goalSrv.response.longitude,goalSrv.response.latitude);
-#endif
     
-    
-    //update the plane                                                                           ////////////
+    // Update the plane's current location
     planes[planeId].update(current,next,gSpeed);
     
     //grab stuff for A*, if thats his real name
@@ -268,7 +273,7 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
     best_cost bc = best_cost(&planes,fieldWidth,fieldHeight,res,planeId);
     
     a_Star=astar_point(&bc,startx,starty,endx,endy,planeId,bearingNamed);
-    ROS_ERROR("\033[22;31m Still here, doing my A* thing . . .");
+    ROS_ERROR("\033[22;31m Still here, doing my A* thing on plane %d . . .", planeId);
     
 #ifdef DEBUG
     //  unsigned int time = clock() / (CLOCKS_PER_SEC / 1000);
@@ -299,8 +304,11 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 //    bearing_to_string( planes[ planeId ].get_named_bearing() ) << endl;
 //    cout << "A* says to go to (" << a_Star.x << ", " << a_Star.y << ")" << endl;
     
-    //bc.dump( 0 );
-    //bc.dump( 1 );
+//    if( planeId == 4 || planeId == 3)
+//    {
+//      bc.dump( 0 );
+//      bc.dump( 1 );
+//    }
 #endif
     
     if( planeId == 0 )
@@ -333,6 +341,10 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
                                                     current.getLat(), current.getLon(),
                                                     "meters" );
     
+#ifdef DEBUG
+    ROS_INFO("Plane %d was really at (%d, %d), with bearing %f, so we're updating it to...",
+             planeId, current.getX(), current.getY(), planes[ planeId ].getBearing() );
+#endif
     
     int currentx=startx;
     int currenty=starty;
@@ -398,6 +410,7 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
     current.setXY(currentx,currenty);
     
 #ifdef DEBUG
+    ROS_INFO("... (%d, %d)", current.getX(), current.getY() );
     /*
      assert( upperLeftLon < -85.49 && upperLeftLon > -85.491 );
      assert( upperLeftLat > 32.592 && upperLeftLat < 32.593 );
@@ -451,8 +464,9 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
     if(!client.call(srv))
       ROS_ERROR("YOUR SERVICE DIDN'T GO THROUGH YOU GONA CRASH!!!");
     
-    // Update plane so others see it going to new goal
-    planes[planeId].update(current,next,gSpeed);  
+    // Do a "virtual" update of the plane's position so others see it going to
+    // its new waypoint
+    planes[planeId].virtual_update(current,next,gSpeed);  
     
     
     //                        Garbage collection                                   //
