@@ -176,7 +176,7 @@ namespace bc
     void dump_csv( string prefix, string name ) const;
     
   private:
-    vector< vector< grid_square > > the_map; // a 2-D vector array of grid squares
+    vector< vector< double > > the_map; // a 2-D vector array of grid squares
     double width; // the x dimension, in your system of measurement (e.g., meters)
     double height; // the y dimension in your system of measurement
     double resolution; // the width and height of a single square in the map, in your system of measurement
@@ -249,17 +249,6 @@ namespace bc
       the_map[ i ].resize( squares_high, start_value );
   }
   
-  vector< unsigned int > map::get_planes_at( unsigned int x_pos, unsigned int y_pos ) const
-  {
-    return the_map[ x_pos ][ y_pos ].planes;
-  }
-  
-  void map::add_plane_at( unsigned int x_pos, unsigned int y_pos, unsigned int id )
-  {
-    the_map[ x_pos ][ y_pos ].planes.push_back( id );
-    the_map[ x_pos ][ y_pos ].danger = PLANE_DANGER;
-  }
-  
   double map::get_danger_at( unsigned int x_pos, unsigned int y_pos ) const
   {
 #ifdef DEBUG
@@ -270,7 +259,7 @@ namespace bc
     assert( x_pos < the_map.size() );
     assert( y_pos < the_map[1].size() );
 #endif
-    return the_map[ x_pos ][ y_pos ].danger;
+    return the_map[ x_pos ][ y_pos ];
   }
   
   void map::add_danger_at( unsigned int x_pos, unsigned int y_pos, double new_danger )
@@ -284,19 +273,18 @@ namespace bc
     assert( x_pos < the_map.size() );
     assert( y_pos < the_map[1].size() );
 #endif
-    if( the_map[ x_pos ][ y_pos ].danger > EPSILON )
+    if( the_map[ x_pos ][ y_pos ] > EPSILON )
     {
       // Add to the danger rating, don't simply change it
-      if( new_danger > the_map[ x_pos ][ y_pos ].danger )
+      if( new_danger > the_map[ x_pos ][ y_pos ] )
       {
-        the_map[ x_pos ][ y_pos ].danger = new_danger + 
-        0.25 * the_map[ x_pos ][ y_pos ].danger;
+        the_map[ x_pos ][ y_pos ] = new_danger + 0.25 * the_map[ x_pos ][ y_pos ];
       }
       else
-        the_map[ x_pos ][ y_pos ].danger += 0.25 * new_danger;
+        the_map[ x_pos ][ y_pos ] += 0.25 * new_danger;
     }
     else // simply change the danger rating
-      the_map[ x_pos ][ y_pos ].danger = new_danger;
+      the_map[ x_pos ][ y_pos ] = new_danger;
 #ifdef SMALL_COSTS
     if( the_map[ x_pos ][ y_pos ].danger > 1 )
       the_map[ x_pos ][ y_pos ].danger = PLANE_DANGER;

@@ -78,13 +78,13 @@ std::map< int, Plane > randomized_planes( natural num_planes )
   for( natural i = 0; i < num_planes; i++ )
   {
     new_pos = randomized_position();
-    //cout << " I.e., starting x = " << new_pos.getX() << " and y = " << new_pos.getY() << endl;
     destination = randomized_position();
     bearing = (double)( rand() % 360 );
     speed = (double)( rand() % 60 );
     speed = 30; // don't want to upset the randomness!
     
     the_planes[ i ] = Plane(i, new_pos, destination);
+    the_planes[ i ].update( randomized_position(), randomized_position(), 30);
   }
   return the_planes;
 }
@@ -112,6 +112,9 @@ int main()
   srand ( 20 );
   
   natural num_planes = 20;
+  
+  while( time(NULL) - seconds < 600 )
+  {
   
   std::map< int, Plane > test_set;
   
@@ -174,16 +177,41 @@ int main()
   
   cout << "Here, width is " << width_of_field << " and height is " << height_of_field << endl;
   
-//  while( time(NULL) - seconds < 60 )
-
-  vector< best_cost > all_bc_grids;
-  for( int i = 0; i < all_planes.size(); i++ )
-  {
-    all_bc_grids.push_back( best_cost( &all_planes[ i ], width_of_field, height_of_field, resolution, 0 ) );  
-  }
   
-  all_bc_grids[ 0 ].dump( 0 );
-  all_bc_grids[ 0 ].dump_csv( 0, "", "asdf" );
+    best_cost bc = best_cost( &all_planes[ 0 ], width_of_field, height_of_field, resolution, 0 );
+    best_cost bc1 = best_cost( &all_planes[ 1 ], width_of_field, height_of_field, resolution, 0 );
+    best_cost bc2 = best_cost( &all_planes[ 2 ], width_of_field, height_of_field, resolution, 0 );
+    best_cost bc3 = best_cost( &all_planes[ 3 ], width_of_field, height_of_field, resolution, 0 );
+    best_cost bc4 = best_cost( &all_planes[ 4 ], width_of_field, height_of_field, resolution, 0 );
+    best_cost bc5 = best_cost( &all_planes[ 5 ], width_of_field, height_of_field, resolution, 0 );
+    best_cost bc6 = best_cost( &all_planes[ 6 ], width_of_field, height_of_field, resolution, 0 );
+    best_cost bc7 = best_cost( &all_planes[ 7 ], width_of_field, height_of_field, resolution, 0 );
+    best_cost bc8 = best_cost( &all_planes[ 8 ], width_of_field, height_of_field, resolution, 0 );
+    best_cost bc9 = best_cost( &all_planes[ 9 ], width_of_field, height_of_field, resolution, 0 );
+    best_cost bc10 = best_cost( &all_planes[ 10 ], width_of_field, height_of_field, resolution, 0 );
+    best_cost bc11 = best_cost( &all_planes[ 11 ], width_of_field, height_of_field, resolution, 0 );
+    best_cost bc12 = best_cost( &all_planes[ 12 ], width_of_field, height_of_field, resolution, 0 );
+    best_cost bc13 = best_cost( &all_planes[ 13 ], width_of_field, height_of_field, resolution, 0 );
+    best_cost bc14 = best_cost( &all_planes[ 14 ], width_of_field, height_of_field, resolution, 0 );
+    best_cost bc15 = best_cost( &all_planes[ 15 ], width_of_field, height_of_field, resolution, 0 );
+    best_cost bc16 = best_cost( &all_planes[ 16 ], width_of_field, height_of_field, resolution, 0 );
+    best_cost bc17 = best_cost( &all_planes[ 17 ], width_of_field, height_of_field, resolution, 0 );
+    best_cost bc18 = best_cost( &all_planes[ 18 ], width_of_field, height_of_field, resolution, 0 );
+    best_cost bc19 = best_cost( &all_planes[ 19 ], width_of_field, height_of_field, resolution, 0 );
+    best_cost bc20 = best_cost( &all_planes[ 20 ], width_of_field, height_of_field, resolution, 0 );
+    best_cost bc21 = best_cost( &all_planes[ 21 ], width_of_field, height_of_field, resolution, 0 );
+    best_cost bc22 = best_cost( &all_planes[ 22 ], width_of_field, height_of_field, resolution, 0 );
+    best_cost bc23 = best_cost( &all_planes[ 23 ], width_of_field, height_of_field, resolution, 0 );
+    best_cost bc24 = best_cost( &all_planes[ 24 ], width_of_field, height_of_field, resolution, 0 );
+    best_cost bc25 = best_cost( &all_planes[ 25 ], width_of_field, height_of_field, resolution, 0 );
+    best_cost bc26 = best_cost( &all_planes[ 26 ], width_of_field, height_of_field, resolution, 0 );
+    best_cost bc27 = best_cost( &all_planes[ 27 ], width_of_field, height_of_field, resolution, 0 );
+    best_cost bc28 = best_cost( &all_planes[ 28 ], width_of_field, height_of_field, resolution, 0 );
+    best_cost bc29 = best_cost( &all_planes[ 29 ], width_of_field, height_of_field, resolution, 0 );
+  }
+//  
+//  bc.dump( 0 );
+//  bc.dump_csv( 0, "", "asdf" );
 //  
 //  bc1.dump( 1 );
 //  

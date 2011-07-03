@@ -26,7 +26,7 @@
 
 #include <vector>
 #include <map>
-#include "map.h"
+#include "map_cleaner.h"
 #include "estimate.h"
 #include "Plane_fixed.h"
 #include <math.h>
@@ -131,7 +131,7 @@ public:
    * @param danger The danger rating to be assigned
    */
   void add_danger_at( unsigned int x_pos, unsigned int y_pos, int seconds,
-                     double danger );
+                      double danger );
   
   /**
    * Sets the danger rating of a square
@@ -442,10 +442,9 @@ danger_grid::danger_grid( const danger_grid * dg, std::map< int, Plane > * set_o
 danger_grid::~danger_grid()
 {
   if( distance_costs_initialized )
-  {
     delete dist_map;
-    //delete encouraged_right;
-  }
+  //delete encouraged_right;
+  
   delete danger_space;
 }
 
@@ -463,15 +462,16 @@ void danger_grid::fill_danger_space( const natural plane_id )
   for( map< int, Plane >::iterator plane_pair = aircraft->begin(); 
       plane_pair != aircraft->end(); ++plane_pair )
   {
-    Plane * current_plane = &( (*plane_pair).second );
+    Plane * current_plane = &( (*plane_pair).second ); // avoid the double indirection
     
     // If this is not the "owner" of the danger grid . . . 
     if( (*current_plane).getId() != (int)plane_id )
     {
       // Set the danger at the plane's starting location
       (*danger_space)[0 + look_behind].
-      add_danger_at( (*current_plane).getLocation().getX(),
-                    (*current_plane).getLocation().getY(), default_plane_danger);
+        add_danger_at( (*current_plane).getLocation().getX(),
+                      (*current_plane).getLocation().getY(), 
+                      default_plane_danger);
 #ifdef OVERLAYED
       overlayed[0].add_danger_at((*current_plane).getLocation().getX(),
                                  (*current_plane).getLocation().getY(), 1.0);
@@ -480,7 +480,6 @@ void danger_grid::fill_danger_space( const natural plane_id )
       // Get the estimated danger for relevant squares in the map at this time
       int dummy = 0;
       est_to_avoid = calculate_future_pos( *current_plane, dummy );
-      int est_break = dummy;
       est_to_goal = calculate_future_pos( *current_plane, dummy );
       
       double bearing = (*current_plane).getBearing();
@@ -504,8 +503,7 @@ void danger_grid::fill_danger_space( const natural plane_id )
              (*current_est).danger > -(EPSILON) )
           {
             // Set the danger of the square based on what
-            // calculate_future_pos() found, but scale it according to how
-            // far back in time we're predicting
+            // calculate_future_pos() found 
             natural time = t + look_behind;
             natural x = (*current_est).x;
             natural y = (*current_est).y;
@@ -535,7 +533,7 @@ void danger_grid::fill_danger_space( const natural plane_id )
       
       // Now do the same thing with the list of predicted plane locations from the
       // avoidance waypoint to the goal, where applicable
-      t = est_break + 1;
+      ++t; // increment t because the estimate ends with a good value
       for( vector< estimate >::iterator current_est = est_to_goal.begin();
           current_est != est_to_goal.end(); ++current_est )
       {
@@ -851,7 +849,7 @@ vector< estimate > danger_grid::calculate_future_pos( Plane & plane, int &time )
   double distance = sqrt((double)(xDistance*xDistance)+(yDistance*yDistance));
 
   if(xDistance==0&&yDistance==0)//your there!!!!!!!(hopefully) or your next destination was your goal
-  {return theFuture;}
+    {time++; return theFuture;}
 
   //find the angle to the waypoint
   double angle=(180-RADtoDEGREES*(asin((double)xDistance/(double)distance)));
@@ -862,11 +860,11 @@ vector< estimate > danger_grid::calculate_future_pos( Plane & plane, int &time )
     angle=(-1)*angle;//the plane goes from -180 to +180
 
 	//if a turn needs to be made to correct for the bearing
-	if(time==0)
-	{
+  if(time==0)
+  {
 	double bearing = plane.getBearing();
 	map_tools::bearing_t bearingNamed = plane.get_named_bearing();
-	cout<<"My names bearing(before shit happens) is:"<<map_tools::bearing_to_string(bearingNamed)<<endl;
+	//cout<<"My names bearing(before shit happens) is:"<<map_tools::bearing_to_string(bearingNamed)<<endl;
 	if( bearingNamed == map_tools::N ) //headed north
     {
       bearing=0;
@@ -902,22 +900,30 @@ vector< estimate > danger_grid::calculate_future_pos( Plane & plane, int &time )
   if(fabs(fabs(angle)-fabs(bearing))>22.5)
 	{
 		turned=true;
-		printf("\e[31;40m\wTurning check out how I do!\e[0m\n");
-		printf("Oh heres my info :) %f  %f  %f\n", angle,bearing, plane.getBearing());
+		//printf("Turning check out how I do!\e[0m\n");
+		//printf("Oh heres my info :) %f  %f  %f\n", angle,bearing, plane.getBearing());
 		turn(bearing,angle,theFuture,x1,y1,x2,y2);
-		x1=theFuture[theFuture.size()-2].x;
-		y1=theFuture[theFuture.size()-2].y;
-		printf("My starting x,y after the turn: %d,%d\n",x1,y1);
-		xDistance=fabs((double)x2-x1),yDistance=fabs((double)y2-y1);
+		//if(plane.getId()==6)
+		  //cout<<"HEY X:"<<x1<<"HEY Y:"<<y1;
+		//x1=theFuture[theFuture.size()-2].x;
+		//y1=theFuture[theFuture.size()-2].y;
+		//printf("My starting x,y after the turn: %d,%d\n",x1,y1);
+		xDistance=fabs((double)x2-x1);
+		yDistance=fabs((double)y2-y1);
+		if(x1==x2 && y1==y2)
+		  {time++; theFuture.pop_back(); return theFuture;}
 		distance = sqrt((double)(xDistance*xDistance)+(yDistance*yDistance));
+		assert(distance>0);
+		if(distance==0)
+		  distance=1;
 		angle=(180-RADtoDEGREES*(asin((double)xDistance/(double)distance)));
 		if(y2<y1)
 				angle=(RADtoDEGREES*(asin((double)xDistance/(double)distance)));
 		if((x2-x1)<0)//positive means that the plane is headed to the left aka west
 			angle=(-1)*angle;//the plane goes from -180 to +180
-		printf("Oh heres my new angle %f",angle);
-
-	/*	////printing the turn
+		//printf("Oh heres my new angle %f my new xDistance %f and my new yDistance %f",angle,xDistance,yDistance);
+	       /*	if(plane.getId()==6)
+		  {////printing the turn
 		int x=plane.getLocation().getWidth()+1, y=plane.getLocation().getHeight()+1;
 	int grid[x][y];
 	for(int i=0; i<plane.getLocation().getHeight()+1; i++)
@@ -961,10 +967,10 @@ vector< estimate > danger_grid::calculate_future_pos( Plane & plane, int &time )
 
 	}
 	cout<<endl;
-	*/
+	
+	}*/
 
-
-	}
+		  }
   }
 
 	//printf("My x,y after the turn(maybe): %d,%d\n",x1,y1);
@@ -1610,7 +1616,7 @@ void danger_grid::dump_est( vector< estimate > dump_me )
 
 
 void danger_grid::calculate_distance_costs( unsigned int goal_x, unsigned int goal_y,
-                                           const danger_grid * dg, double danger_adjust )
+                                            const danger_grid * dg, double danger_adjust )
 {
   // This will store the cost of travelling from each square to the goal
   dist_map = new bc::map( dg->get_width_in_squares() * dg->get_res(), 
