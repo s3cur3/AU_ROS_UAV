@@ -2,7 +2,7 @@
 #define Outputting
 #define DEBUG // for now, this should ALWAYS be defined for the sake of rigor
 //#define GODDAMMIT
-#define COLLISIONTESTING
+//#define COLLISIONTESTING
 
 #define TYLERS_PC
 
@@ -13,13 +13,13 @@
 #include <vector>
 #include <iostream>
 #include <fstream>
-#include <time.h>
+#include <map>
+
 #include "Plane_fixed.h"
 #include "best_cost_straight_lines.h"
 #include "astar_sparse0.cpp"
 #include "telemetry_data_out.h"
 #include "Position.h"
-#include <map>
 
 #ifdef DEBUG
 #include "output_helpers.h"
@@ -54,8 +54,6 @@ std::map<int,Plane> planes;
 
 #ifdef COLLISIONTESTING
 vector< point > plane_locs;
-// Position crash[5];
-// int crashSize=5;
 #endif
 
 //the number of files written per plane to teledata
@@ -112,10 +110,12 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
            planeId, currentLon, currentLat);
 #endif
   
+
   // If this is not a dummy goal
   if( !(goalSrv.response.latitude < -900 && goalSrv.response.longitude < -900) &&
       !( (int)destLon == 0 && (int)destLat == 0 ) )
   {
+    /*
 #ifdef DEBUG
     //print out the tele data for use with x-plane
     ofstream tele;
@@ -144,6 +144,7 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
       tele.close();
     }
 #endif
+     */
 #ifdef DEBUG
     assert( (int)currentLon != 0 && (int)currentLat != 0 );
     assert( (int)destLon != 0 && (int)destLat != 0 );
@@ -199,9 +200,6 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
       // we need only update it's current location with the info from the telemetry
       // update
       planes[ planeId ].update_current( current );
-      if( current.getLat() - 37.241918 < EPSILON && current.getLat() - 37.241918 > -EPSILON &&
-          current.getLon() + 115.807031 < EPSILON && current.getLon() + 115.807031 > -EPSILON )
-        assert( false );
     }
     
     // Make a note that this plane got a callback
@@ -346,6 +344,8 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
              planeId, current.getX(), current.getY(), planes[ planeId ].getBearing() );
 #endif
     
+    //              The following appears to have been a major mistake                 //
+    /*
     int currentx=startx;
     int currenty=starty;
     
@@ -409,14 +409,16 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
     //set up where the plane 'will' be
     current.setXY(currentx,currenty);
     
+    
 #ifdef DEBUG
     ROS_INFO("... (%d, %d)", current.getX(), current.getY() );
 #endif
     
     // Do a "virtual" update of the plane's current position so others see it going
     // to its new waypoint
-    planes[planeId].virtual_update_current( current );  
-    
+    // planes[planeId].virtual_update_current( current );  
+    */
+    //              The above appears to have been a major mistake                 //
     
     //                        Garbage collection                                   //
     vector< int > delete_these_keys;
@@ -470,6 +472,7 @@ int main(int argc, char **argv)
 
 	//needed for ROS to wait for callbacks
 	makeField();
+  
   ros::spin();
 
 	return 0;

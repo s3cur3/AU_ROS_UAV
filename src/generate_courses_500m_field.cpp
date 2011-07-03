@@ -48,16 +48,17 @@ const double height_in_degrees_latitude = -0.004516;
 
 int main()
 {
-  int seed = 175;
-  natural num_planes = 8;
+  int seed = 803;
+  natural num_planes = 32;
   natural num_waypts = 20;
   natural min_alt = 1400; // These two vars define the altitude range we'll give to
   natural max_alt = 1401; // our aircraft.
   
   // The directory in which to save the courses
   string course_dir = "/Volumes/DATA/Dropbox/school/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/courses/";
+  //string course_dir = "/mnt/hgfs/Dropbox/school/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/courses/";
   //string course_dir = "/home/trescenzi/Dropbox/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/courses/";
-  string name = "final_" + to_string(num_planes) + "_500m";
+  string name = "final_" + to_string(num_planes) + "_500m_mormon";
   char defaults;
   
   cout << "You're creating a course on the 500 m by 500 m field." << endl << endl;
