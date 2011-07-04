@@ -1646,7 +1646,8 @@ void danger_grid::calculate_distance_costs( unsigned int goal_x, unsigned int go
   
   for( unsigned int crnt_t = 0; crnt_t <= look_ahead; crnt_t++ )
   {
-    d_at_goal = (*dg).get_danger_at(goal_x, goal_y, crnt_t);
+    //d_at_goal = (*dg).get_danger_at(goal_x, goal_y, crnt_t);
+    d_at_goal = 0;
     
     plane_danger.push_back( d_at_goal + (default_plane_danger*inverse_default_scaling) );
     

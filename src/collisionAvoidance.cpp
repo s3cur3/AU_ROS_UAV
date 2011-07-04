@@ -115,8 +115,8 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
   if( !(goalSrv.response.latitude < -900 && goalSrv.response.longitude < -900) &&
       !( (int)destLon == 0 && (int)destLat == 0 ) )
   {
+    // The following is used to output telemetry files for visualization with X-Plane
     /*
-#ifdef DEBUG
     //print out the tele data for use with x-plane
     ofstream tele;
     string path;
@@ -143,7 +143,6 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
       
       tele.close();
     }
-#endif
      */
 #ifdef DEBUG
     assert( (int)currentLon != 0 && (int)currentLat != 0 );
@@ -173,7 +172,7 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
     
     // Don't die, just print
     if( collision_occurred( planeId ) )
-      cout << " Ya dun fucked up." << endl;
+      cout << " You've made a mistake, Sir." << endl;
 #endif
 
     // If it's a new plane . . .
@@ -187,12 +186,6 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 #ifdef DEBUG
       assert( (int)next.getLat() != 0 );
       assert( (int)current.getLat() != 0 );
-//      cout<<"Current location for plane"<<planeId<<" "<< planes[ planeId ].getLocation().getX()<<
-//      " "<<planes[ planeId ].getLocation().getY()<<endl;
-//      printf("   Which is %f, %f \n", planes[ planeId ].getLocation().getLon(), 
-//             planes[ planeId ].getLocation().getLat() );
-//      cout<<"Next location for plane"<<planeId<<" "<<planes[ planeId ].getDestination().getX()<<
-//      " "<<planes[ planeId ].getDestination().getY()<<endl;
 #endif
     }
     else // it's an old plane, so . . .
@@ -219,7 +212,7 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
       bearing_t bearing_to_break_out = 
         map_tools::reverse_bearing( planes[ planeId ].get_named_bearing_to_dest() );
       map_tools::calculate_point( goalSrv.response.latitude, goalSrv.response.longitude,
-                                  100, map_tools::bearing_to_double( bearing_to_break_out ),
+                                  50, map_tools::bearing_to_double( bearing_to_break_out ),
                                   break_out_lat, break_out_lon );
 
       planes[ planeId ].setFinalDestination( break_out_lon, break_out_lat );
@@ -292,11 +285,11 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 //    bearing_to_string( planes[ planeId ].get_named_bearing() ) << endl;
 //    cout << "A* says to go to (" << a_Star.x << ", " << a_Star.y << ")" << endl;
     
-//    if( planeId == 4 || planeId == 3)
-//    {
-//      bc.dump( 0 );
-//      bc.dump( 1 );
-//    }
+    if( planeId == 4 || planeId == 3)
+    {
+      bc.dump( 0 );
+      bc.dump( 1 );
+    }
 #endif
         
 #if defined(Outputting) || defined(GODDAMMIT)
@@ -332,93 +325,13 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
     srv.request.isNewQueue = true;
     
     if(!client.call(srv))
-      ROS_ERROR("YOUR SERVICE DIDN'T GO THROUGH YOU GONA CRASH!!!");
+      ROS_ERROR("Service failed to go through!");
     
     //                         Update the plane object                             //
     Position next = Position( upperLeftLon, upperLeftLat, lonWidth, latWidth,
                              aStar.getLon(), aStar.getLat(), res);
-    planes[planeId].update_intermediate_wp( next );  
+    planes[planeId].update_intermediate_wp( next );
     
-#ifdef DEBUG
-    ROS_INFO("Plane %d was really at (%d, %d), with bearing %f, so we're updating it to...",
-             planeId, current.getX(), current.getY(), planes[ planeId ].getBearing() );
-#endif
-    
-    //              The following appears to have been a major mistake                 //
-    /*
-    int currentx=startx;
-    int currenty=starty;
-    
-    // Change the plane's "current" location for the sake of keeping planes in sync //
-    int width = planes[ planeId ].getLocation().getWidth(); // in grid sqrs
-    int height = planes[ planeId ].getLocation().getHeight(); // in grid sqrs
-    
-    if( bearingNamed == map_tools::N ) //headed north
-    {
-      if(currenty > 0) // safe to decrement...
-        currenty--;
-    }
-    else if( bearingNamed == map_tools::NW ) //headed northwest
-    {
-      if(currentx > 0 && currenty > 0)
-      {
-        currentx--;
-        currenty--;
-      }
-    }
-    else if( bearingNamed == map_tools::W ) //headed west
-    {
-      if(currentx > 0)
-        currentx--;
-    }        
-    else if( bearingNamed == map_tools::SW ) //headed southwest
-    {
-      if(currentx > 0 && currenty + 1 < height) 
-      {
-        currentx--;
-        currenty++;
-      }
-    }
-    else if( bearingNamed == map_tools::S ) //headed south
-    {
-      if(currenty + 1 < height)
-        currenty++;
-    }
-    else if( bearingNamed == map_tools::SE ) //headed southeast
-    {
-      if(currentx + 1 < width && currenty + 1 < height)
-      {
-        currentx++;
-        currenty++;
-      }
-    }
-    else if( bearingNamed == map_tools::E ) //headed east
-    {
-      if(currentx + 1 < width)
-        currentx++;
-    }
-    else //headed northeast
-    {
-      if(currentx + 1 < width && currenty > 0)
-      {
-        currentx++;
-        currenty--;
-      }
-    }
-    
-    //set up where the plane 'will' be
-    current.setXY(currentx,currenty);
-    
-    
-#ifdef DEBUG
-    ROS_INFO("... (%d, %d)", current.getX(), current.getY() );
-#endif
-    
-    // Do a "virtual" update of the plane's current position so others see it going
-    // to its new waypoint
-    // planes[planeId].virtual_update_current( current );  
-    */
-    //              The above appears to have been a major mistake                 //
     
     //                        Garbage collection                                   //
     vector< int > delete_these_keys;
@@ -439,14 +352,15 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
         ++key )
     {
       planes.erase( (*key) );
-      ROS_ERROR(" Yo dawg, I heard you like deleting plane %d", (*key) );
+      ROS_ERROR(" Deleting plane %d", (*key) );
     }
     //                        End garbage collection                               //
     
   } // end if this is an okay goal
   else // Bad goals are normal in the first couple rounds of updates
   {
-    ROS_ERROR("Either you had a destination lat-lon of (0, 0) or you had a bad goal returned: %f,%f",goalSrv.response.latitude,goalSrv.response.longitude);
+    ROS_ERROR("Either you had a destination lat-lon of (0, 0) or you had a bad goal returned: %f, %f",
+              goalSrv.response.latitude,goalSrv.response.longitude);
   }
   
   cout << "End of callback " << endl << endl;
@@ -454,7 +368,8 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
 
 int main(int argc, char **argv)
 {
-	the_count=0;
+	the_count = 0;
+  
 	//standard ROS startup
 	ros::init(argc, argv, "collisionAvoidance");
 	ros::NodeHandle n;
@@ -472,7 +387,7 @@ int main(int argc, char **argv)
 
 	//needed for ROS to wait for callbacks
 	makeField();
-  
+    
   ros::spin();
 
 	return 0;
@@ -523,13 +438,16 @@ void makeField()
       map_tools::calculate_distance_between_points( upperLeftLat, upperLeftLon,
                                                    upperLeftLat + latWidth, upperLeftLon,
                                                    "meters"); 
-//    cout << endl;
-//    cout << "You've selected a field with upper left longitude: " << upperLeftLon << endl;
-//    cout << "                              upper left latitude: " << upperLeftLat << endl;
-//    cout << "                           width in deg longitude: " << lonWidth << endl;
-//    cout << "                            width in deg latitude: " << latWidth << endl;
-//    cout << "                                  width in meters: " << fieldWidth << endl;
-//    cout << "                                 height in meters: " << fieldHeight << endl;
+    
+    /*
+    cout << endl;
+    cout << "You've selected a field with upper left longitude: " << upperLeftLon << endl;
+    cout << "                              upper left latitude: " << upperLeftLat << endl;
+    cout << "                           width in deg longitude: " << lonWidth << endl;
+    cout << "                            width in deg latitude: " << latWidth << endl;
+    cout << "                                  width in meters: " << fieldWidth << endl;
+    cout << "                                 height in meters: " << fieldHeight << endl;
+    */
   }
   
 	else

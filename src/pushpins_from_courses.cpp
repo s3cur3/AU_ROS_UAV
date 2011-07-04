@@ -59,7 +59,7 @@ int main()
   // The directory from which to read the courses
   string course_dir = "/Volumes/DATA/Dropbox/school/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/courses/";
   //string course_dir = "/home/trescenzi/Dropbox/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/courses/";
-  string name = "final_16_500m_sofa";
+  string name = "final_16_500m_ark";
   char defaults;
   
   cout << "Defaults are an input file name and path of:"<< endl;
