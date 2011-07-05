@@ -41,17 +41,23 @@ double resolution = 10; // meters per grid square
 //const double width_in_degrees_longitude = 0.005002;
 //const double height_in_degrees_latitude = -0.003808;
 
-// Constants for the 1km final field
+// Constants for the 700 field
+const double upper_left_longitude = -115.808173;
+const double upper_left_latitude = 37.244956;
+const double width_in_degrees_longitude = 0.020983;
+const double height_in_degrees_latitude = -0.016023;
+
+// 290 field
 //const double upper_left_longitude = -115.808173;
 //const double upper_left_latitude = 37.244956;
-//const double width_in_degrees_longitude = 0.011283;
-//const double height_in_degrees_latitude = -0.009023;
+//const double width_in_degrees_longitude = 0.012983;
+//const double height_in_degrees_latitude = -0.010523;
 
 //for extended (safe) 1km field
-const double upper_left_longitude = -115.809872;
-const double upper_left_latitude = 37.246079;
-const double width_in_degrees_longitude = 0.0085;
-const double height_in_degrees_latitude = -0.007;
+//const double upper_left_longitude = -115.808173;
+//const double upper_left_latitude = 37.244956;
+//const double width_in_degrees_longitude = 0.021;
+//const double height_in_degrees_latitude = -0.018;
 
 // for testing only; returns a position whose latitude and longitude are randomized
 Position randomized_position()
@@ -61,8 +67,8 @@ Position randomized_position()
 //  double latitude = -( (double)( rand() % 3808 ) / 1000000 ) + upper_left_latitude;
   
   // For the final 1km test field
-  double longitude = upper_left_longitude + ( (double)( rand() % 69999988 ) / 100000000000 );
-  double latitude = upper_left_latitude - ( (double)( rand() %   49999999 ) / 100000000000 );
+  double longitude = upper_left_longitude + ( (double)( rand() % 1982999 ) / 1000000000 );
+  double latitude = upper_left_latitude - ( (double)( rand() % 15423009 ) / 1000000000 );
   
   // cout << "Starting long " << longitude << endl << "Starting lat " << latitude << endl;
   

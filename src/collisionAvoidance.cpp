@@ -15,14 +15,14 @@
 #include <fstream>
 #include <map>
 
-#include "Plane_fixed.h"
-#include "best_cost_straight_lines.h"
-#include "astar_sparse0.cpp"
-#include "telemetry_data_out.h"
-#include "Position.h"
+#include "a_star/Plane_fixed.h"
+#include "a_star/best_cost_straight_lines.h"
+#include "a_star/astar_sparse0.cpp"
+#include "a_star/telemetry_data_out.h"
+#include "a_star/Position.h"
 
 #ifdef DEBUG
-#include "output_helpers.h"
+#include "a_star/output_helpers.h"
 #endif
 
 //ROS headers
@@ -65,7 +65,6 @@ int the_count;
 
 std::map< int, int > last_callback_updated;
 std::map< int, double > prev_dist;
-std::map< int, bool > needs_a_push;
 
 void makeField();
 
@@ -90,6 +89,13 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
   double destAlt=msg->destAltitude;
   double gSpeed=msg->groundSpeed;
   double bearing=msg->targetBearing;
+  
+#ifdef DEBUG
+  if( planeId < 0 )
+  {
+    ROS_ERROR( "This should not have happened. You're using an illegal plane." );
+  }
+#endif
   
   // initialize the goal service
   AU_UAV_ROS::RequestWaypointInfo goalSrv;
@@ -174,7 +180,7 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
     if( collision_occurred( planeId ) )
       cout << " You've made a mistake, Sir." << endl;
 #endif
-
+    
     // If it's a new plane . . .
     if( planes.find(planeId) == planes.end() )
     {
@@ -238,58 +244,23 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
     int endy = planes[planeId].getFinalDestination().getY();
     map_tools::bearing_t bearingNamed = planes[planeId].get_named_bearing();
     
-#ifdef DEBUG
-    if( planeId == 10 )
-    {
-      ROS_INFO("for plane %d\n the startx:%d\n the starty:%d\n the endx:%d\n the endy:%d\n end lat: %f \n end lon %f",
-               planeId,startx,starty,endx,endy, planes[planeId].getFinalDestination().getLat(), 
-               planes[planeId].getFinalDestination().getLon() );
-    }
-#endif
-    
     // Begin A*ing
     best_cost bc = best_cost( &planes, fieldWidth, fieldHeight, res, planeId);
     
-    point a_Star;
-    a_Star = astar_point( &bc, startx, starty, endx, endy, planeId, bearingNamed );
-
-#ifdef DEBUG
-    ROS_ERROR("\033[22;31m Still here, doing my A* thing on plane %d . . .", planeId );
-    cout << "Told A* plane has a bearing of " << bearing_to_string( bearingNamed ) << endl;
-
-    //  unsigned int time = clock() / (CLOCKS_PER_SEC / 1000);
-    //  unsigned int t = 0;
-    //  
-    //  stringstream prefix;
-    //  prefix << "For plane," << planeId << ",\nGoal:," << endx << "," << endy << ",\n";
-    //  prefix << "Start:," << startx << "," << starty << ",\n";
-    //  prefix << "Timestep:,0,\n";
-    //  stringstream name;
-    //  name << "plane_" << planeId << "_t_" << t << "_" << time;
-    //  bc.dump_csv( t, prefix.str(), name.str() );
-    //  
-    //  t = 1;
-    //  stringstream prefix1;
-    //  prefix1 << "For plane," << planeId << ",\nGoal:," << endx << "," << endy << ",\n";
-    //  prefix1 << "Start:," << startx << "," << starty << ",\n";
-    //  prefix1 << "Timestep:," << t << ",\n";
-    //  stringstream name1;
-    //  name1 << "plane_" << planeId << "_t_" << t << "_" << time;
-    //  bc.dump_csv( t, prefix1.str(), name1.str() );
-    //  
-    //  cout << "This plane's lat == " << double_to_string( planes[ planeId ].getLocation().getLat()) << endl;
-    //  cout << "This plane's lon == " << double_to_string( planes[ planeId ].getLocation().getLon()) << endl;
-    //  cout << "This plane's x == " << double_to_string( planes[ planeId ].getLocation().getX()) << endl;
-    //  cout << "This plane's y == " << double_to_string( planes[ planeId ].getLocation().getY()) << endl;
-//    cout << "In case you forgot, this is plane " << planeId << ", traveling " << 
-//    bearing_to_string( planes[ planeId ].get_named_bearing() ) << endl;
-//    cout << "A* says to go to (" << a_Star.x << ", " << a_Star.y << ")" << endl;
-    
-    if( planeId == 4 || planeId == 3)
+    /*
+    if( planeId == 4 || planeId == 5 )
     {
       bc.dump( 0 );
-      bc.dump( 1 );
-    }
+      bc.dump( 2 );
+      bc.dump( 4 );
+    }*/
+      
+    point a_Star;
+    a_Star = astar_point( &bc, startx, starty, endx, endy, planeId, bearingNamed, &planes );
+
+#ifdef DEBUG
+    ROS_ERROR("\033[22;31m Still here, doing my dynamic, sparse, A* thing on plane %d . . .", planeId );
+    cout << "Told A* plane has a bearing of " << bearing_to_string( bearingNamed ) << endl;
 #endif
         
 #if defined(Outputting) || defined(GODDAMMIT)
@@ -298,8 +269,7 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
     
 #endif
     
-    // Prior to artificially updating the plane's location, make a note of where 
-    // the plane is
+    // Make a note of where the plane is for the sake of checking if it's in a loop
     prev_dist[ planeId ] = 
       map_tools::calculate_distance_between_points( goalSrv.response.latitude, goalSrv.response.longitude, 
                                                     current.getLat(), current.getLon(),
@@ -332,7 +302,6 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
                              aStar.getLon(), aStar.getLat(), res);
     planes[planeId].update_intermediate_wp( next );
     
-    
     //                        Garbage collection                                   //
     vector< int > delete_these_keys;
     for( map< int, Plane >::iterator crnt_plane = planes.begin(); crnt_plane != planes.end();
@@ -340,8 +309,8 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
     {      
       int crnt_id = (*crnt_plane).second.getId();
       
-      if( last_callback_updated[ crnt_id ] < (the_count - (2 * planes.size()) ) &&
-          the_count > 30 )
+      if( last_callback_updated[ crnt_id ] < (the_count - (3 * planes.size()) ) &&
+          the_count > 30 && crnt_id >= 0 )
       {
         // Current plane hasn't been updated in the last 2 rounds of callbacks.
         // This *probably* means it's dead.
@@ -359,7 +328,7 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
   } // end if this is an okay goal
   else // Bad goals are normal in the first couple rounds of updates
   {
-    ROS_ERROR("Either you had a destination lat-lon of (0, 0) or you had a bad goal returned: %f, %f",
+    ROS_ERROR("Either you had a dest. lat-lon of (0, 0) or you had a bad goal returned: %f, %f",
               goalSrv.response.latitude,goalSrv.response.longitude);
   }
   
@@ -389,6 +358,9 @@ int main(int argc, char **argv)
 	makeField();
     
   ros::spin();
+  
+//  ros::MultiThreadedSpinner spinner(4); // Use 4 threads
+//  spinner.spin();
 
 	return 0;
 }

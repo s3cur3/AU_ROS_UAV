@@ -20,10 +20,10 @@
 #include <fstream>
 #include <map>
 
-#include "Plane_fixed.h"
-#include "best_cost_straight_lines.h"
-#include "astar_sparse0.cpp"
-#include "Position.h"
+#include "a_star/Plane_fixed.h"
+#include "a_star/best_cost_straight_lines.h"
+#include "a_star/astar_sparse0.cpp"
+#include "a_star/Position.h"
 
 #ifdef DEBUG
 #include "output_helpers.h"
@@ -146,7 +146,7 @@ int main()
   best_cost bc = best_cost( &planes, fieldWidth, fieldHeight, res, planeId);
   
   point a_Star;
-  a_Star = astar_point( &bc, startx, starty, endx, endy, planeId, bearingNamed );
+  a_Star = astar_point( &bc, startx, starty, endx, endy, planeId, bearingNamed, &planes );
   
   // Prior to artificially updating the plane's location, make a note of where 
   // the plane is
