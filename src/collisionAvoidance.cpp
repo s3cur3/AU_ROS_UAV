@@ -65,6 +65,7 @@ int the_count;
 
 std::map< int, int > last_callback_updated;
 std::map< int, double > prev_dist;
+std::map< int, bool > needs_a_push;
 
 void makeField();
 
@@ -187,7 +188,12 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
       // . . . give it an initial destination obtained through the telemetry update  
       Position next = Position(upperLeftLon,upperLeftLat,lonWidth,latWidth,destLon,destLat,res);
       
+      // Create and store the plane object
       planes[ planeId ] = Plane( planeId, current, next );
+      
+      // Create a spot for this plane in the list of planes which need a "push"
+      // away from their goal
+      needs_a_push[ planeId ] = false;
       
 #ifdef DEBUG
       assert( (int)next.getLat() != 0 );
@@ -212,15 +218,15 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
     // If the plane is in a loop, give it a fake "break-out" goal
     if( dist_from_goal < 45 && prev_dist[ planeId ] < dist_from_goal )
     {
-      // "Break-out" goal is 100 meters in opposite direction of the plane's 
-      //  bearing to the real destination
+      // "Break-out" goal is 100 meters in opposite direction of the plane's
+      // bearing to the real destination
       double break_out_lat, break_out_lon;
-      bearing_t bearing_to_break_out = 
-        map_tools::reverse_bearing( planes[ planeId ].get_named_bearing_to_dest() );
+      bearing_t bearing_to_break_out =
+      map_tools::reverse_bearing( planes[ planeId ].get_named_bearing_to_dest() );
       map_tools::calculate_point( goalSrv.response.latitude, goalSrv.response.longitude,
-                                  50, map_tools::bearing_to_double( bearing_to_break_out ),
-                                  break_out_lat, break_out_lon );
-
+                                 75, map_tools::bearing_to_double( bearing_to_break_out ),
+                                 break_out_lat, break_out_lon );
+      
       planes[ planeId ].setFinalDestination( break_out_lon, break_out_lat );
 #ifdef DEBUG
       ROS_INFO( "Set plane %d's breakout waypoint to %f, %f", planeId, break_out_lon, break_out_lat );
@@ -231,7 +237,6 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
     {
       // Set the plane's final destination based on what the goal service told us
       planes[planeId].setFinalDestination(goalSrv.response.longitude, goalSrv.response.latitude);
-      
 #ifdef DEBUG
       ROS_INFO("You set plane %d's final destination to: %f,%f", planeId, goalSrv.response.longitude,goalSrv.response.latitude);
 #endif
@@ -244,17 +249,18 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
     int endy = planes[planeId].getFinalDestination().getY();
     map_tools::bearing_t bearingNamed = planes[planeId].get_named_bearing();
     
+    
     // Begin A*ing
     best_cost bc = best_cost( &planes, fieldWidth, fieldHeight, res, planeId);
     
     /*
-    if( planeId == 4 || planeId == 5 )
+    if( planeId == 11 )
     {
       bc.dump( 0 );
       bc.dump( 2 );
       bc.dump( 4 );
     }*/
-      
+    
     point a_Star;
     a_Star = astar_point( &bc, startx, starty, endx, endy, planeId, bearingNamed, &planes );
 

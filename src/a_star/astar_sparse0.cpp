@@ -130,8 +130,10 @@ bool similar_bearing(bearing_t initial_bear, bearing_t target_bear){
     int a_star_bearing = map_to_astar[target_bear];
     a_star_bearing = (a_star_bearing + i) % movegoals;
     if (a_star_bearing < 0){
-      a_star_bearing = 7 + i;
+      a_star_bearing = movegoals + a_star_bearing;
     }
+
+    cout << astar_to_map[a_star_bearing] << " ==? " << initial_bear << endl;
 
     if (astar_to_map[a_star_bearing] == initial_bear)
       return true;
@@ -1106,8 +1108,18 @@ point immediate_avoidance_point(best_cost *bc, std::map<int, Plane> &planey_the_
     double distance = sqrt(pow(plane_point.x-s_x, 2) + pow(plane_point.y-s_y, 2));
     if (distance > 3){
       if (distance < closest){
+	int left_bear = (map_to_astar[initial_bearing] + 1)%8;
+	int right_bear = (map_to_astar[initial_bearing] - 1);
+	if (right_bear < 0)
+	  right_bear = 7;
+
+	if (myplane.get_named_bearing() == initial_bearing/* || myplane.get_named_bearing() == astar_to_map[left_bear] || myplane.get_named_bearing() == astar_to_map[right_bear]*/){
+	  new_avoidance.x = s_x;
+	  new_avoidance.y = s_y;
+	} else {
+	  new_avoidance = plane_point;
+	}
 	closest = distance;
-	new_avoidance = plane_point;
       }
     }
     threat.pop();
@@ -1314,6 +1326,25 @@ point astar_point(best_cost *bc, double sx, double sy, int endx, int endy, int p
 
 	break;
       }
+
+      bool deadly = false;
+      // Check to see what is happening...if too much danger in anything around our spot consider it too dangerous and break off
+      for (int i = 0; i < 8; i++) {
+	int x = a_st.x + movex[i];
+	int y = a_st.y + movey[i];
+	if (x >= 0 && x < MAP_WIDTH && y >= 0 && y < MAP_HEIGHT) {
+	  if (bc->get_pos(x, y, a_st.t) > sqrt(pow(x-endx, 2) + pow(y-endy, 2))){
+	    move = a_st;
+	    deadly = true;
+	    break;
+	  }
+	}
+      }
+	  
+      if (deadly){
+	cout << "OUTSIDE ZERO MANEUVER BAILING EARLY DUE TO SURROUNDING DANGER " << endl;
+	break;
+      }
       
       if (a_st.x > greater_x || a_st.x < lesser_x || a_st.y > greater_y || a_st.y < lesser_y){
 	outside_zero = true;
@@ -1329,20 +1360,18 @@ point astar_point(best_cost *bc, double sx, double sy, int endx, int endy, int p
       a_path.pop();
     }
   } else {
-    bool pivot_flag = false;
     while (!a_path.empty()  && !opt_path.empty()){
       point a_st = a_path.front();
       point opt = opt_path.front();
 
       cout << "OPT: " << opt.x << ", " << opt.y << ": " << opt.t << " VERSUS " << a_st.x << ", " << a_st.y << ": " << a_st.t << endl;
-      // follow the star
 
       // eh, A-star might recommend this, but we should control it (danger)
       if(bc->get_pos(a_st.x, a_st.y, a_st.t) > sqrt(pow(a_st.x-endx, 2) + pow(a_st.y-endy, 2)) && a_st.t > 1){
 	cout << "TOO DANGEROUS: GIVING MOVES IMMEDIATELY" <<endl;
-
+	move = a_st;
 	// Immediate term avoidance (3,4,5, and 6 seconds)
-	if (a_st.t <= 7  && a_st.t > 3){
+	if (a_st.t <= 7 && a_st.t > 3){
 	  // I am assuming control of this vessel
 
 	  // avoidance maneuver must follow the "I wanna live" logic, not A* path which is more like a "Hey, Google, I am feeling lucky; please don't rick roll me"
@@ -1357,12 +1386,13 @@ point astar_point(best_cost *bc, double sx, double sy, int endx, int endy, int p
       }
 
       if ((opt.x != a_st.x || opt.y != a_st.y) && a_st.t > 1){
-	cout << "BREAK ON:  (" << a_st.x << ", " << a_st.y << ": " << a_st.t << ")" << endl;
+	cout << "BREAK ON:  (" << a_st.x << ", " << a_st.y << ": " << a_st.t << ")" << endl;	  
 	if (a_st.t > 3)
 	  move = immediate_avoidance_point(bc, *planey_the_plane_map, a_st, previous);
-	else
+	else 
 	  move = a_st;
 	break;
+   
       }
       
       // Pivot is an odd issue...
@@ -1380,8 +1410,6 @@ point astar_point(best_cost *bc, double sx, double sy, int endx, int endy, int p
   }
 
 
-
-  
   cout << "ASTAR COMPLETE" << endl;
   
   /*
