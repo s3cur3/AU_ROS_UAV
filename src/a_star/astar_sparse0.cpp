@@ -1098,6 +1098,23 @@ point immediate_avoidance_point(best_cost *bc, std::map<int, Plane> &planey_the_
     planes_discovered.pop();
   } // end while planes discovered not empty
 
+  // Setup bearings
+  int i_bearing = map_to_astar[initial_bearing];
+
+  bearing_t go_behind_one = astar_to_map[(i_bearing + 2)%8];  // +2
+  bearing_t go_behind_two = N;
+  if (i_bearing - 2 == -1)
+    bearing_t go_behind_two = astar_to_map[7]; // -2
+  else if (i_bearing - 2 == -2)
+    go_behind_two = astar_to_map[6];
+  else
+    go_behind_two = astar_to_map[i_bearing - 2];
+
+  bearing_t avoid_head_on = opposite_bearing(initial_bearing);
+
+  bearing_t opp_one =  astar_to_map[(i_bearing + 3)%8]; // +3
+  bearing_t opp_two = i_bearing - 3 < 0 ? astar_to_map[movegoals+i_bearing-3] : astar_to_map[i_bearing - 3]; // -3
+
   // determine closest threat that is at least 2 spots away (otherwise we cannot do anything about it)
   double closest = numeric_limits<double>::infinity();
   while(!threat.empty()){
@@ -1108,17 +1125,60 @@ point immediate_avoidance_point(best_cost *bc, std::map<int, Plane> &planey_the_
     double distance = sqrt(pow(plane_point.x-s_x, 2) + pow(plane_point.y-s_y, 2));
     if (distance > 3){
       if (distance < closest){
-	int left_bear = (map_to_astar[initial_bearing] + 1)%8;
-	int right_bear = (map_to_astar[initial_bearing] - 1);
-	if (right_bear < 0)
-	  right_bear = 7;
-
-	if (myplane.get_named_bearing() == initial_bearing/* || myplane.get_named_bearing() == astar_to_map[left_bear] || myplane.get_named_bearing() == astar_to_map[right_bear]*/){
-	  new_avoidance.x = s_x;
-	  new_avoidance.y = s_y;
-	} else {
+	if (avoid_head_on == myplane.get_named_bearing()){
+	  // avoid head on crash -- how to handle?
+	  int new_bear = (map_to_astar[initial_bearing] + 1)%8;
+	  new_avoidance.x = s_x + movex[new_bear]*2;
+	  new_avoidance.y = s_y + movey[new_bear]*2;
+	} else if (go_behind_one == myplane.get_named_bearing() || go_behind_two == myplane.get_named_bearing()) {
+	  new_avoidance = plane_point; // go behind the plane
+	} else if (opp_one == myplane.get_named_bearing() || opp_two == myplane.get_named_bearing()){
+	  // make avoidance point by going towards the planes start
 	  new_avoidance = plane_point;
+	  int opp = map_to_astar[opposite_bearing(myplane.get_named_bearing())];
+	  new_avoidance.x += movex[opp];
+	  new_avoidance.y += movey[opp];
+	} else {
+	  // run parallel to avoid crashing into a plane with similar bearing as yourself -- and then break away slightly?
+	  int new_bear = map_to_astar[myplane.get_named_bearing()];
+	  // is threat right or left?
+	  if (plane_point.x < s_x && plane_point.y < s_y){ // threat is on left -- we want to go E, SE, S, or NE/SW
+	    if (initial_bearing == E){
+	      new_avoidance.x = s_x + movex[new_bear]*2 + 1;
+	      new_avoidance.y = s_y + movey[new_bear]*2;
+	    } else if (initial_bearing = SE){
+	      new_avoidance.x = s_x + movex[new_bear]*2 + 1;
+	      new_avoidance.y = s_y + movey[new_bear]*2 + 1;
+	    } else if (initial_bearing == S){
+	      new_avoidance.x = s_x + movex[new_bear]*2;
+	      new_avoidance.y = s_y + movey[new_bear]*2 + 1;
+	    } else if (initial_bearing == NE){
+	      new_avoidance.x = s_x + movex[new_bear]*2 + 1;
+	      new_avoidance.y = s_y + movey[new_bear]*2 - 1;
+	    } else if (initial_bearing == SW) {
+	      new_avoidance.x = s_x + movex[new_bear]*2 - 1;
+	      new_avoidance.y = s_y + movey[new_bear]*2 + 1;	      
+	    }
+	  } else { // threat is on right -- we want to go W, NW, N, SW/NE
+	    if (initial_bearing == W){
+	      new_avoidance.x = s_x + movex[new_bear]*2 - 1;
+	      new_avoidance.y = s_y + movey[new_bear]*2;
+	    } else if (initial_bearing = NW){
+	      new_avoidance.x = s_x + movex[new_bear]*2 - 1;
+	      new_avoidance.y = s_y + movey[new_bear]*2 - 1;
+	    } else if (initial_bearing == N){
+	      new_avoidance.x = s_x + movex[new_bear]*2 - 1;
+	      new_avoidance.y = s_y + movey[new_bear]*2;
+	    } else if (initial_bearing == NE){
+	      new_avoidance.x = s_x + movex[new_bear]*2 + 1;
+	      new_avoidance.y = s_y + movey[new_bear]*2 - 1;
+	    } else if (initial_bearing == SW) {
+	      new_avoidance.x = s_x + movex[new_bear]*2 - 1;
+	      new_avoidance.y = s_y + movey[new_bear]*2 + 1;	      
+	    } 
+	  }
 	}
+	
 	closest = distance;
       }
     }
@@ -1295,7 +1355,7 @@ point astar_point(best_cost *bc, double sx, double sy, int endx, int endy, int p
     point a_st = a_path.front();
     // based on orientation?
     // initial bearing and goal bearing
-    if (/*(a_st.x > greater_x || a_st.x < lesser_x || a_st.y > greater_y || a_st.y < lesser_y) &&*/ !(similar_bearing(initial_bearing, goal_bearing)))
+    if (!(similar_bearing(initial_bearing, goal_bearing)))
       outside_zero = true;
   }
 
@@ -1320,29 +1380,15 @@ point astar_point(best_cost *bc, double sx, double sy, int endx, int endy, int p
       double predicted_val = sqrt(pow(a_st.x-endx, 2) + pow(a_st.y-endy, 2));
       // if, for some reason, our turn is dangerous -- break from it
       
-      if ((bc->get_pos(a_st.x, a_st.y, a_st.t) > predicted_val) && a_st.t > 1){
+      
+      if ((bc->get_pos(a_st.x, a_st.y, a_st.t) > predicted_val) && a_st.t > 0){
 	cout << "OUTSIDE ZERO MANEUVER BAILING EARLY DUE TO DANGER: (" << a_st.x << ", " << a_st.y << ": " << a_st.t << ")" << endl;
+	//move = immediate_avoidance_point(bc, *planey_the_plane_map, a_st, previous);
+	//move.x = startx + movex[map_to_astar[initial_bearing]]*2;
+	//move.y = starty + movey[map_to_astar[initial_bearing]]*2;
 	move = a_st;
+	move.t = -1;
 
-	break;
-      }
-
-      bool deadly = false;
-      // Check to see what is happening...if too much danger in anything around our spot consider it too dangerous and break off
-      for (int i = 0; i < 8; i++) {
-	int x = a_st.x + movex[i];
-	int y = a_st.y + movey[i];
-	if (x >= 0 && x < MAP_WIDTH && y >= 0 && y < MAP_HEIGHT) {
-	  if (bc->get_pos(x, y, a_st.t) > sqrt(pow(x-endx, 2) + pow(y-endy, 2))){
-	    move = a_st;
-	    deadly = true;
-	    break;
-	  }
-	}
-      }
-	  
-      if (deadly){
-	cout << "OUTSIDE ZERO MANEUVER BAILING EARLY DUE TO SURROUNDING DANGER " << endl;
 	break;
       }
       
@@ -1398,7 +1444,7 @@ point astar_point(best_cost *bc, double sx, double sy, int endx, int endy, int p
       // Pivot is an odd issue...
       if ((a_st.x == endx || a_st.y == endy) && !straight && a_st.t > 1){
 	cout << "Getting the hell outta dodge, we have hit a pivot  (" << a_st.x << ", " << a_st.y << ": " << a_st.t << ")" << endl;
-	move = previous; //used to a_st
+	move = a_st; //used to a_st
 	break;
       }
       

@@ -67,6 +67,8 @@ std::map< int, int > last_callback_updated;
 std::map< int, double > prev_dist;
 std::map< int, bool > needs_a_push;
 
+std::map< int, bool > go_around;
+
 void makeField();
 
 /**
@@ -90,6 +92,14 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
   double destAlt=msg->destAltitude;
   double gSpeed=msg->groundSpeed;
   double bearing=msg->targetBearing;
+  
+  if( go_around[ planeId ] )
+  {
+    // Needed to continue our go-around maneuver in this second; don't need to
+    // in the next
+    go_around[ planeId ] = false;
+    return;
+  }
   
 #ifdef DEBUG
   if( planeId < 0 )
@@ -194,6 +204,7 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
       // Create a spot for this plane in the list of planes which need a "push"
       // away from their goal
       needs_a_push[ planeId ] = false;
+      go_around[ planeId ] = false;
       
 #ifdef DEBUG
       assert( (int)next.getLat() != 0 );
@@ -264,6 +275,49 @@ void telemetryCallback(const AU_UAV_ROS::TelemetryUpdate::ConstPtr& msg)
     point a_Star;
     a_Star = astar_point( &bc, startx, starty, endx, endy, planeId, bearingNamed, &planes );
 
+    // Check that we aren't off the map
+    if( a_Star.x < 0 )
+      a_Star.x = 0;
+    if( a_Star.y < 0 )
+      a_Star.y = 0;
+    
+    if( a_Star.t == -1 ) // this plane needs to go around (do a loop to get out of danger)
+    {
+      /*
+      map_tools::bearing_t bearing_to_avoidance;
+      
+      if( a_Star.x == -1 ) // the "bad" plane is on the left; we need to go right
+      {
+        // Calculate the bearing from the plane of the point we'll go to
+        bearing_to_avoidance = ( (planes[ planeId ].get_named_bearing() + 2) % 8 );
+      }
+      else // avoid the plane on the right!
+      {
+        bearing_to_avoidance = (planes[ planeId ].get_named_bearing() - 2);
+        if( bearing_to_avoidance == -1 ) // This is a hack.
+          bearing_to_avoidance = 7;
+        if( bearing_to_avoidance == -2 )
+          bearing_to_avoidance = 6;
+      }
+      
+      double go_around_lat = 0;
+      double go_around_lon = 0;
+      
+      map_tools::calculate_point( current.getLat(), current.getLon(),
+                                  75, map_tools::bearing_to_double( bearing_to_avoidance ),
+                                  go_around_lat, go_around_lon );
+      
+      // Set a bogus destination which gets us out of hot water
+      planes[ planeId ].setDestination( go_around_lat, go_around_lon );
+      
+      // . . . and have A* tell us how to get there.
+      a_Star = astar_point( &bc, startx, starty, planes[ planeId ].getDestination().getX(), 
+                            planes[ planeId ].getDestination().getY(), planeId, bearingNamed, &planes );
+      */
+      go_around[ planeId ] = true;
+    }
+     
+    
 #ifdef DEBUG
     ROS_ERROR("\033[22;31m Still here, doing my dynamic, sparse, A* thing on plane %d . . .", planeId );
     cout << "Told A* plane has a bearing of " << bearing_to_string( bearingNamed ) << endl;

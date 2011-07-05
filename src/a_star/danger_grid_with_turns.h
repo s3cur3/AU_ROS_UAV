@@ -1031,9 +1031,13 @@ vector< estimate > danger_grid::calculate_future_pos( Plane & plane, int &time )
     angle=(RADtoDEGREES*(asin((double)xDistance/(double)distance)));
   if((x2-x1)<0)//positive means that the plane is headed to the left aka west
     angle=(-1)*angle;//the plane goes from -180 to +180
+#ifdef DEBUG_DG
   cout<<"My bearing was:"<<bearing<<endl;
+#endif
   bearingAfterAvoid=angle;
+#ifdef DEBUG_DG
   cout<<"My bearing now is:"<<bearingAfterAvoid<<endl;
+#endif
   
   
 	//add prediction to one square ahead of goal
@@ -1047,7 +1051,9 @@ vector< estimate > danger_grid::calculate_future_pos( Plane & plane, int &time )
 	
   if(destination.getX()==plane.getFinalDestination().getX() && destination.getY()==plane.getFinalDestination().getY())
   {
+#ifdef DEBUG_DG
     cout<<"Predicting beyond the goal"<<endl;
+#endif
 	danger=1;
 	
   //now add the danger ahead of the goal to theFuture
