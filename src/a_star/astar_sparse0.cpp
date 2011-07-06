@@ -64,7 +64,7 @@ std::map<bearing_t, int> map_to_astar;
    |  3  |  4  |
    |     |     |
    |-----|-----|
- */
+*/
 int rough_quadrant;
 /**
    End user mods
@@ -98,30 +98,30 @@ int GetMap( int x, int y )
 
 
 int getGridBearing( int current_x, int current_y, int dest_x, int dest_y ){
-    if (current_y-dest_y == 0 && current_x-dest_x < 0){		  
-      return 0; // goal is to your right
-    }
-    else if (current_y-dest_y < 0 && current_x-dest_x < 0){
-      return 1; // down right
-    }
-    else if (current_y-dest_y < 0 && current_x-dest_x == 0){
-      return 2; // down
-    }
-    else if (current_y-dest_y < 0 && current_x-dest_x > 0){
-      return 3; // down left
-    }
-    else if (current_y-dest_y == 0 && current_x-dest_x >0){
-      return 4; // left
-    }
-    else if (current_y-dest_y > 0 && current_x-dest_x > 0){
-      return 5; // top left
-    }
-    else if (current_y-dest_y > 0 && current_x-dest_x == 0){
-      return 6; // top
-    }
-    else if (current_y-dest_y > 0 && current_x-dest_x < 0){
-      return 7; // top right
-    }
+  if (current_y-dest_y == 0 && current_x-dest_x < 0){		  
+    return 0; // goal is to your right
+  }
+  else if (current_y-dest_y < 0 && current_x-dest_x < 0){
+    return 1; // down right
+  }
+  else if (current_y-dest_y < 0 && current_x-dest_x == 0){
+    return 2; // down
+  }
+  else if (current_y-dest_y < 0 && current_x-dest_x > 0){
+    return 3; // down left
+  }
+  else if (current_y-dest_y == 0 && current_x-dest_x >0){
+    return 4; // left
+  }
+  else if (current_y-dest_y > 0 && current_x-dest_x > 0){
+    return 5; // top left
+  }
+  else if (current_y-dest_y > 0 && current_x-dest_x == 0){
+    return 6; // top
+  }
+  else if (current_y-dest_y > 0 && current_x-dest_x < 0){
+    return 7; // top right
+  }
 }
 
 
@@ -132,8 +132,6 @@ bool similar_bearing(bearing_t initial_bear, bearing_t target_bear){
     if (a_star_bearing < 0){
       a_star_bearing = movegoals + a_star_bearing;
     }
-
-    cout << astar_to_map[a_star_bearing] << " ==? " << initial_bear << endl;
 
     if (astar_to_map[a_star_bearing] == initial_bear)
       return true;
@@ -194,7 +192,7 @@ public:
      0 1 2 3
      - - 2 3
      - - - 3
-   */
+  */
 
   bearing_t parent_bearing; // AK: Used for children node to understand where their parent is coming from
 
@@ -205,7 +203,7 @@ public:
 
   /** Time for another episode of Node Expansion with UAV-Team-Two
       IF P=N and M=NE, then P*M -> NNE (North-North-East)
-   */
+  */
 	
   MapSearchNode() { 
     x = y = 0; 
@@ -290,10 +288,26 @@ bearing_t MapSearchNode::getB(){
 float MapSearchNode::GoalDistanceEstimate( MapSearchNode &nodeGoal )
 {
   //cout << x << ", " << y << " : " << timestep << " " << bc_grid->get_pos(x, y, timestep) << endl;
-  
   double cost = bc_grid->get_pos(x, y, timestep);
+  double count = 1;
+  for (int i = 0; i < 8; i++){
+    if (x + movex[i] >= 0 && x + movex[i] < MAP_WIDTH &&
+	y + movey[i] >= 0 && y + movey[i] < MAP_HEIGHT){
+      for (int t = 0; t <= 2; t++){
+	//if (t+timestep < 19 && t+timestep > 0){
+	cost += bc_grid->get_pos(x+movex[i], y+movey[i], timestep);
+	count++;
+	//} else {
+	// break;
+	//}
+      }
+    }
+  }
 
-  return cost;
+  return cost/count;
+  //double cost = bc_grid->get_pos(x, y, timestep);
+
+  //return cost;
 }
 
 bool MapSearchNode::IsGoal( MapSearchNode &nodeGoal )
@@ -314,10 +328,7 @@ bool MapSearchNode::IsGoal( MapSearchNode &nodeGoal )
 // is specific to the application
 bool MapSearchNode::GetSuccessors( AStarSearch<MapSearchNode> *astarsearch, MapSearchNode *parent_node )
 {
-  //cout << endl << "I AM NODE: (" << x << ", " << y << ") : " << timestep << endl;
- 
   int time_z = -1;
-  //int bearing = -1;
 
   if ( !parent_node ){
     // if we have a parent, we actually only have one really legal move...that is going in the same direction as we current are
@@ -325,13 +336,11 @@ bool MapSearchNode::GetSuccessors( AStarSearch<MapSearchNode> *astarsearch, MapS
     parent_bearing = initial_bearing;
     cout << parent_bearing << endl;
   } else {
-    // Our parent node -they raised us to be the node we were meant to be (ish)
-    
-    //cout << "My parent is: " << parent_x << ", " << parent_y << ", " << parent_node->timestep << endl;
+
   } 
   // update our time step
-  time_z = timestep+1>20 ? 20 : 1+timestep;
-  //cout << "Parent's Time: " << parent_node->timestep << " and our new time: " << time_z << endl;
+  time_z = timestep+1>10 ? 10 : 1+timestep;
+
 
   int greater_x = 0;
   int lesser_x = 0;
@@ -411,7 +420,6 @@ bool MapSearchNode::GetSuccessors( AStarSearch<MapSearchNode> *astarsearch, MapS
 
 	child_expansions.push(astar_to_map[r[i]]);
 	legal_moves = r[i];
-	//cout << " GO: X -- " << x+movex[r[i]] << ", " << y+movey[r[i]] << " at time: " << time_z << endl; //<< " ---- "  << bc_grid->get_pos(x+movex[r[i]], y+movey[r[i]], time_z) << endl;
 
       }        
       MapSearchNode NewNode;
@@ -675,7 +683,6 @@ int other_main(int startx, int starty, int endx, int endy, int planeid ){
 
 
 point IREFUSETODIE(point previous, point a_st){
-  cout << " I REFUSE TO DIE " << endl;
   bearing_t b = astar_to_map[getGridBearing(previous.x, previous.y, a_st.x, a_st.y)];
   double comp1 = numeric_limits<double>::infinity();
   double comp2 = numeric_limits<double>::infinity();
@@ -820,11 +827,8 @@ bool is_sparse(best_cost *bc){
   bool straight_line  = false;
   if (startx == endx || starty == endy){
     straight_line = true;
-    // cout << " staight " << endl;
-    // getchar();
   }
   
-  //straight_line ? cout << "ST " << endl : cout << "NT " << endl;
   // Number of steps using Chebyshev distance from start to goal
   // This is the optimal number steps from start to the goal, as such it is also the minimum number of steps needed to search for Sparse-A*
   int num_steps = 0;
@@ -921,8 +925,7 @@ bool is_sparse(best_cost *bc){
       } else if (g_t_s.y == s_t_g.y){
 	goal_orientation = 1;
       } else {
-	cout << "ERROR on ORIENTATION, neither X nor Y are the same values!" << endl;
-	exit(1);
+	// used to be assert code here
       }
     }
 
@@ -958,7 +961,6 @@ bool is_sparse(best_cost *bc){
     opt_p.y = avgy;			      
     opt_p.t = time_select;
 
-    cout << "SPARSE ACTION at time " << time_select << " and (" << avgx << ", " << avgy << ") with g_orient " << goal_orientation << " -->" << bc->get_pos(avgx, avgy, time_select) << endl;
     opt_path.push(opt_p);
     if (straight_line){
       double euclidean_danger = sqrt(pow(abs(endx-avgx),2) + pow(abs(endy-avgy), 2));
@@ -978,19 +980,15 @@ bool is_sparse(best_cost *bc){
 	5: -1/-1
 	7: +1/-1
       */
-      cout << "DIAG" << endl;
       double euclidean_danger = sqrt(pow(abs(endx-avgx),2) + pow(abs(endy-avgy), 2));
       double danger_grid = bc->get_pos(avgx, avgy, time_select);
-      //cout << planeid << ": " << avgx << ", " << avgy << " : " << euclidean_danger << " vs. " << danger_grid << endl;
       if (danger_grid > euclidean_danger && sparse == true){
 	sparse = false; // failed to find a clear path
 	  
 	// Death, Despair, Disaster...a plane will probably be in this spot in the future that we want to avoid
-	//cout << "Danger: (" << x << ", " << avgy << ", " << time_select << ") has " << danger_grid << " vs tolerable " << euclidean_danger << endl;
 	danger_point.x = avgx;
 	danger_point.y = avgy;
 	danger_point.t = time_select;
-	//getchar();
       }     
     } else if (goal_orientation == 1){
       for (int x = avgx -1; x<=avgx+1; x++){
@@ -1000,18 +998,16 @@ bool is_sparse(best_cost *bc){
 
 	double euclidean_danger = sqrt(pow(abs(endx-x),2) + pow(abs(endy-avgy), 2));
 	double danger_grid = bc->get_pos(x, avgy, time_select);
-	//cout << planeid << ": " << x << ", " << avgy << " : " << euclidean_danger << " vs. " << danger_grid << endl;
+
 	if (danger_grid > euclidean_danger && sparse == true){
 	  sparse = false; // failed to find a clear path
 	  // NOTE: Should BLOCK OFF these three optimal areas from A* (i.e., A* cannot look at these three or so dangerous spaces, no matter how good they may look)
 	  // code here
 	  
 	  // Death, Despair, Disaster...a plane will probably be in this spot in the future that we want to avoid
-	  //cout << "Danger: (" << x << ", " << avgy << ", " << time_select << ") has " << danger_grid << " vs tolerable " << euclidean_danger << endl;
 	  danger_point.x = avgx;
 	  danger_point.y = avgy;
 	  danger_point.t = time_select;
-	  //getchar();
 	}	
       }
     } else if (goal_orientation == 0){
@@ -1023,14 +1019,11 @@ bool is_sparse(best_cost *bc){
 
 	double euclidean_danger = sqrt(pow(abs(endx-avgx),2) + pow(abs(endy-y), 2));
 	double danger_grid = bc->get_pos(avgx, y, time_select);
-	//cout << planeid << ":: " << avgx << ", " << y << " : " << euclidean_danger << " vs. " << danger_grid << endl;
 	if (danger_grid > euclidean_danger && sparse == true){
 	  sparse = false; // failed to find a clear path
 	  // NOTE: Should BLOCK OFF these three optimal areas from A* (i.e., A* cannot look at these three or so dangerous spaces, no matter how good they may look)
 	  // code here
 	  
-	  // Death, Despair, Disaster...a plane will probably be in this spot in the future that we want to avoid
-	  cout << "Danger: (" << avgx << ", " << y << ", " << time_select << ") has " << danger_grid << " vs tolerable " << euclidean_danger << endl;
 	  danger_point.x = avgx;
 	  danger_point.y = avgy;
 	  danger_point.t = time_select;
@@ -1052,7 +1045,6 @@ bool is_sparse(best_cost *bc){
 }
 
 point immediate_avoidance_point(best_cost *bc, std::map<int, Plane> &planey_the_plane_map, point a_st, point previous){
-  cout << "Starting immediate avoidance " << endl;
   // new_avoidance is our new, safer waypoint to move to that is still within the range of legal moves
   point new_avoidance = a_st;
 
@@ -1087,14 +1079,14 @@ point immediate_avoidance_point(best_cost *bc, std::map<int, Plane> &planey_the_
 	Position plane_p = myplane.getLocation();
 	if (plane_p.getX() == plane_threat.x && plane_p.getY() == plane_threat.y){
 	  if (similar_bearing(myplane.get_named_bearing(), initial_bearing)){
-	    cout << "Aha! We have discovered that plane " <<  (*crnt_plane).second.getId() << " is a threat to our well being.  Taking avoidance actions...maybe. " << endl;
+	    //cout << "Aha! We have discovered that plane " <<  (*crnt_plane).second.getId() << " is a threat to our well being.  Taking avoidance actions...maybe. " << endl;
 	    threat.push( (*crnt_plane).second.getId());
 	  } else {
-	    cout << "We discovered that plane " <<  (*crnt_plane).second.getId() << " was in our threat area, however is moving away from us, so no need to add to danger list" << endl;
+	    //cout << "We discovered that plane " <<  (*crnt_plane).second.getId() << " was in our threat area, however is moving away from us, so no need to add to danger list" << endl;
 	  }
 	  break;
 	}
-    } // end for each plane
+      } // end for each plane
     planes_discovered.pop();
   } // end while planes discovered not empty
 
@@ -1125,59 +1117,44 @@ point immediate_avoidance_point(best_cost *bc, std::map<int, Plane> &planey_the_
     double distance = sqrt(pow(plane_point.x-s_x, 2) + pow(plane_point.y-s_y, 2));
     if (distance > 3){
       if (distance < closest){
-	if (avoid_head_on == myplane.get_named_bearing()){
-	  // avoid head on crash -- how to handle?
-	  int new_bear = (map_to_astar[initial_bearing] + 1)%8;
-	  new_avoidance.x = s_x + movex[new_bear]*2;
-	  new_avoidance.y = s_y + movey[new_bear]*2;
-	} else if (go_behind_one == myplane.get_named_bearing() || go_behind_two == myplane.get_named_bearing()) {
-	  new_avoidance = plane_point; // go behind the plane
-	} else if (opp_one == myplane.get_named_bearing() || opp_two == myplane.get_named_bearing()){
-	  // make avoidance point by going towards the planes start
-	  new_avoidance = plane_point;
-	  int opp = map_to_astar[opposite_bearing(myplane.get_named_bearing())];
-	  new_avoidance.x += movex[opp];
-	  new_avoidance.y += movey[opp];
-	} else {
-	  // run parallel to avoid crashing into a plane with similar bearing as yourself -- and then break away slightly?
-	  int new_bear = map_to_astar[myplane.get_named_bearing()];
-	  // is threat right or left?
-	  if (plane_point.x < s_x && plane_point.y < s_y){ // threat is on left -- we want to go E, SE, S, or NE/SW
-	    if (initial_bearing == E){
-	      new_avoidance.x = s_x + movex[new_bear]*2 + 1;
-	      new_avoidance.y = s_y + movey[new_bear]*2;
-	    } else if (initial_bearing = SE){
-	      new_avoidance.x = s_x + movex[new_bear]*2 + 1;
-	      new_avoidance.y = s_y + movey[new_bear]*2 + 1;
-	    } else if (initial_bearing == S){
-	      new_avoidance.x = s_x + movex[new_bear]*2;
-	      new_avoidance.y = s_y + movey[new_bear]*2 + 1;
-	    } else if (initial_bearing == NE){
-	      new_avoidance.x = s_x + movex[new_bear]*2 + 1;
-	      new_avoidance.y = s_y + movey[new_bear]*2 - 1;
-	    } else if (initial_bearing == SW) {
-	      new_avoidance.x = s_x + movex[new_bear]*2 - 1;
-	      new_avoidance.y = s_y + movey[new_bear]*2 + 1;	      
-	    }
-	  } else { // threat is on right -- we want to go W, NW, N, SW/NE
-	    if (initial_bearing == W){
-	      new_avoidance.x = s_x + movex[new_bear]*2 - 1;
-	      new_avoidance.y = s_y + movey[new_bear]*2;
-	    } else if (initial_bearing = NW){
-	      new_avoidance.x = s_x + movex[new_bear]*2 - 1;
-	      new_avoidance.y = s_y + movey[new_bear]*2 - 1;
-	    } else if (initial_bearing == N){
-	      new_avoidance.x = s_x + movex[new_bear]*2 - 1;
-	      new_avoidance.y = s_y + movey[new_bear]*2;
-	    } else if (initial_bearing == NE){
-	      new_avoidance.x = s_x + movex[new_bear]*2 + 1;
-	      new_avoidance.y = s_y + movey[new_bear]*2 - 1;
-	    } else if (initial_bearing == SW) {
-	      new_avoidance.x = s_x + movex[new_bear]*2 - 1;
-	      new_avoidance.y = s_y + movey[new_bear]*2 + 1;	      
-	    } 
+
+	// run parallel to avoid crashing into a plane with similar bearing as yourself -- and then break away slightly?
+	int new_bear = map_to_astar[myplane.get_named_bearing()];
+	// is threat right or left?
+	if (plane_point.x < s_x && plane_point.y < s_y){ // threat is on left -- we want to go E, SE, S, or NE/SW
+	  if (initial_bearing == E){
+	    new_avoidance.x = s_x + movex[new_bear]*2 + 1;
+	    new_avoidance.y = s_y + movey[new_bear]*2;
+	  } else if (initial_bearing = SE){
+	    new_avoidance.x = s_x + movex[new_bear]*2 + 1;
+	    new_avoidance.y = s_y + movey[new_bear]*2 + 1;
+	  } else if (initial_bearing == S){
+	    new_avoidance.x = s_x + movex[new_bear]*2;
+	    new_avoidance.y = s_y + movey[new_bear]*2 + 1;
+	  } else if (initial_bearing == NE){
+	    new_avoidance.x = s_x + movex[new_bear]*2 + 1;
+	    new_avoidance.y = s_y + movey[new_bear]*2 - 1;
+	  } else {
+	    new_avoidance = plane_point;
+	  }
+	} else { // threat is on right -- we want to go W, NW, N, SW/NE
+	  if (initial_bearing == W){
+	    new_avoidance.x = s_x + movex[new_bear]*2 - 1;
+	    new_avoidance.y = s_y + movey[new_bear]*2;
+	  } else if (initial_bearing = NW){
+	    new_avoidance.x = s_x + movex[new_bear]*2 - 1;
+	    new_avoidance.y = s_y + movey[new_bear]*2 - 1;
+	  } else if (initial_bearing == N){
+	    new_avoidance.x = s_x + movex[new_bear]*2 - 1;
+	    new_avoidance.y = s_y + movey[new_bear]*2;
+	  } else if (initial_bearing == SW) {
+	    new_avoidance.x = s_x + movex[new_bear]*2 - 1;
+	    new_avoidance.y = s_y + movey[new_bear]*2 + 1;	      
+	  } else {
+	    new_avoidance = plane_point;
 	  }
 	}
+	
 	
 	closest = distance;
       }
@@ -1185,8 +1162,8 @@ point immediate_avoidance_point(best_cost *bc, std::map<int, Plane> &planey_the_
     threat.pop();
   }
 
-  cout << "A_ST initially said: " << a_st.x << ", " << a_st.y << " at " << a_st.t << endl;
-  cout << "Now we say: " << new_avoidance.x << ", " << new_avoidance.y << endl;
+  //cout << "A_ST initially said: " << a_st.x << ", " << a_st.y << " at " << a_st.t << endl;
+  //cout << "Now we say: " << new_avoidance.x << ", " << new_avoidance.y << endl;
   return new_avoidance;
 }
 
@@ -1222,7 +1199,6 @@ point astar_point(best_cost *bc, double sx, double sy, int endx, int endy, int p
     a_path.pop();
   }
 
-  
   while(!a_path_out.empty()){
     a_path_out.pop();
   }
@@ -1233,7 +1209,7 @@ point astar_point(best_cost *bc, double sx, double sy, int endx, int endy, int p
   int starty = s_y = floor(sy);
 
   // For easy debugging (blank lines before and after a plane is announced)
-  cout << endl << endl << planeid << " : (" << startx << ", " << starty << ") --> (" << endx << ", " << endy << ")" << endl << endl;
+  //cout << endl << endl << planeid << " : (" << startx << ", " << starty << ") --> (" << endx << ", " << endy << ")" << endl << endl;
 
   e_x = endx;
   e_y = endy;
@@ -1244,16 +1220,21 @@ point astar_point(best_cost *bc, double sx, double sy, int endx, int endy, int p
   int goal_orientation = getGridBearing(startx, starty, endx, endy);
   bearing_t goal_bearing = astar_to_map[goal_orientation];
   int astar_bearing = map_to_astar[initial_bearing];
-  //initial_bearing  = astar_to_map[goal_orientation];
-  //cout << initial_bearing<< endl;
-  //getchar();
-  cout << initial_bearing << " vs " << goal_bearing << endl;
+
 
   if (initial_bearing == goal_bearing && is_sparse(bc)){
-    cout << "SPARSE " << planeid << endl;
     move.x = endx;
     move.y = endy;
-    cout << endl << endl << "In the end we choose; " << move.x << ", " << move.y << endl;
+    if (move.x < 0)
+      move.x = 0;
+    if (move.x >= MAP_WIDTH)
+      move.x = MAP_WIDTH - 1;
+
+    if (move.y < 0)
+      move.y = 0;
+
+    if (move.y >= MAP_HEIGHT)
+      move.y = MAP_HEIGHT - 1;
     return move;
   }
   
@@ -1267,7 +1248,6 @@ point astar_point(best_cost *bc, double sx, double sy, int endx, int endy, int p
 
   
   if (similar_bearing(initial_bearing, goal_bearing)){
-    cout << "SIMILAR " << initial_bearing << " vs goal_bearing " << goal_bearing << endl;
     current_x += movex[astar_bearing];
     current_y += movey[astar_bearing];
     time += 1;
@@ -1310,9 +1290,6 @@ point astar_point(best_cost *bc, double sx, double sy, int endx, int endy, int p
   move.x = endx;
   move.y = endy;
   int result = other_main(startx, starty, endx, endy, planeid);
-  
-  if (result == -1)
-    cout << "Sad, A-star found no solution...I hope you like ROS giving you a bridge to nowhere" << endl;
 
   // Outside Zero means: our plane is trying to move away from our goal (probably due to orientation facing a different direction)
   // However, if this is true, we must do a new type of bounds checking to bring it back in.
@@ -1363,17 +1340,14 @@ point astar_point(best_cost *bc, double sx, double sy, int endx, int endy, int p
   if (startx != endx && starty != endy)
     straight = false;
 
-  if (outside_zero)
-    cout << "ASTAR OUTSIDE ZERO" << endl;
-
   // THESE ARE TWO DIFFERENT CASES
   if (outside_zero){
     point double_previous;
     double_previous.x = -1;
     while (!a_path.empty()){
       point a_st = a_path.front();
+      move = a_st;
 
-      cout << "OUTSIZE ZERO MANEUVER: NO OPT CHECK: " << a_st.x << ", " << a_st.y << ": " << a_st.t << endl;
       // since we are using euclidean grid math, we must AVOID on the PIVOT (we do not have straight diagonals)
       // follow the star    
 
@@ -1381,28 +1355,20 @@ point astar_point(best_cost *bc, double sx, double sy, int endx, int endy, int p
       // if, for some reason, our turn is dangerous -- break from it
       
       
-      if ((bc->get_pos(a_st.x, a_st.y, a_st.t) > predicted_val) && a_st.t > 0){
-	cout << "OUTSIDE ZERO MANEUVER BAILING EARLY DUE TO DANGER: (" << a_st.x << ", " << a_st.y << ": " << a_st.t << ")" << endl;
-	//move = immediate_avoidance_point(bc, *planey_the_plane_map, a_st, previous);
-	//move.x = startx + movex[map_to_astar[initial_bearing]]*2;
-	//move.y = starty + movey[map_to_astar[initial_bearing]]*2;
-	move = a_st;
-	move.t = -1;
-
+      if ((bc->get_pos(a_st.x, a_st.y, a_st.t) > predicted_val) && a_st.t > 1){
+	move = immediate_avoidance_point(bc, *planey_the_plane_map, a_st, previous);
 	break;
       }
+      
       
       if (a_st.x > greater_x || a_st.x < lesser_x || a_st.y > greater_y || a_st.y < lesser_y){
 	outside_zero = true;
       } else {
-	cout << "OUTSIDE ZERO MANEUVER SUCCESS: (" << a_st.x << ", " << a_st.y << ": " << a_st.t << ")" << endl;
-	move = a_st;
+	move = immediate_avoidance_point(bc, *planey_the_plane_map, a_st, previous);
 	break;
       } 
-
-      double_previous = previous;
+      
       previous = a_st;
-      opt_path.pop();
       a_path.pop();
     }
   } else {
@@ -1410,14 +1376,11 @@ point astar_point(best_cost *bc, double sx, double sy, int endx, int endy, int p
       point a_st = a_path.front();
       point opt = opt_path.front();
 
-      cout << "OPT: " << opt.x << ", " << opt.y << ": " << opt.t << " VERSUS " << a_st.x << ", " << a_st.y << ": " << a_st.t << endl;
-
       // eh, A-star might recommend this, but we should control it (danger)
       if(bc->get_pos(a_st.x, a_st.y, a_st.t) > sqrt(pow(a_st.x-endx, 2) + pow(a_st.y-endy, 2)) && a_st.t > 1){
-	cout << "TOO DANGEROUS: GIVING MOVES IMMEDIATELY" <<endl;
 	move = a_st;
 	// Immediate term avoidance (3,4,5, and 6 seconds)
-	if (a_st.t <= 7 && a_st.t > 3){
+	if (a_st.t > 3 && a_st.t <= 7){
 	  // I am assuming control of this vessel
 
 	  // avoidance maneuver must follow the "I wanna live" logic, not A* path which is more like a "Hey, Google, I am feeling lucky; please don't rick roll me"
@@ -1430,24 +1393,19 @@ point astar_point(best_cost *bc, double sx, double sy, int endx, int endy, int p
 	}
 	break;
       }
-
-      if ((opt.x != a_st.x || opt.y != a_st.y) && a_st.t > 1){
-	cout << "BREAK ON:  (" << a_st.x << ", " << a_st.y << ": " << a_st.t << ")" << endl;	  
-	if (a_st.t > 3)
-	  move = immediate_avoidance_point(bc, *planey_the_plane_map, a_st, previous);
-	else 
-	  move = a_st;
+      
+      if ((opt.x != a_st.x || opt.y != a_st.y) && a_st.t > 1){	  
+	move = a_st;
 	break;
    
       }
       
+      
       // Pivot is an odd issue...
       if ((a_st.x == endx || a_st.y == endy) && !straight && a_st.t > 1){
-	cout << "Getting the hell outta dodge, we have hit a pivot  (" << a_st.x << ", " << a_st.y << ": " << a_st.t << ")" << endl;
 	move = a_st; //used to a_st
 	break;
       }
-      
       
       previous = a_st;
       opt_path.pop();
@@ -1456,88 +1414,18 @@ point astar_point(best_cost *bc, double sx, double sy, int endx, int endy, int p
   }
 
 
-  cout << "ASTAR COMPLETE" << endl;
-  
-  /*
-  // A-star path output
-  if (planeid == 6){
-    int nmap[58][58] = {0};
-    while(!a_path_out.empty()){
-      point t = a_path_out.front();
-      a_path_out.pop();
-      if (t.x < 60 && t.y < 60)
-	nmap[t.x][t.y] = -1;
-    }
 
-    cout << planeid << ": " << endl << "   ";
-    for (int x = 0; x < 58; x++){
-      if (x < 10)
-	cout << "0" << x << " ";
-      else
-	cout << x << " ";
-    }
+  if (move.x < 0)
+    move.x = 0;
 
-    for (int y = 0; y < 58; y++){
-      if (y < 10)
-	cout << y << ": ";
-      else
-	cout << y << ":";
-      for (int x = 0; x < 58; x++){
-	if (x == startx && y == starty){
-	  cout << "S  ";
-	}
-	else if (x == endx && y == endy)
-	  cout << "E  ";
-	else if (nmap[x][y] == -1)
-	  cout << "R  ";
-	else
-	  cout << ".  ";
-      }
-      cout << endl;
-    }
-  }
-  
-  if (planeid == 6){
-    for (int a = 0; a < 7; a++){
-      cout << planeid << ": " << a << endl << "    ";
-      for (int x = 0; x < 58; x++){
-	if (x < 10)
-	  cout << "0" << x << "  ";
-	else
-	  cout << x << "  ";
-      }
-      cout << endl;
-      for (int y = 0; y < 58; y++){
-	if (y < 10)
-	  cout << "0" << y << ": ";
-	else
-	  cout << y << ": " ;
-	for (int x = 0; x < 58; x++){
-	  if (x == move.x && y == move.y)
-	    cout << "MMM ";
-	  else if (x == startx && y == starty)
-	    cout << "PPP ";
-	  else if (x == endx && y == endy)
-	    cout << "DDD ";
-	  else if (round(bc->get_pos(x, y, a)) > 999)
-	    cout << "999 " << "" ;
-	  else if (round(bc->get_pos(x, y, a)) > 99)
-	    cout << round(bc->get_pos(x, y, a)) << " ";
-	  else if (round(bc->get_pos(x, y, a)) > 9)
-	    cout << round(bc->get_pos(x, y, a)) << "  ";
-	  else if (round(bc->get_pos(x, y, a)) < 10)
-	    cout  << round(bc->get_pos(x, y, a)) << "   ";
-	  else
-	    cout << round(bc->get_pos(x, y, a)) << " ";
-	}
-	cout << endl;
-      }
-      cout << endl;
-    }
-  }
-  
-  */
+  if (move.y < 0)
+    move.y = 0;
 
-  cout << endl << endl << "In the end we choose; " << move.x << ", " << move.y << endl << endl;
+  if (move.x >= MAP_WIDTH)
+    move.x = MAP_WIDTH - 1;
+
+  if (move.y >= MAP_HEIGHT)
+    move.y = MAP_HEIGHT - 1;
+
   return move;
 }

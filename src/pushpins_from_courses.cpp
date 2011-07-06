@@ -57,9 +57,9 @@ const double height_in_degrees_latitude = -0.003808;
 int main()
 {
   // The directory from which to read the courses
-  string course_dir = "/Volumes/DATA/Dropbox/school/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/courses/";
+  string course_dir = "/Volumes/DATA/Dropbox/school/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/courses/final/";
   //string course_dir = "/home/trescenzi/Dropbox/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/courses/";
-  string name = "final_16_500m_pavement";
+  string name = "final_4_500m_1";
   char defaults;
   
   cout << "Defaults are an input file name and path of:"<< endl;
@@ -250,6 +250,7 @@ int main()
   
   // For the purpose of calculating the total distance required of each plane
   vector< double > d_traveled;
+  d_traveled.resize( 32, 0);
   
   vector< double > lats;
   vector< double > lons;
@@ -312,7 +313,7 @@ int main()
       lons[ plane_num ] = lon;
       
       if( (prev_lats[ plane_num ] > EPSILON || prev_lats[ plane_num ] < -EPSILON)  && 
-         (prev_lons[ plane_num ] > EPSILON || prev_lons[ plane_num ] < -EPSILON) ) // prev loc initialized
+         (prev_lons[ plane_num ] > EPSILON || prev_lons[ plane_num ] < -EPSILON) && d_traveled[ plane_num ] < 6706 ) // prev loc initialized
       {
         d_traveled[ plane_num ] += 
         map_tools::calculate_distance_between_points( lats[ plane_num ], lons[ plane_num ], 
@@ -321,7 +322,8 @@ int main()
       }
       // End of distance calculation bit
       
-      
+      if( d_traveled[ plane_num ] < 6706 )
+      {
       ++plane_index[ plane_num ];
       point_num = plane_index[ plane_num ];
       
@@ -354,6 +356,7 @@ int main()
        */
 
       //pushpin_file << << endl;
+      }
     } // end if not empty
   } // end while
   for( vector< string >::iterator crnt_pins = pins.begin(); crnt_pins != pins.end(); ++crnt_pins )

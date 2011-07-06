@@ -1,12 +1,12 @@
 //
-// danger_grid.h
-// AU_UAV_ROS
+//  danger_grid.h
+//  AU_UAV_ROS
 //
-// Created by Tyler Young on 5/23/11.
-// Added to by Thomas Crescinzi.
+//  Created by Tyler Young on 5/23/11.
+//  Plane prediction by Thomas Crescenzi.
 //
 // A class to generate a grid with a "danger" rating associated with
-// each block in the flyable area (which is of our "map" type).
+// each block in the flyable area (which is of our bc::map type).
 //
 // The danger grid is three dimensional: it has x and y dimensions,
 // corresponding to the size of the flyable physical area. Additionally, it has a
@@ -20,17 +20,14 @@
 #ifndef DANGER_GRID
 #define DANGER_GRID
 
-#ifndef DEBUG_TURN
-#define DEBUG_TURN
-#endif
-
 #include <vector>
-#include <map>
+#include <map> // std::map, which stores our set of aircraft
+#include <math.h>
+#include <climits>
+
 #include "map_cleaner.h"
 #include "estimate.h"
 #include "Plane_fixed.h"
-#include <math.h>
-#include <climits>
 #include "map_tools.h"
 #include "coord.h"
 
@@ -201,15 +198,15 @@ public:
                                 const danger_grid * dg, double danger_adjust );
   
   /**
-   * Adds cost to grid squares on the left of the aircraft, effectively implementing
-   * a preference for right-hand turns when path planning using A*.
+   * Adds a small cost to grid squares on the left of the aircraft, effectively 
+   * implementing a preference for right-hand turns when path planning using A*.
    * @param plane The "owner" of this BC grid, from whose starting location and
    *              toward whose goal we will be adding cost.
    */
   void encourage_right( natural width_in_sqrs, natural height_in_sqrs, double resolution );
   
   /**
-   * Output the map at a given time; for troubleshooting only
+   * Output the map at a given time to the standard output; for troubleshooting only
    * @param time The time, in seconds, whose map should be output
    */
   void dump( int time ) const;
@@ -221,11 +218,18 @@ public:
    */
   void dump_big_numbers( int time ) const;
   
+  /**
+   * Output the map to a CSV file, whose path is specified in the map class.
+   * For troubleshooting only
+   * @param prefix A string to be printed as the first thing in this CSV file;
+   *               use it to add the plane's goal, the time this file is created,
+   *               your fortune cookie's lucky numbers, &c.
+   * @param name The file name (output will be [name].csv)
+   * @param time The time, in seconds, whose map should be output
+   */
   void dump_csv( int time, string prefix, string name ) const;
   
-private:
-  enum bearing_t { N, NE, E, SE, S, SW, W, NW };
-  
+private:  
   /**
    * The method that does virtually all the important work for the class.
    * Calculates danger ratings for all squares in all maps of the danger_space
@@ -253,36 +257,6 @@ private:
    */
   double adjust_danger( int seconds ) const;
   
- /** 
-	a function for predicting planes. most of the work is done in the recursive calling of 
-	danger recurse but this guy starts the whole process. relies on dangerRecurse(), neighoboringAngles(),
-	and placeDanger(). it is built to be called 2 times. use the same variable for time in each instances.
-	it decides which point, the final destination or just the goal, to fly to based on the value in time.
-	if time is =0 it assumes the destination is where it is going otherwise it assumes it is flying from the 
-	destination to the goal. if there is only a goal then the destination will be the goal based on the way that 
-	planes and the telemetry data works.note this prediction is based on 2 assumptions: a flat cartesian grid in
-	which the planes exist and that the planes can point turn. in later editions the point turning assumption
-	will, hopefully, be dropped. the cartesian grid will always be an assumption as A* only works in a cartesian grid
-	so there is no reason to do anything else. 
-	input:(yes there is more to this function than just a description)
-		@param plane the plane whose path you are predicting
-		@param time the time from which you are starting prediction, must be >=0
-	output:
-		@return a vector that contains estimates of the planes path. as the plane traves through time a (0,0,-1) estimate is inserter
-		as a time marker.
-**/
-  vector< estimate > calculate_future_pos( Plane & the_plane, int & time );
-  
-  /**
-   * Converts a bearing in degrees to a "named" version, for use in deciding which
-   * nearby squares are in the path of the aircraft
-   * @param the_bearing Bearing of the aircraft in degrees (0 is due north, 
-   *                    90 due east, and so on)
-   * @return A named version of the direction (N for bearings -22.5 to 22.5 deg,
-   *         NE for bearings 22.5 to 67.5 deg, and so on)
-   */
-  bearing_t name_bearing( double the_bearing );
-  
   /**
    * Having calculated a danger rating for square (x, y), call this function to
    * fill in the surrounding squares with a "field" of somewhat lesser danger values,
@@ -306,8 +280,37 @@ private:
   void dump_est( vector< estimate > dump_me );
   
   // Functions by Thomas
+  // A Little Side Note by Thomas
+  /*
+	The domain of the bearing used in all of the functions by me here is diffrent than the one used elsewhere in the project.
+	This is because I was originally told that the bearing went from -180 to 180. Every angle is covered in this domain and 
+	it works rather well with the other stuff in the project. It wouldn't be too hard to change the domain but it does
+	mean changing a ton of ifs. You have been warned :).
+  */
+
+  /** 
+   a function for predicting planes. most of the work is done in the recursive calling of 
+   danger recurse but this guy starts the whole process. relies on dangerRecurse(), neighoboringAngles(),
+   and placeDanger(). it is built to be called 2 times. use the same variable for time in each instances.
+   it decides which point, the final destination or just the goal, to fly to based on the value in time.
+   if time is =0 it assumes the destination is where it is going otherwise it assumes it is flying from the 
+   destination to the goal. if there is only a goal then the destination will be the goal based on the way that 
+   planes and the telemetry data works. the prediction uses the function turn() to predict turns as
+   best as it can. hopefully the turns can eventually be predicted better however as of now the prediction
+   works well enough for most of our purposes. turns are predicted both from the start to the avoidance point
+   and from the avoidance point to the goal. note: this function assumes a basic cartesian grid. p.s. this is by thomas
+   input:(yes there is more to this function than just a description)
+   @param plane the plane whose path you are predicting
+   @param time the time from which you are starting prediction, must be >=0
+   output:
+   @return a vector that contains estimates of the planes path. as the plane traves through time a (0,0,-1) estimate is inserter
+   as a time marker.
+   **/
+  vector< estimate > calculate_future_pos( Plane & the_plane, int & time );
+  
 	/**
-	a function that finds the neighbors of a given angle
+	a function that finds the neighbors of a given angle. a neighboring angle is one of the angles
+	that perfectly bisects a neighboring square and is within 45 degrees of @param angle.
 	input:
 		@param angle the angle you are finding the neighbors of
 		@param first 
@@ -329,10 +332,9 @@ private:
 	output:
 		e is changed to contain the the estimated danger in the new location
 	**/
-  void placeDanger(double angle, vector<estimate> &e, double closest, double other,
-                   int x, int y, double danger);//places the data into the estimate struct
+  void placeDanger(double angle, vector<estimate> &e, double closest, double other, int x, int y, double danger);
 	/**
-	the recursive function that calculates the planes path
+	the recursive function that calculates the plane's path
 	input:
 		@param e an "estimate"
 		@param destination[] a pair of x,y that represents where the plane is going
@@ -344,7 +346,7 @@ private:
   void dangerRecurse(estimate e, int destination[], vector<estimate> &theFuture, int & time);
 /**
 	a function that predicts turns made by planes. it bases this turn off of an assumption of a 22.5 turning angle.
-	the direction of the turn depends on wether the goal is closer on the right or left. if the goal is equally close 
+	the direction of the turn depends on wether the goal(or aovidance point) is closer on the right or left. if the goal is equally close 
 	it is assumed that a right hand turn will be made.
 	input:
 		@param startingAngle the bearing from which the plane is starting to make the turn
@@ -361,10 +363,12 @@ private:
 **/
   void turn(double startingAngle, double endAngle, vector<estimate> &e, int &x, int &y, int x2, int y2);
   
+  // Back to Tyler's stuff
+  
   // the weighting applied to danger estimates in the future
   vector< double > danger_ratings;
   
-  vector< double > plane_danger;
+  vector< double > plane_danger; // in case the plane danger were to change over time
   
   // the set of aircraft with which we are concerned
   std::map< int, Plane > * aircraft;
@@ -385,6 +389,9 @@ private:
   bc::map * dist_map;
   bc::map * encouraged_right;
   bool distance_costs_initialized;
+  
+  // a value calculated by plane prediction for use of calculating the turn made
+  // after an avoidance point
   double bearingAfterAvoid;
 };
 
@@ -437,8 +444,8 @@ danger_grid::danger_grid( const danger_grid * dg, std::map< int, Plane > * set_o
   assert( flag == "heuristic" );
     
   calculate_distance_costs( owner->getFinalDestination().getX(),
-                           owner->getFinalDestination().getY(),
-                           dg, 1.0 );
+                            owner->getFinalDestination().getY(),
+                            dg, 1.0 );
 }
 
 danger_grid::~danger_grid()
@@ -446,7 +453,8 @@ danger_grid::~danger_grid()
   if( distance_costs_initialized )
   {
     delete dist_map;
-    //delete encouraged_right;
+    // We're currently not using the right-hand encouragement
+    //delete encouraged_right; 
   }
   
   delete danger_space;
@@ -591,7 +599,7 @@ void danger_grid::fill_danger_space( const natural plane_id )
 }
 
 void danger_grid::set_danger_buffer( double bearing, double unweighted_danger,
-                                    natural x, natural y, int time )
+                                     natural x, natural y, int time )
 {
   map_tools::bearing_t named_bearing = map_tools::name_bearing( bearing );
   double d = unweighted_danger * field_weight;
@@ -659,7 +667,7 @@ void danger_grid::set_danger_buffer( double bearing, double unweighted_danger,
   // in light of A*'s propensity for taking risky paths.
   switch( named_bearing )
   {
-    case N:
+    case map_tools::N:
       (*danger_space)[ time ].safely_add_danger_at( x - 2, y - 3, d );
       // dag left+up
       (*danger_space)[ time ].safely_add_danger_at( x - 1, y - 3, d );
@@ -669,7 +677,8 @@ void danger_grid::set_danger_buffer( double bearing, double unweighted_danger,
       (*danger_space)[ time ].safely_add_danger_at( x + 1, y - 3, d );
       (*danger_space)[ time ].safely_add_danger_at( x + 2, y - 3, d );
       break;
-    case NE:
+      
+    case map_tools::NE:
       // straight up
       (*danger_space)[ time ].safely_add_danger_at( x , y - 3, d );
       // dag right+up
@@ -682,7 +691,8 @@ void danger_grid::set_danger_buffer( double bearing, double unweighted_danger,
       // straight right
       (*danger_space)[ time ].safely_add_danger_at( x + 3, y , d );
       break;
-    case E:
+      
+    case map_tools::E:
       // dag right+up
       (*danger_space)[ time ].safely_add_danger_at( x + 3, y - 2, d );
       (*danger_space)[ time ].safely_add_danger_at( x + 3, y - 1, d );
@@ -691,7 +701,8 @@ void danger_grid::set_danger_buffer( double bearing, double unweighted_danger,
       (*danger_space)[ time ].safely_add_danger_at( x + 3, y + 1, d );
       (*danger_space)[ time ].safely_add_danger_at( x + 3, y + 2, d );
       break;
-    case SE:
+      
+    case map_tools::SE:
       (*danger_space)[ time ].safely_add_danger_at( x + 3, y, d );
       (*danger_space)[ time ].safely_add_danger_at( x + 3, y + 1, d );
       (*danger_space)[ time ].safely_add_danger_at( x + 3, y + 2, d );
@@ -701,14 +712,16 @@ void danger_grid::set_danger_buffer( double bearing, double unweighted_danger,
       // straight down
       (*danger_space)[ time ].safely_add_danger_at( x , y + 3, d );
       break;
-    case S:
+      
+    case map_tools::S:
       (*danger_space)[ time ].safely_add_danger_at( x - 2, y + 3, d );
       (*danger_space)[ time ].safely_add_danger_at( x - 1, y + 3, d );
       (*danger_space)[ time ].safely_add_danger_at( x , y + 3, d );
       (*danger_space)[ time ].safely_add_danger_at( x + 1, y + 3, d );
       (*danger_space)[ time ].safely_add_danger_at( x + 2, y + 3, d );
       break;
-    case SW:
+      
+    case map_tools::SW:
       // straight down
       (*danger_space)[ time ].safely_add_danger_at( x , y + 3, d );
       (*danger_space)[ time ].safely_add_danger_at( x - 1, y + 3, d );
@@ -719,7 +732,8 @@ void danger_grid::set_danger_buffer( double bearing, double unweighted_danger,
       // straight left
       (*danger_space)[ time ].safely_add_danger_at( x - 3, y, d );
       break;
-    case W:
+      
+    case map_tools::W:
       (*danger_space)[ time ].safely_add_danger_at( x - 3, y - 2, d );
       (*danger_space)[ time ].safely_add_danger_at( x - 3, y - 1, d );
       // straight right
@@ -727,7 +741,8 @@ void danger_grid::set_danger_buffer( double bearing, double unweighted_danger,
       (*danger_space)[ time ].safely_add_danger_at( x - 3, y + 1, d );
       (*danger_space)[ time ].safely_add_danger_at( x - 3, y + 2, d );
       break;
-    case NW:
+      
+    case map_tools::NW:
       // straight left
       (*danger_space)[ time ].safely_add_danger_at( x - 3, y, d );
       (*danger_space)[ time ].safely_add_danger_at( x - 3, y - 1, d );
@@ -738,6 +753,7 @@ void danger_grid::set_danger_buffer( double bearing, double unweighted_danger,
       // straight up
       (*danger_space)[ time ].safely_add_danger_at( x , y - 3, d );
       break;
+      
   } // end switch case
 }
 
@@ -840,17 +856,20 @@ vector< bc::map > danger_grid::get_danger_space() const
 
 vector< estimate > danger_grid::calculate_future_pos( Plane & plane, int &time )
 {
-  bool turned=false;
-  vector< estimate > theFuture;
+  bool turned=false;//did the plane turn?
+  
+  vector< estimate > theFuture;//prevents memory errors
 	theFuture.reserve(1);
+	
   Position current, destination;
+  
   if(time==0)//meaning that the plane is now moving towards it's next goal be it an avoidance point or a final destination
 	{
   	current=plane.getLocation();
   	destination=plane.getDestination();
-    
-  }
-	else//will always be called twice. if it moving to its final goal the distance will be 0 and it will break out immediatly
+    }
+	
+  else//the function will always be called twice. if its moving to its final goal the distance will be 0 and it will break out immediatly
 	{
 		destination=plane.getFinalDestination();
 		current=plane.getDestination(); 
@@ -870,16 +889,18 @@ vector< estimate > danger_grid::calculate_future_pos( Plane & plane, int &time )
     angle=(RADtoDEGREES*(asin((double)xDistance/(double)distance)));
   
   if((x2-x1)<0)//positive means that the plane is headed to the left aka west
-    angle=(-1)*angle;//the plane goes from -180 to +180
+    angle=(-1)*angle;//the plane goes from -180 to +180(this is diffrent that the bearing domain used in other parts of this project)
   double bearing=0;
-	//if a turn needs to be made to correct for the bearing
+  
+	//begin looking to see if a turn needs to be made
   if(time==0)
-    bearing = plane.getBearing();
+    bearing = plane.getBearing();//the planes bearing
   else
-    bearing=bearingAfterAvoid;
-	map_tools::bearing_t bearingNamed = map_tools::name_bearing(bearing);
-	//cout<<"My names bearing(before shit happens) is:"<<map_tools::bearing_to_string(bearingNamed)<<endl;
-	if( bearingNamed == map_tools::N ) //headed north
+    bearing=bearingAfterAvoid;//an estimated bearing upon the planes arrival to the avoidance point, not 100% correct because it is based off of guessed positions
+	
+  map_tools::bearing_t bearingNamed = map_tools::name_bearing(bearing);
+  
+  if( bearingNamed == map_tools::N ) //headed north
   {
     bearing=0;
   }
@@ -911,88 +932,32 @@ vector< estimate > danger_grid::calculate_future_pos( Plane & plane, int &time )
   {
     bearing=45;
   }
-  
-    
-
+  //check to see if a turn needs to be made
   if(fabs(fabs(angle)-fabs(bearing))>22.5)
 	{
-		turned=true;
-		//printf("Turning check out how I do!\e[0m\n");
-		//printf("Oh heres my info :) %f  %f  %f\n", angle,bearing, plane.getBearing());
+		turned=true;//yup the plane turned
 		turn(bearing,angle,theFuture,x1,y1,x2,y2);
-		//if(plane.getId()==6)
-		  //cout<<"HEY X:"<<x1<<"HEY Y:"<<y1;
-		//x1=theFuture[theFuture.size()-2].x;
-		//y1=theFuture[theFuture.size()-2].y;
-		//printf("My starting x,y after the turn: %d,%d\n",x1,y1);
+		//recalculate everything from the current loaction after the turn
 		xDistance=fabs((double)x2-x1);
 		yDistance=fabs((double)y2-y1);
-		if(x1==x2 && y1==y2)
+		
+		if(x1==x2 && y1==y2)//your there? odd place to want to go
 		  {time++; theFuture.pop_back(); return theFuture;}
+		  
 		distance = sqrt((double)(xDistance*xDistance)+(yDistance*yDistance));
-		assert(distance>0);
-		if(distance==0)
-		  distance=1;
+
 		angle=(180-RADtoDEGREES*(asin((double)xDistance/(double)distance)));
 		if(y2<y1)
 				angle=(RADtoDEGREES*(asin((double)xDistance/(double)distance)));
 		if((x2-x1)<0)//positive means that the plane is headed to the left aka west
 			angle=(-1)*angle;//the plane goes from -180 to +180
-		//printf("Oh heres my new angle %f my new xDistance %f and my new yDistance %f",angle,xDistance,yDistance);
-	       	/*if(plane.getId()==1)
-		  {////printing the turn
-		int x=plane.getLocation().getWidth()+1, y=plane.getLocation().getHeight()+1;
-	int grid[x][y];
-	for(int i=0; i<plane.getLocation().getHeight()+1; i++)
-		for(int j=0; j<plane.getLocation().getWidth()+1; j++)
-		{
-			if(j==current.getX() && i==current.getY())
-			grid[j][i]=5;
-			else
-			grid[j][i]=0;
-		}
-
-	for(int i=0; i<y; i++)
-		grid[0][i]=i;
-	for(int i=0; i<x; i++)
-		grid[i][0]=i;
-	
-	int seconds=1;
-	for(int i=0; i<theFuture.size(); i++)
-	{
-		if(theFuture[i].danger!=-1)
-		{
-			//cout<<"Time:"<<seconds<<" X:"<<theFuture[i].x<<" Y:"<<theFuture[i].y<<" Danger:"<<theFuture[i].danger<<endl;
-			if(grid[theFuture[i].x][theFuture[i].y]==0)
-			grid[theFuture[i].x][theFuture[i].y]=(int)(10*theFuture[i].danger);
-		}
-		else
-		{		seconds++; }
-		
-	}
-
-	for(int i=0; i<plane.getLocation().getHeight(); i++)
-	{	
-	for (int j=0; j<plane.getLocation().getWidth(); j++)
-	{
-			if(grid[j][i]!=0)
-			printf( " %1d ", grid[j][i]);
-			else
-			printf( " %1d ", grid[j][i]);
-	}			
-	cout<<endl;
-
-	}
-	cout<<endl;
-	
-	}*/
-
   }
 
-	//printf("My x,y after the turn(maybe): %d,%d\n",x1,y1);
-  //find closest straight line
+  //find closest straight line angle
   double neighbors[2];
   neighoboringAngles(angle, neighbors[0], neighbors[1]);
+	
+	//find which angle is closer
   double closestAngle=0,otherAngle=0;
   if(fabs(angle-neighbors[0])>=fabs(angle-neighbors[1]))//distance
   {closestAngle=neighbors[1]; otherAngle=neighbors[0];}
@@ -1009,12 +974,12 @@ vector< estimate > danger_grid::calculate_future_pos( Plane & plane, int &time )
     danger=1-(angle/otherAngle);//because you can't use 0 find the inverse of the displacement to the other angel.
   
   //place displacement percentage in closest square and then place the remainder in the other square
-	//cout<<"Placing danger"<<x1<<","<<y1<<endl;
   placeDanger(angle, theFuture, closestAngle, otherAngle, x1, y1, danger);
   //start the branching
   int dest[2]={x2,y2};//can't pass it without a name :(
 	if(!turned)
 	theFuture.push_back(estimate(0,0,-1));
+	
 	time++;
 
   if(theFuture[theFuture.size()-2].danger>.3)
@@ -1031,13 +996,7 @@ vector< estimate > danger_grid::calculate_future_pos( Plane & plane, int &time )
     angle=(RADtoDEGREES*(asin((double)xDistance/(double)distance)));
   if((x2-x1)<0)//positive means that the plane is headed to the left aka west
     angle=(-1)*angle;//the plane goes from -180 to +180
-#ifdef DEBUG_DG
-  cout<<"My bearing was:"<<bearing<<endl;
-#endif
-  bearingAfterAvoid=angle;
-#ifdef DEBUG_DG
-  cout<<"My bearing now is:"<<bearingAfterAvoid<<endl;
-#endif
+	bearingAfterAvoid=angle;
   
   
 	//add prediction to one square ahead of goal
@@ -1049,11 +1008,10 @@ vector< estimate > danger_grid::calculate_future_pos( Plane & plane, int &time )
   else
   {closestAngle=neighbors[0]; otherAngle=neighbors[1];}
 	
+	//predict 3 spaces past the goal
+	//note this could be changed into a for loop however as i knew we wanted exactly 3 spaces past i didn't bother
   if(destination.getX()==plane.getFinalDestination().getX() && destination.getY()==plane.getFinalDestination().getY())
   {
-#ifdef DEBUG_DG
-    cout<<"Predicting beyond the goal"<<endl;
-#endif
 	danger=1;
 	
   //now add the danger ahead of the goal to theFuture
@@ -1070,68 +1028,15 @@ vector< estimate > danger_grid::calculate_future_pos( Plane & plane, int &time )
   
   placeDanger(angle, theFuture, closestAngle, otherAngle,  theFuture[theFuture.size()-3].x, theFuture[theFuture.size()-3].y, danger);	
   }
-/*
-//#ifdef DEBUG_TURN
-	//here is where we find out what this shit looks like
-  if(plane.getId()==1)
-  {
-	cout<<"The path predicted for plane "<<plane.getId()<<" from "<<current.getX()<<","<<current.getY()<<" to "<<destination.getX()<<","<<destination.getY()<<endl;
-	cout<<"The planes bearing is:"<<map_tools::bearing_to_string(plane.get_named_bearing())<<endl;
-	int x=plane.getLocation().getWidth()+1, y=plane.getLocation().getHeight()+1;
-	int grid[x][y];
-	for(int i=0; i<plane.getLocation().getHeight()+1; i++)
-		for(int j=0; j<plane.getLocation().getWidth()+1; j++)
-		{
-			if(j==current.getX() && i==current.getY())
-			grid[j][i]=5;
-			else
-			grid[j][i]=0;
-		}
-
-	for(int i=0; i<y; i++)
-		grid[0][i]=i;
-	for(int i=0; i<x; i++)
-		grid[i][0]=i;
 	
-	int seconds=1;
-	for(int i=0; i<theFuture.size(); i++)
-	{
-		if(theFuture[i].danger!=-1)
-		{
-			//cout<<"Time:"<<seconds<<" X:"<<theFuture[i].x<<" Y:"<<theFuture[i].y<<" Danger:"<<theFuture[i].danger<<endl;
-			if(grid[theFuture[i].x][theFuture[i].y]==0)
-			grid[theFuture[i].x][theFuture[i].y]=(int)(10*theFuture[i].danger);
-		}
-		else
-		{		seconds++; }
-		
-	}
-
-	for(int i=0; i<plane.getLocation().getHeight(); i++)
-	{	
-	for (int j=0; j<plane.getLocation().getWidth(); j++)
-	{
-			if(grid[j][i]!=0)
-			printf( " %1d", grid[j][i]);
-			else
-			printf( " %1d ", grid[j][i]);
-	}			
-	cout<<endl;
-
-	}
-	cout<<endl;
-    */
-	//for(int i=0; i<theFuture.size(); i++)
-		//cout<<theFuture[i].x<<","<<theFuture[i].y<<endl;
-//#endif
-  //}//get this guy for the whole print out
- 
   return theFuture;
 }
 
 void danger_grid::dangerRecurse(estimate e, int destination[], vector<estimate> &theFuture,int &time)
 {
-  
+  //basically does most of the work and is a slimmed down version of calculate_furture_pos built to be called recursivly
+	//this function is simply an implementation of the algorthim i came up with and speak about in our paper
+	//it would be 100% possiable to make it not recursive just check out the pseudocode in the paper and see what you can do with it
   int x1=e.x;
   int y1=e.y;
   int x2=destination[0];
@@ -1140,7 +1045,7 @@ void danger_grid::dangerRecurse(estimate e, int destination[], vector<estimate> 
   
   double xDistance=( fabs((double)x2-x1) ), yDistance=( fabs((double)y2-y1) );
   if(xDistance==0&&yDistance==0)//your there!!!!!!!(hopefully)
-		{/*theFuture.push_back(estimate(0,0,-1));*/return;}
+		{return;}
   double distance = sqrt((double)(xDistance*xDistance)+(yDistance*yDistance));
   
   //find the angle to the waypoint
@@ -1185,6 +1090,7 @@ void danger_grid::dangerRecurse(estimate e, int destination[], vector<estimate> 
 
 void danger_grid::neighoboringAngles(double angle, double &first, double &second)
 {
+	//this is a part that would need to be changed if the domain changed
   if(angle>0)
   {
     if(angle<45)
@@ -1213,6 +1119,9 @@ void danger_grid::neighoboringAngles(double angle, double &first, double &second
 
 void danger_grid::placeDanger(double angle, vector<estimate> &e, double closest, double other, int x, int y, double danger)
 {
+	//another place the domain would change things
+	
+	//apply a ceiling to the danger to make things eaiser for A* to search
 	double dangerCeiling=.4;
 	double remainingDanger=1-danger;
 	if(danger>=dangerCeiling)
@@ -1323,14 +1232,15 @@ void danger_grid::placeDanger(double angle, vector<estimate> &e, double closest,
 
 void danger_grid::turn(double startingAngle, double endAngle, vector<estimate> &e, int &x, int &y, int x2, int y2)
 {
-	//cout<<"I'm turning!";
+	
 	int inside_outside=2;//decided which estimated position to pick 3 is outside 2 is inside
-	//inside makes for a wider turn outside makes for a sharer turn 2 tends to be a better choice
+	//inside makes for a wider turn outside makes for a sharper turn 2 tends to be a better choice
 	double rightDistance,leftDistance;
-
+	
+	//based on the starting angle the turn will look diffrent
 	switch((int) startingAngle)
 	{
-		case 0://NORTH(yes this is a lazy way to do it but it shouldn't be any less efficent just a bit longer lines wise
+		case 0://NORTH
 		
 		rightDistance=sqrt( (x2-(x+1))*(x2-(x+1)) + (y2-(y))*(y2-(y)) );
 		leftDistance=sqrt( (x2-(x-1))*(x2-(x-1)) + (y2-(y))*(y2-(y)) );
@@ -1595,54 +1505,10 @@ void danger_grid::turn(double startingAngle, double endAngle, vector<estimate> &
 		break;
 
 		default:
-			cout<<"Hmmm thats rather strange why are you here?"<<endl;
+			cout<<"Hmmm thats rather strange why are you here?\n Looks like your angle wasn't properlly assigned for a turn"<<endl;
 	}
 	return;
 }
-
-danger_grid::bearing_t danger_grid::name_bearing( double the_bearing )
-{
-  the_bearing = fmod(the_bearing, 360); // modular division for floats
-  
-  if( the_bearing > -22.5 && the_bearing <= 22.5 )
-    return N;
-  else if( the_bearing > 22.5 && the_bearing <= 67.5 )
-    return NE;
-  else if( the_bearing > 67.5 && the_bearing <= 112.5 )
-    return E;
-  else if( the_bearing > 112.5 && the_bearing <= 157.5 )
-    return SE;
-  else if( the_bearing > 157.5 && the_bearing <= 202.5 )
-    return S;
-  else if( the_bearing > 202.5 && the_bearing <= 247.5 )
-    return SW;
-  else if( the_bearing > 247.5 && the_bearing <= 292.5 )
-    return W;
-  else if( the_bearing > 292.5 && the_bearing <= 337.5 )
-    return NW;
-  else if( the_bearing > -67.5 && the_bearing <= -22.5 )
-    return NW;
-  else if( the_bearing > -112.5 && the_bearing <= -67.5 )
-    return W;
-  else if( the_bearing > -157.5 && the_bearing <= -112.5 )
-    return SW;
-  else if( the_bearing > -202.5 && the_bearing <= -157.5 )
-    return S;
-  else if( the_bearing > -247.5 && the_bearing <= -202.5 )
-    return SE;
-  else if( the_bearing > -292.5 && the_bearing <= -247.5 )
-    return E;
-  else if( the_bearing > -337.5 && the_bearing <= -292.5 )
-    return NW;
-  else
-  {
-#ifdef DEBUG
-    assert( the_bearing > -361 && the_bearing < 361 );
-#endif
-    return N;
-  }
-}
-
 
 void danger_grid::dump_est( vector< estimate > dump_me )
 {
@@ -1676,12 +1542,16 @@ void danger_grid::calculate_distance_costs( unsigned int goal_x, unsigned int go
     }
   }
   
+  // Haven't had time to fully test the paths planned when using encourage_right,
+  // so we aren't using it...
+  // If you add this back in, be sure to uncomment the line in the destructor!
+  /*
   //encouraged_right = new bc::map(*dist_map);
   
   // Add a bit of cost to the left side of the aircraft to encourage it to
   // take avoidance maneuvers to the right
   //encourage_right( dg->get_width_in_squares(), dg->get_height_in_squares(), dg->get_res() );
-  // If you add this back in, be sure to uncomment the line in the destructor!
+   */
   
   distance_costs_initialized = true;
   

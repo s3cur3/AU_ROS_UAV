@@ -51,6 +51,10 @@ std::map<int,Plane> planes;
 vector< point > plane_locs;
 #endif
 
+//the number of files written per plane to teledata
+int output_indices[12];
+int planesmade;
+
 //keeps count of the number of services requested
 int the_count;
 
@@ -60,6 +64,13 @@ std::map< int, bool > needs_a_push;
 
 void makeField();
 
+/**
+ * Checks a plane's location against all others to see if there is a collision
+ * @param id_to_check The ID of the plane that was just updated; all other planes'
+ * locations will be checked against this one
+ * @return TRUE if a collision occurred, FALSE if it's business as usual
+ */
+bool collision_occurred( int id_to_check );
 
 // for testing only; returns a position whose latitude and longitude are randomized
 Position randomized_position()
@@ -69,8 +80,8 @@ Position randomized_position()
   //  double latitude = -( (double)( rand() % 3808 ) / 1000000 ) + upper_left_latitude;
   
   // For the final 1km test field
-  double longitude = upperLeftLon + ( (double)( rand() % 11282999 ) / 1000000000 );
-  double latitude = upperLeftLat - ( (double)( rand() % 9023009 ) / 1000000000 );
+  double longitude = upperLeftLon + ( (double)( rand() % 1282999 ) / 1000000000 );
+  double latitude = upperLeftLat - ( (double)( rand() % 23009 ) / 1000000000 );
   
   // cout << "Starting long " << longitude << endl << "Starting lat " << latitude << endl;
   

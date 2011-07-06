@@ -21,12 +21,13 @@ static const double earth_radius = 6371000; // meters, on average
 
 #ifndef RADIAN_CONSTANTS
 #define RADIAN_CONSTANTS
-const double PI = 2*acos(0.0);// pi
+const double PI = 2*acos(0.0);
 const double TWO_PI = 2*PI;
-const double RADtoDEGREES = 180/PI;//Conversion factor from Radians to Degrees
-const double DEGREEStoRAD = PI/180;//Conversion factor from Degrees to Radians
+const double RADtoDEGREES = 180/PI; // Conversion factor from radians to degrees
+const double DEGREEStoRAD = PI/180; // Conversion factor from degrees to radians
 #endif
 
+// TODO: Shorten this namespace to something easier to type (perhaps "m_t")
 namespace map_tools 
 {
   enum bearing_t { N, NE, E, SE, S, SW, W, NW };
@@ -34,6 +35,7 @@ namespace map_tools
   /**
    * Converts a bearing in degrees to a "named" version, for use in deciding which
    * nearby squares are in the path of the aircraft
+   * NOTE: Bearings must be between -360 and 360 degrees
    * @param the_bearing Bearing of the aircraft in degrees (0 is due north, 
    *                    90 due east, and so on)
    * @return A named version of the direction (N for bearings -22.5 to 22.5 deg,
@@ -169,9 +171,7 @@ namespace map_tools
    * @return The angle converted to radians
    */
   double to_radians( double angle_in_degrees );
-  
-  const double pi = 3.1415926535897932;
-  
+    
   /**
    * Calculates the distance between two points in a plane using the Pythagorean
    * theorem. Note that this will be in GRID SQUARES.
@@ -357,46 +357,21 @@ void map_tools::calculate_point( double latitude_1, double longitude_1,
                                  double & out_latitude_2, double & out_longitude_2 )
 {
   double ang_dist_in_rad = (distance_in_meters / earth_radius);
-#ifdef DEBUG_MT
-  cout << "ADiR " << ang_dist_in_rad << endl;
-#endif
   double bearing_in_rad = to_radians(bearing_in_deg);
-#ifdef DEBUG_MT
-  cout << "Bear " << bearing_in_rad << endl;
-#endif
 
   latitude_1 = to_radians( latitude_1 );
-#ifdef DEBUG_MT
-  cout << "Lat 1 " << latitude_1 << endl;
-#endif
   longitude_1 = to_radians( longitude_1 );
-#ifdef DEBUG_MT
-  cout << "Lon 1 " << longitude_1 << endl;
-#endif
   out_latitude_2 = to_radians( out_latitude_2 );
-#ifdef DEBUG_MT
-  cout << "Lat2 " << out_latitude_2 << endl;
-#endif
   
   out_latitude_2 = asin( (sin(latitude_1) * cos( ang_dist_in_rad )) + 
                          (cos(latitude_1) * sin( ang_dist_in_rad ) * 
                          cos( bearing_in_rad )) );
-#ifdef DEBUG_MT
-  cout << "Lat2 " << out_latitude_2<< endl;
-#endif
   
   out_longitude_2 = to_radians( out_longitude_2 );
-#ifdef DEBUG_MT
-  cout << "Lon 2 " << out_longitude_2 << endl;
-#endif
   
   out_longitude_2 = longitude_1 +
     atan2( sin(bearing_in_rad) * sin(ang_dist_in_rad) * cos(latitude_1), 
            cos(ang_dist_in_rad)- (sin(latitude_1) * sin(out_latitude_2)) );
-#ifdef DEBUG_MT
-  cout << "Lon 2" << out_longitude_2 << endl;
-#endif
-
   
   out_longitude_2 *= RADtoDEGREES;
   out_latitude_2 *= RADtoDEGREES;
@@ -443,7 +418,7 @@ double map_tools::calculate_euclidean_bearing( int x_1, int y_1,
 
 double map_tools::to_radians( double angle_in_degrees )
 {
-    return ( angle_in_degrees * ( pi/180 ) );
+    return ( angle_in_degrees * DEGREEStoRAD );
 }
 
 double map_tools::get_euclidean_dist_between( int x_1, int y_1,

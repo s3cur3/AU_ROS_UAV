@@ -1,13 +1,16 @@
-//Plane.h
-//Header file for the plane class with use in the Auburn REU program 2011
-//Thomas Crescenzi
+//
+// Plane.h
+// Header file for the plane class for use in the Auburn REU program 2011
+// By Thomas Crescenzi, with additions from Tyler Young
 
 #ifndef PLANE 
 #define PLANE
 
 #include <iostream>
-#include "Position.h"
 #include <math.h>
+
+#include "Position.h"
+
 
 #ifndef RADIAN_CONSTANTS
 #define RADIAN_CONSTANTS
@@ -17,55 +20,213 @@ const double RADtoDEGREES = 180/PI;//Conversion factor from Radians to Degrees
 const double DEGREEStoRAD = PI/180;//Conversion factor from Degrees to Radians
 #endif
 
-class Plane // Just a note, Thomas: Tyler was getting a compile error with
-{          // "public" preceding "class Plane"; he removed it.
+class Plane
+{
 private:
+  // The plane's ID number; should be unique
 	int id;
-	Position current; // a dummy initialization
+  
+  // The plane's current location, as might be updated through a telemetry callback
+	Position current;
+  
+  // The plane's "next" destination; this might be a collision avoidance waypoint,
+  // or it might be identical to the final destination
 	Position destination;
-	Position finalDestination;//destination could be an avoidance waypoint
-	Position lastPosition;// used to calculate the current baring
-	double bearingToDest; // in degrees
+  
+  // The plane's true goal; NOT a collision avoidance waypoint
+	Position finalDestination;
+  
+  // The plane's previous location; used to calculate its current baring
+	Position lastPosition;
+  
+  // The bearing from the plane's current location to its FINAL destination 
+  // (its goal), in degrees
+	double bearingToDest;
+  
+  // The bearing from the plane's previous location to its current one, in degrees
 	double bearing;
+  
+  // The plane's speed, in whatever units you want to use (we aren't using this)
 	double speed;
-	int direction;//the direction the plane is facing, in the grid, calcuated from the bearing
-	//direction is a number from 0 to 7
-	//0 is north and the number increases to teh left
-	//so 1 is northwest, 2 is west, 3 is southwest and so forth
+  
+  /**
+   * Updates the plane's current bearing and its bearing to its goal.
+   * Current bearing is calculated as the bearing from the previous location to
+   * the current one, so you should only call this function when you update the
+   * current location.
+   */
 	void calculateBearings();
   
+  // Indicates whether your current position is a "virtual" position; see the
+  // virtual_update_current() for more
   bool current_is_virtual;
+  
 public:
   /**
-   * Used to update a plane's current position without affecting its goal
+   * Update a plane's current position without affecting its goal. This will
+   * automatically update the plane's bearing
+   *
+   * TODO: Take positions as pointers rather than memory-heavy objects
    * @param current The plane's location, as might be obtained through a telemetry
    *                update
    */
   void update_current( Position current );
+  
+  /**
+   * Update a plane's waypoint on its way to the goal. This will not affect the
+   * plane's bearing.
+   *
+   * TODO: Take positions as pointers rather than memory-heavy objects
+   * @param next The plane's intermediate waypoint, possibly a collision avoidance
+   *             waypoint
+   */
   void update_intermediate_wp( Position next );
-  void virtual_update_current( Position current );
+  
+  /**
+   * It's probably a bad idea to use this function. It changes what is stored as the
+   * plane's current location without affecting the plane's bearing or bearing to 
+   * destination. This might be useful if you wanted other aircraft to "see" this
+   * plane as being somewhere else.
+   *
+   * TODO: Take positions as pointers rather than memory-heavy objects
+   *
+   * Note that this DOES set the Boolean flag current_is_virtual so that you can
+   * always tell whether a plane is ACTUALLY where it says it is.
+   * @param virtual_current The position to store as 
+   */
+  void virtual_update_current( Position virtual_current );
+  
+  /**
+   * Updates a plane's current location, its given intermediate waypoint, and its 
+   * speed. The plane will automatically calculate its bearing as the angle between
+   * its previous, real (i.e., non-virtual) position and the new current location.
+   *
+   * TODO: Take positions as pointers rather than memory-heavy objects
+   *
+   * @param current The plane's current location, as might be obtained through a 
+   *                telemetry update
+   * @param destination The plane's commanded "next" location; might be the same
+   *                    as its final goal, or it might be an intermediate waypoint
+   *                    for collision avoidance
+   * @param speed The plane's speed (you could use ground speed, indicated airspeed,
+   *              or true air speed... we don't actually use it for anything!)
+   */
   void update(Position current, Position destination, double speed);
+  
+  /**
+   * Sets the plane's final destination (i.e., its goal) to a given 
+   * latitude-longitude
+   * 
+   * TODO: Swap lat and lon parameter order for the sake of consistency!
+   * @param lon The longitude coordinate of the goal
+   * @param lat The latitude coordinate of the goal
+   */
 	void setFinalDestination(double lon, double lat);
+  
+  /**
+   * Sets the plane's final destination (i.e., its goal) to a given (x, y) in your 
+   * grid space.
+   * @param x The x coordinate of the goal
+   * @param y The y coordinate of the goal
+   */
 	void setFinalDestination(int x, int y);
-  void setDestination(int x, int y);
+  
+  /**
+   * Sets the plane's next destination (i.e., its intermediate waypoint, such as
+   * a collision avoidance waypoint) to a given latitude-longitude
+   * 
+   * TODO: Swap lat and lon parameter order for the sake of consistency!
+   * @param lon The longitude coordinate of the "next" location
+   * @param lat The latitude coordinate of the "next" location
+   */
   void setDestination(double lon, double lat);
+  
+  /**
+   * Sets the plane's next destination (i.e., its intermediate waypoint, such as
+   * a collision avoidance waypoint) to a given (x, y) in your grid space.
+   * @param x The x coordinate of the "next" location
+   * @param y The y coordinate of the "next" location
+   */
+  void setDestination(int x, int y);
+  
+  /**
+   * @return the plane's current bearing, calculated as the bearing from its previous
+   *         location to its current location, with any intervening "virtual" 
+   *         position updates ignored
+   */
 	double getBearing() const;
+  
+  /**
+   * @return a discretized version of the current bearing--this is N, NE, E, &c.
+   */
   map_tools::bearing_t get_named_bearing() const;
+  
+  /**
+   * @return the bearing from the plane's current location to its FINAL destination
+   *         (i.e., its goal)
+   */
 	double getBearingToDest() const;
+  
+  /**
+   * @return a discretized version of the bearing to the destination--this is N, NE, E, &c.
+   */
   map_tools::bearing_t get_named_bearing_to_dest() const;
+  
+  /**
+   * @return the plane's stored speed. At the moment, this isn't used for anything.
+   */
 	double getSpeed();
+  
+  /**
+   * @return the plane's ID number--if you're using this right, this number will be
+   *         unique in your airspace
+   */
 	int getId();
+  
+  /**
+   * @return TRUE if this plane was not created with the default, dummy constructor;
+   *         FALSE otherwise
+   */
   bool is_initialized();
   
-	//int getDirection();//never actually set
+  /**
+   * TODO: Return a pointer instead of the whole, memory-heavy object
+   * 
+   * @return The Position object representing plane's NEXT location (may be an
+   *         intermediate, collision-avoidance waypoint or may be its final goal)
+   */
 	Position getDestination();
-	Position getFinalDestination();
+	
+  /**
+   * TODO: Return a pointer instead of the whole, memory-heavy object
+   * 
+   * @return The Position object representing plane's final location (its goal)
+   */
+  Position getFinalDestination();
+  
+  /**
+   * TODO: Return a pointer instead of the whole, memory-heavy object
+   * 
+   * @return The Position object representing plane's current location
+   */
 	Position getLocation();
   
-  // Constructors
+  /**
+   * The default constructor for a plane object. Since a plane needs so much 
+   * information to actually be useful, you should probably never use this.
+   * @param id The plane's unique ID, which defaults to -100
+   */
 	Plane(int id=-100);
-  	Plane(int newid, Position initial, Position goal );
-
+  
+  /**
+   * The only constructor you should probably use.
+   *
+   * TODO: Take positions as pointers rather than memory-heavy objects
+   * @param newid The unique ID number of the plane
+   * @param initial The Position object representing the plane's current location
+   * @param goal The Position object representing the plane's final goal
+   */
+  Plane(int newid, Position initial, Position goal );
 };
 
 void Plane::update_current( Position newcurrent )
@@ -78,24 +239,24 @@ void Plane::update_current( Position newcurrent )
 	current = newcurrent; //.setLatLon( newcurrent.getLat(), newcurrent.getLon() );
   current_is_virtual = false;
   
-  // finds both the plane's current bearing and its bearing to its destination,
+  // Find both the plane's current bearing and its bearing to its destination,
   // saving them to the proper variables
 	calculateBearings();
 }
 
-void Plane::virtual_update_current( Position newcurrent )
+void Plane::virtual_update_current( Position virtual_current )
 {
-	current = newcurrent; //.setLatLon( newcurrent.getLat(), newcurrent.getLon() );
+	current = virtual_current;
   current_is_virtual = true;
   
-  // Do NOT change bearings, since this is only a "virtual" update
+  // Note: We do not change bearings, since this is only a "virtual" update
 }
 
 void Plane::update_intermediate_wp( Position next )
 {
-	destination = next;//.setLatLon( newdestination.getLat(), newdestination.getLon() );
+	destination = next;
   
-  // Changing the intermediate waypoint does not change our bearing
+  // NOTE: Changing the intermediate waypoint does not change our bearing
 }
 
 void Plane::update(Position newcurrent, Position newdestination, double newspeed)
@@ -119,82 +280,29 @@ void Plane::setFinalDestination(double lon, double lat)
 {
 	finalDestination.setLatLon(lat, lon);
   
-#ifdef GODDAMMIT
-  assert( lon < -85.484 );
-  assert( lon > -85.4915 );
-  assert( lat > 32.5882 );
-  assert( lat < 32.593 );
-  
-  double double_check_lon = finalDestination.getLon();
-  double double_check_lat = finalDestination.getLat();
-  assert( double_check_lon < -85.484 );
-  assert( double_check_lon > -85.4915 );
-  assert( double_check_lat > 32.5882 );
-  assert( double_check_lat < 32.593 );
-#endif
-  
   calculateBearings();
 }
 
 void Plane::setDestination(double lon, double lat)
 {
   destination.setLatLon( lat, lon);
-
-#ifdef GODDAMMIT
-  assert( lon < -85.484 );
-  assert( lon > -85.4915 );
-  assert( lat > 32.5882 );
-  assert( lat < 32.593 );
-  
-  double double_check_lon = destination.getLon();
-  double double_check_lat = destination.getLat();
-  assert( double_check_lon < -85.484 );
-  assert( double_check_lon > -85.4915 );
-  assert( double_check_lat > 32.5882 );
-  assert( double_check_lat < 32.593 );
-#endif
 }
 
 void Plane::setFinalDestination(int x, int y)
 {
 	finalDestination.setXY(x, y);
-#ifdef GODDAMMIT
-  double double_check_lon = finalDestination.getLon();
-  double double_check_lat = finalDestination.getLat();
-  assert( double_check_lon < -85.484 );
-  assert( double_check_lon > -85.4915 );
-  assert( double_check_lat > 32.5882 );
-  assert( double_check_lat < 32.593 );
-#endif
   
   calculateBearings();
 }
 
 Position Plane::getFinalDestination()
 {
-#ifdef GODDAMMIT
-  double double_check_lon = finalDestination.getLon();
-  double double_check_lat = finalDestination.getLat();
-  assert( double_check_lon < -85.484 );
-  assert( double_check_lon > -85.4915 );
-  assert( double_check_lat > 32.5882 );
-  assert( double_check_lat < 32.593 );
-#endif
 	return finalDestination;
 }
 
 void Plane::setDestination(int x, int y)
 {
 	destination.setXY(x, y);
-  
-#ifdef GODDAMMIT
-  double double_check_lon = destination.getLon();
-  double double_check_lat = destination.getLat();
-  assert( double_check_lon < -85.484 );
-  assert( double_check_lon > -85.4915 );
-  assert( double_check_lat > 32.5882 );
-  assert( double_check_lat < 32.593 );
-#endif
 }
 
 double Plane::getBearing() const
@@ -223,7 +331,8 @@ void Plane::calculateBearings()
   double lat1 = current.getLat();
   double lon1 = current.getLon();
   
-	if(!(current==lastPosition))
+  // If our current location isn't the same as our previous location . . .
+	if( !(current==lastPosition) )
 	{
 		//uses the same method that the simulator uses to find the planes bearing
 		bearing = map_tools::calculateBearing( lastPosition.getLat(), 
@@ -234,25 +343,12 @@ void Plane::calculateBearings()
   bearingToDest = map_tools::calculateBearing( lat1, lon1,
                                                finalDestination.getLat(),
                                                finalDestination.getLon() );
-  
-#ifdef DEBUG
-//  cout << "Leeeeeeeroy MmmmmmJenkins!!!" << endl;
-//  cout << "Plane " << getId() << " has a bearing of " << bearing << endl;
-//  printf( " Last pos lat, lon is %f, %f \n", lastPosition.getLat(), 
-//         lastPosition.getLon() );
-//  printf( " Lat, lon here is %f, %f \n", lat1, lon1 );
-#endif
 }
 
 double Plane::getSpeed()
 {
 	return speed;
 }
-
-/*int Plane::getDirection()
-{
-	return direction;
-}*/
 
 int Plane::getId()
 {

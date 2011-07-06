@@ -13,31 +13,30 @@
 //
 // The following heuristic is used to estimate the cost of traveling from a node
 // n to the goal:
-//     weighing factor * danger at node n + weighing factor * danger at goal +
+//     weighing factor * danger at node n +
 //        straight line distance from n to goal
 //
-// Unlike best_cost.h, this class adds a "field" around each aircraft, extending
+// Unlike best_cost.h, this class adds a "buffer" around each aircraft, extending
 // in the direction of the aircraft's travel. This means that when A* works with the
 // grid, there is some cost associated with coming close to another aircraft.
 // 
 
 
-#define DEBUG
 //#define DEBUG_BC
 
-#ifndef BC_GRID_EXP
-#define BC_GRID_EXP
+#ifndef BC_GRID
+#define BC_GRID
 
 #define natural unsigned int
 #define SQRT_2 1.41421356
 
 #include <vector>
 #include <map>
-#include "danger_grid_with_turns.h"
-#include "Position.h"
 #include <math.h>
 #include <cstdlib>
-#include "write_to_log.h"
+
+#include "danger_grid_with_turns.h"
+#include "Position.h"
 #include "map_tools.h"
 #include "Plane_fixed.h"
 #include "coord.h"
@@ -50,7 +49,6 @@
 #define EPSILON 0.000001
 #endif
 
-using namespace std;
 using namespace map_tools;
 
 // The scaling factor for the "danger" rating; effectively, the cost of 
@@ -77,7 +75,7 @@ public:
    *                 cost grid
    */
   best_cost( std::map< int, Plane > * set_of_aircraft, double width, double height,
-            double resolution, unsigned int plane_id );
+             double resolution, unsigned int plane_id );
    
   /**
    * The overloaded ( ) operator. Allows simple access to the cost rating of a
@@ -101,13 +99,15 @@ public:
   
   /**
    * Same function as overloaded operator ()
+   * @return the cost of the estimated best path from (x, y, time) to the goal
    */
   double get_pos(unsigned int x, unsigned int y, int time) const;
   
   /**
-   * @return the width of the best cost grid in squares
+   * @return the width of the best cost grid, in grid squares
    */
   unsigned int get_width_in_squares() const;
+  
   /**
    * @return the height of the best cost grid in squares
    */
@@ -119,6 +119,9 @@ public:
    * rating at the goal.
    *
    * NOTE: Returns -1 if this has not been initialized.
+   * NOTE: Because we penalize conflicts (getting too close to another plane) so
+   *       harshly, you will find "plane danger" ratings in all the squares around
+   *       a plane as well.
    * @param time The number of seconds in the future for which you're inquiring
    * @return the danger value indicating we are as certain as we possibly can be that 
    * there is/will be an aircraft in this square at some time
@@ -126,7 +129,8 @@ public:
   double get_plane_danger( int time ) const;
   
   /**
-   * Output the map at a given time; for troubleshooting only
+   * Output the best cost grid and the danger grid at a given time.
+   * For troubleshooting only.
    * @param time The time, in seconds, whose map should be output
    */
   void dump( int time ) const;
@@ -137,6 +141,16 @@ public:
    * @param time The time, in seconds, whose map should be output
    */
   void dump_csv( int time ) const;
+  
+  /**
+   * Output the map to a CSV file, whose path is specified in the map class.
+   * For troubleshooting only
+   * @param prefix A string to be printed as the first thing in this CSV file;
+   *               use it to add the plane's goal, the time this file is created,
+   *               your fortune cookie's lucky numbers, &c.
+   * @param name The file name (output will be [name].csv)
+   * @param time The time, in seconds, whose map should be output
+   */
   void dump_csv( int time, string prefix, string name ) const;
   
   // AK: Destructor, combats memory leak issues
@@ -152,15 +166,10 @@ private:
   coord goal; // the x and y coordinates of the goal
   coord start;
 
-  double res;                          // resolution of the danger grid in meters
-  int n_secs;                         // number of seconds in the danger grid
-  unsigned int n_sqrs_h;             // height of the danger grid in squares
-  unsigned int n_sqrs_w;            // width of the danger grid in squares
-  
-  // This gets set to the plane's initial square's intial danger rating. If a
-  // potential update to a square's best cost is ABOVE this value, the update isn't
-  // worth making, so it is ignored.
-  double danger_threshold;
+  double res;                   // resolution of the danger grid in meters/square
+  int n_secs;                  // number of seconds in the prediction space
+  unsigned int n_sqrs_h;      // height of the danger grid in grid squares
+  unsigned int n_sqrs_w;     // width of the danger grid in grid squares
 };
 
 best_cost::best_cost( std::map< int, Plane > * set_of_aircraft,
@@ -170,7 +179,7 @@ best_cost::best_cost( std::map< int, Plane > * set_of_aircraft,
 #ifdef DEBUG
   assert( (*set_of_aircraft).find( plane_id ) != (*set_of_aircraft).end() );
   assert( set_of_aircraft->size() != 0 );
-  assert( set_of_aircraft->size() < 1000000000 );
+  assert( set_of_aircraft->size() < 100000 );
   assert( resolution > EPSILON );
   assert( resolution < height && resolution < width );
   assert( height / resolution < 1000000 );
@@ -187,12 +196,6 @@ best_cost::best_cost( std::map< int, Plane > * set_of_aircraft,
   goal.y = (*set_of_aircraft)[ plane_id ].getFinalDestination().getY();
   
   owner = &( (*set_of_aircraft)[ plane_id ] );
-  
-#ifdef DEBUG
-  create_log( "Creating BC grid for plane " + to_string( plane_id ), log_path );
-  add_to_log( "Plane's starting loc: (" + to_string( start.x ) + ", " + to_string( start.y ) + ")", log_path );
-  add_to_log( "Plane's goal loc:     (" + to_string( goal.x ) + ", " + to_string( goal.y ) + ")", log_path );
-#endif
   
   // The "map cost" array, a very sparse representation of our airspace which notes
   // the likelihood of encountering an aircraft at each square at each time.
@@ -225,8 +228,6 @@ best_cost::best_cost( std::map< int, Plane > * set_of_aircraft,
 #endif
 }
 
-
-// AK: DESTRUCTOR -- DESTROY mc, bc to release their memory
 best_cost::~best_cost()
 {
   delete mc;
