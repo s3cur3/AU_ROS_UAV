@@ -59,13 +59,16 @@ int main()
   // The directory from which to read the courses
   string course_dir = "/Volumes/DATA/Dropbox/school/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/courses/final/";
   //string course_dir = "/home/trescenzi/Dropbox/Auburn/Code/AU_UAV_stack/AU_UAV_ROS/courses/";
-  string name = "final_4_500m_1";
+  int planes = 32;
+  double max_d = (377 * 11.2);
+  string name = "final_"+ to_string(planes) + "_1000m_3";
   char defaults;
+  
   
   cout << "Defaults are an input file name and path of:"<< endl;
   cout << "   " << course_dir << name << ".course" << endl << endl;
-  cout << "Use defaults (y/n)?  ";
-  cin >> defaults;
+//  cout << "Use defaults (y/n)?  ";
+//  cin >> defaults;
   if( defaults == 'n' || defaults == 'N')
   {
     cout << "File path (e.g., /home/UserName/Desktop/):  ";
@@ -251,6 +254,7 @@ int main()
   // For the purpose of calculating the total distance required of each plane
   vector< double > d_traveled;
   d_traveled.resize( 32, 0);
+  vector< int > last_wp( 32, 0 );
   
   vector< double > lats;
   vector< double > lons;
@@ -313,7 +317,7 @@ int main()
       lons[ plane_num ] = lon;
       
       if( (prev_lats[ plane_num ] > EPSILON || prev_lats[ plane_num ] < -EPSILON)  && 
-         (prev_lons[ plane_num ] > EPSILON || prev_lons[ plane_num ] < -EPSILON) && d_traveled[ plane_num ] < 6706 ) // prev loc initialized
+         (prev_lons[ plane_num ] > EPSILON || prev_lons[ plane_num ] < -EPSILON) && d_traveled[ plane_num ] < max_d ) // prev loc initialized
       {
         d_traveled[ plane_num ] += 
         map_tools::calculate_distance_between_points( lats[ plane_num ], lons[ plane_num ], 
@@ -322,10 +326,11 @@ int main()
       }
       // End of distance calculation bit
       
-      if( d_traveled[ plane_num ] < 6706 )
+      if( d_traveled[ plane_num ] < max_d )
       {
       ++plane_index[ plane_num ];
       point_num = plane_index[ plane_num ];
+        last_wp[ plane_num ] = point_num;
       
       // Read each plane
       string ident = "p" + to_string( plane_num ) + "pt" + to_string( point_num );
@@ -377,18 +382,25 @@ int main()
   
   double total_d = 0.0;
   cout << endl;
-  for( int i = 0; i < (int)d_traveled.size(); i++ )
+  for( int i = 0; i < planes; i++ )
   {
     total_d += d_traveled[ i ];
     pushpin_file << "     Plane " << i << " min distance: " << 
       to_string( d_traveled[ i ] ) << " meters" << endl;
     cout << "     Plane " << i << " min distance: " << 
       to_string( d_traveled[ i ] ) << " meters" << endl;
+    cout << "        Ideal number of waypoints: " << last_wp[ i ] - 1 << endl;
   }
   pushpin_file << endl << "     Total min distance: " << 
     to_string( total_d ) << " meters" << endl;
   cout << endl << "     Total min distance: " << 
     to_string( total_d ) << " meters" << endl;
+  
+  cout << endl << "All wps:  =";
+  for( int i = 0; i < planes; i++ )
+  {
+    cout << last_wp[ i ] - 1 << "+";
+  }
   
   pushpin_file << "-->" << endl;
   
@@ -396,7 +408,9 @@ int main()
 
   pushpin_file.close();
   
+  /*
   cout << endl << "File created!" << endl;
   cout << "Check the following location for your course file:" << endl;
   cout << output_name_with_path;
+   */
 }

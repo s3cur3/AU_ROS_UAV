@@ -2,21 +2,21 @@
 //  This is a collision avoidance module for the Auburn University UAV ATTRACT
 //  project. It uses Dynamic Sparse A* Search to plan optimal or nearly-optimal, 
 //  flyable paths for UAVs.
-//  
+//
 //  This code is a collaborative effort between Thomas Crescenzi of Marist College,
 //  Tyler Young, and Andrew Kaizer, both of Truman State University.
 //
 //  It was created during an 8-week, NSF-funded Research Experience for 
 //  Undergraduates (REU) at Auburn University, between May and July of 2011.
-//  
-//  As it stands, the project is sadly incomplete. Whereas we confirm that A* can  
-//  safely and reliably guide up to 15 aircraft in a 500 m by 500 m airspace in
-//  simulations without turning constraints, enforcing real-world turning 
-//  capabilities has proven much more time consuming than we anticipated. Given more
-//  time, we are confident these results could be obtained in real-world simulations.
-//  As it stands, however, our simulations show 1 to 2 potential collisions for as
-//  few as 8 aircraft in a 500 m by 500 m airspace, with as many or more for 16
-//  aircraft in the same space.
+//
+//  As it stands, the project sadly does not live up to its full potential. Whereas  
+//  we confirm that A* can safely and reliably guide up to 15 aircraft in a 500 m 
+//  square airspace in simulations without tight turning constraints, enforcing real-
+//  world turning capabilities has proven much more time consuming than we anticipated.
+//  Given more time, we are confident these results could be obtained in realistic 
+//  simulations. As it stands, however, our simulations show 1 to 2 potential 
+//  collisions for as few as 8 aircraft in a 500 m by 500 m airspace, with as many 
+//  or more for 16 aircraft in the same space.
 //
 //
 

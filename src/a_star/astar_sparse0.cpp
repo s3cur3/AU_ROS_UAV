@@ -1,24 +1,28 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // STL A* Search implementation
-// (C)2001 Justin Heyes-Jones
+// (C)2001 Justin Heyes-Jones (stlastar.h and fsa.h, primarily)
 //
 // Finding a path on a simple grid maze
 // This shows how to do shortest path finding using A*
 
-// A* code largely untouched, all output, simulation, and whatnot is part of UAV Team 6 (really, team 2)
+// All code in except that directly included in the original was developed and implemented by Thomas Crescenzi, Andrew Kaizer, and Tyler Young
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "stlastar.h" // See header for copyright and usage information
 #include "Plane_fixed.h"
 #include <iostream>
+// pow, abs, round, sqrt used in this code; mainly in Euclidean distance calculations or Chebyshev square distance
 #include <math.h>
+// Used for infinity values in cost comparison
 #include <limits>
 
-// QUEUE: used for calculating optimal paths, other paths
+// Used for storing our optimal paths/other paths
 #include <queue>
+// Used in determining a backwards optimal path (from goal to start) in is_sparse()
 #include <stack>
+// Used to hold a quick converter between map bearing_t -> a-star integer bearing and its reverse
 #include <map>
 
 #define DEBUG_LISTS 0
@@ -31,47 +35,68 @@ using namespace map_tools;
 // Global data
 // The world map
 
-int MAP_WIDTH = 41;
-int MAP_HEIGHT = 37;
-const int ROUTE_ABANDONED = 1; // if 1, says if search terminated
+/**
+ *
+ *Global Variables Below
+ *
+ */
+
+// MAP_WIDTH and MAP_HEIGHT are assigned when astar_point is called.
+// They are used throughout the entire code navigate through gridspace
+int MAP_WIDTH = -1;
+int MAP_HEIGHT = -1;
+
+// This is a debugging value that can be found in the function other_main()
+const int ROUTE_ABANDONED = 0; // if 1, says if search terminated
+
+// This is our global pointer to the Best Cost/Danger Grid  so that all functions have access to it, as well as MapNode methods
 best_cost *bc_grid;
 
-// easy calculation for next move
 // 0-7 are actual moves, 8 is goal state, 9 is stall state
+/**
+ * movex and movey are the way to quickly determine a move that A* specified in grid space
+ *
+ * The moves correspond to [0] = E, [1] = SE, [2] = S, [3] = SW, [4] = W, [5] = NW, [6] = N, [7] = NE, [8] = found a goal state (no move ordered), [9] = did not find goal state (no move ordered)
+ */
 const int movex[10] = {1, 1, 0, -1, -1, -1, 0, 1, 0, 0};
 const int movey[10] = {0, 1, 1, 1, 0, -1, -1, -1, 0, 0};
+
+// movegoals is a companion variable to movex/movey; it is used to MOD certain values when calculating similar bearings throughout the code
 int movegoals = 8; // 0 - 7
+
+/**
+ * sparse_expansion determines how much additional grid spaces our planes consider outside of the rectangle created by their Start Position and End Position
+ * A higher sparse value (such as 20) will usually produce less optimal, but safer paths.
+ * A lower sparse value raises the risk of conflict/collision, but the plane will always take faster routes.
+ */
 int sparse_expansion = 20;
+
+/**
+ * The initial_bearing of our plane; vitally important to determine how A* starts its node expansions
+ * Depending on your implementation, we recommend:
+ *    1) Using the planes given bearing from the Plane object
+ *    2) Using the planes bearing to its goal (runs risk of collision due to mismatch between actual and assumed bearing)
+ */
 bearing_t initial_bearing;
 
-// Start and End spots
+// Start and End positions for the Plane 
 int s_x = -1;
 int s_y = -1;
 int e_x = -1;
 int e_y = -1;
 
+/**
+ * A quick and dirty way to convert between A* int bearings and Map class direction bearings (N, S, E, W)
+ */
 std::map<int, bearing_t> astar_to_map;
 std::map<bearing_t, int> map_to_astar;
 
-// The position a plane starts in its starting grid
-/**
-   |-----|-----|
-   |     |     |
-   |  1  |  2  |
-   |     |     |
-   |--5--7--6--|
-   |     |     |
-   |  3  |  4  |
-   |     |     |
-   |-----|-----|
-*/
-int rough_quadrant;
-/**
-   End user mods
-*/
-
 
 // This struct is used to store (and reply) with the next "destination" that the plane is flying to
+/**
+ * The point struct specifies a point in time, along with the assumed bearing.
+ * It is primarily used to store the paths predicted by A* and optimal path calculations
+ */
 struct point {
   int x;
   int y;
@@ -79,24 +104,35 @@ struct point {
   bearing_t b;
 } ;
 
-// The danger point is the point of divergence between our pre-sparse search and A* search
-point danger_point;
-
-// a_path is the path A* recommends
-bool first_star = true; // the first time we go through A-Star, we use it to create our optimal path according to our boards given constraints (EUCLIDEAN + 22.5)
+/**
+ * Is the path that A* recommends our plane take
+ */
 queue<point> a_path;
-queue<point> a_path_out;
 
 
-int astar_map[ 1 ];
-// map helper functions
-
+/**
+ * DEPRECATED: In the initial version of this code, astar_map held the map values
+ * GetMap would return the value at a specific location in the map or return a value of 9 if the spot was unreachable or off the map (9 was the highest value)
+ * In our implementation, the cost is purely associated with the Best-Cost/Danger-Grids and is therefore not needed here.
+ *
+ * Code will be removed in future revisions.
+ */
+int astar_map[ 1 ][ 1 ];
 int GetMap( int x, int y )
 {
   return 0;
 }
 
 
+/*
+ * This is a helper function to assist A* in determining grid bearing.
+ * It is used heavily throughout setting up the code to run A* in is_sparse, astar_point
+ *
+ * @param currentx -- The starting object's x position
+ * @param currenty -- The starting object's y position
+ * @param dest_x -- The destination object's x position
+ * @param dest_y -- The destination object's y position
+ */
 int getGridBearing( int current_x, int current_y, int dest_x, int dest_y ){
   if (current_y-dest_y == 0 && current_x-dest_x < 0){		  
     return 0; // goal is to your right
@@ -125,6 +161,18 @@ int getGridBearing( int current_x, int current_y, int dest_x, int dest_y ){
 }
 
 
+/**
+ * Used to determine if the bearing of two objects is similar.
+ * In our case, we generously state that as long as we are not facing away from the target, we are facing it.
+ * Example: If initial_bear = N, then similar_bearing = { W, NW, N, NE, E }
+ * Example: If initial_bear = SE, then similar_bearing = { SW, S, SE, E, NE }
+ *
+ * By changing the range of i, you can change how generous the similarities are.
+ * Be warned, a similarity of 0 can lead to planes being unable to turn around without flying off the map (crashing A*)
+ *
+ * @param initial_bear Usually the current bearing of our plane
+ * @param target_bear The necessary bearing to some target (such a goal or a threat)
+ */
 bool similar_bearing(bearing_t initial_bear, bearing_t target_bear){
   for (int i = -2; i <=2; i++){
     int a_star_bearing = map_to_astar[target_bear];
@@ -140,6 +188,11 @@ bool similar_bearing(bearing_t initial_bear, bearing_t target_bear){
   return false;
 }
 
+/**
+ * Helper function to get the exact opposite bearing of some object (Plane, Target, Blimp, etc.)
+ *
+ * @param bear the current bearing of some object
+ */
 bearing_t opposite_bearing(bearing_t bear){
   if (bear == N)
     return S;
@@ -161,19 +214,23 @@ bearing_t opposite_bearing(bearing_t bear){
     return N;
 }
 
-// Definitions
 
+/**
+ * The heavily modified MapSearchNode.
+ * This is the code that is used to expand A*, calculate the weight/cost of a given node, and check various conditions (legal move, end state, etc.)
+ * It currently has a maximum expansion of 200,000 (as set in stlastar.h)
+ */
 class MapSearchNode
 {
 public:
   unsigned int x;	 // the (x,y) positions of the node
   unsigned int y;
-  unsigned int timestep; // AK: the timestep that the node is being considered under
+  unsigned int timestep; // AK: the timestep that the node is being considered under (equivalent to the t value in our point struct)
   /**
      maneuver is a tricky concept...
      Since we have a turn radius of 22.5*, it takes us 2 grid spaces to make a turn (i.e., we cannot do a 45* turn from East to North East, it has to be East (t=0), EastNorthEast(t=1), North East(t=2)).
      However, if we did include a maneuver bearing, then our planes would be stuck going in a single direction (East to East to East, they could never be biased towards East North East!
-     We also need to grab a Planes actual position at time 0 in their grid!  This is important because of these expanions:
+     We also need to grab a Planes actual position at time 0 in their grid (are they in the middle, to a side, etc.).  This is important because of these expansions:
      IF 0 == TOP_HALF OF GRID
      - - - 3
      - - 2 3
@@ -192,51 +249,122 @@ public:
      0 1 2 3
      - - 2 3
      - - - 3
+
+     NOTE: As of the present time, we have not fully implented this; we just assume that the plane always has 3 possible expansions after their first move.
+     It would be advantageous to get this issue resolved since it would produce considerably better/safer/legal paths.
   */
 
+  // The bearing of the parent of the child node -- especially important if implementing the above concept (of strictly enforcing legal moves)
   bearing_t parent_bearing; // AK: Used for children node to understand where their parent is coming from
 
-  // I realize that this variable name is absurdly long, but it gets the point across
-  // In A* we now tell the child what nodes it might be able to expand.
-  // so at t=0, we expand t=1 and tell it what it can look at in t=2 (but we leave the bounds checking to t=1)
+  /**
+   * Every child's expansions are actually determined by its parent when the child is determine to be a legal move.
+   * When you run the GetSuccessors method the parent determines the child's moves based on its bearing and the childs bearing.
+   *
+   * This action, however, could be performed directly in the child by taking its current_bearing and its parent_bearing...it just takes more effort.
+   */
   queue<bearing_t> legal_expansions_for_child;
-
-  /** Time for another episode of Node Expansion with UAV-Team-Two
-      IF P=N and M=NE, then P*M -> NNE (North-North-East)
-  */
 	
+  /**
+   * The default constructor for the MapSearchNode
+   * This should not be used beyond creating the first Node -- the values are installed from s_x, s_y, and initial_bearing when they are retrieved from astar_point setting up the search
+   */
   MapSearchNode() { 
     x = y = 0; 
     timestep = 0; 
     parent_bearing = initial_bearing; 
   }
-  //MapSearchNode( unsigned int px, unsigned int py ) { x=px; y=py; }
+
+  /**
+   * The constructor used to expand from our starting node to all other nodes
+   * It initializes a node with all the necessary information 
+   *
+   * @param px nodes x position
+   * @param py nodes y position
+   * @param t_step notes t value
+   * @param parent node's parent's bearing
+   * @param my_maneuver a queue of possible moves that the parent is allowing the child node
+   */
   MapSearchNode( unsigned int px, unsigned int py, unsigned int t_step, bearing_t parent, queue<bearing_t> my_maneuver) 
   { 
     x=px; 
     y=py; 
     parent_bearing = parent;
     legal_expansions_for_child=my_maneuver; 
+
+    // Depending on how much you expand the Best Cost/Danger Grid determines what value is here; in this case 19
     if (t_step > 19)
       timestep = 19;
     else
       timestep = t_step;
   } // AK
 
+  /**
+   * Destructor for MapSearchNode to plug a bug in the original code (in the original code memory was not released from the nodes)
+   * The destructor is called in stlasatr.h
+   * Without this destructor our memory is eventually completely consumed by bearing_t's that are not properly released
+   */
   ~MapSearchNode(){
     while (!legal_expansions_for_child.empty()){
       legal_expansions_for_child.pop();
     }
   }
 
+  /**
+   * This is the cost to move from one node to another as determined by the Best Cost/Danger Grid
+   *
+   * @param nodeGoal the node whose cost is to be examined
+   */
   float GoalDistanceEstimate( MapSearchNode &nodeGoal );
+
+  /**
+   * Checks to see if this node is the goal, if it is we have found a legal path from start to goal
+   *
+   * @nodeGoal 
+   */
   bool IsGoal( MapSearchNode &nodeGoal );
+
+  /**
+   * Gets the children of a certain node.
+   *
+   * @param astarsearch
+   * @parent_node - the current node being investigated 
+   */
   bool GetSuccessors( AStarSearch<MapSearchNode> *astarsearch, MapSearchNode *parent_node );
+
+  /**
+   * DEPRECATED: Uses the GetCost function described earlier in the code, which only returns 0 (no weight)
+   *
+   * @param successor - the node to succeed our current parent
+   */
   float GetCost( MapSearchNode &successor );
+
+  /**
+   * A very important method that determines if we are trying to expand the same node twice based on x, y, and t
+   * The values you allow for this expansion determine how many nodes you need to allow A* to expand in stlastar.h
+   * Example: On a 100x100 grid with a Best Cost/Danger Grid up to time 20 you need to have 200,000 nodes (100x's * 100 y's * 20 time steps)
+   *
+   * Additionally you can include the bearing_t of a grid space in the calculation, however the node expansions necessary explodes from 200k to 1.6 million
+   * Example: Using the same grid above but adding the 8 bearings (N, NE, ...) would mean 100*100*20*8 = 1,600,000
+   * This dramatically slows down A* to a point where it struggles to update 16 planes in one second
+   * The only way to safely cut down on the number of expansions is to either remove the amount of bearings allowed (such as restricting it to only opposite bearings) OR
+   *   to cut down on the number of time steps in the Best Cost/ Danger Grid
+   *  Example: On a 100*100*10*2 = 200,000 expansions
+   *
+   * Also: a lower sparseness can help this by placing a O(n) on the maximum while lowering the average expansions to <= ~n/2
+   *
+   * @param rhs
+   */
   bool IsSameState( MapSearchNode &rhs );
 
+  /**
+   * Helper method to print out a nodes values
+   */
   void PrintNodeInfo(); 
 
+  /**
+   * Getter methods for x pos, y pos, timestep, and bearing
+   */
   int getX();
   int getY();
   int getT();
@@ -244,10 +372,11 @@ public:
 
 };
 
+/**
+ * See detailed explanation above about the time and space complexities
+ */
 bool MapSearchNode::IsSameState( MapSearchNode &rhs )
 {
-
-  // same state in a maze search is simply when (x,y) are the same
   if( (x == rhs.x) &&
       (y == rhs.y) &&
       (timestep == rhs.timestep) ) 
@@ -263,7 +392,7 @@ bool MapSearchNode::IsSameState( MapSearchNode &rhs )
 
 void MapSearchNode::PrintNodeInfo()
 {
-  cout << "Node position : (" << x << ", " << y << ")" << endl;
+  cout << "Node position : (" << x << ", " << y << ")" << " at " << timestep << " with a bearing of " << parent_bearing << endl;
 }
 
 // Added to get node X pos -- Andrew Kaizer
@@ -276,37 +405,42 @@ int MapSearchNode::getY(){
   return y;
 }
 
+// Added to get a node T pos -- Andrew Kaizer
 int MapSearchNode::getT(){
   return timestep;
 }
 
+// Added to get a node B pos -- Andrew Kaizer
 bearing_t MapSearchNode::getB(){
   return parent_bearing;
 }
 
-// Heuristic is BC (DG+BC) -- since no need to calculate, just choose minimal legal cost
 float MapSearchNode::GoalDistanceEstimate( MapSearchNode &nodeGoal )
 {
-  //cout << x << ", " << y << " : " << timestep << " " << bc_grid->get_pos(x, y, timestep) << endl;
+  /**
+   * The Average Method -- Used to provide a fuzzy value for any given square
+   * This is useful if we are not entirely positive that our Best Cost/Danger Grid is completely accurate (ex: when dealing with numerous turns)
+   * It produces less optimal, but safer results
+   */
   double cost = bc_grid->get_pos(x, y, timestep);
   double count = 1;
   for (int i = 0; i < 8; i++){
     if (x + movex[i] >= 0 && x + movex[i] < MAP_WIDTH &&
 	y + movey[i] >= 0 && y + movey[i] < MAP_HEIGHT){
       for (int t = 0; t <= 2; t++){
-	//if (t+timestep < 19 && t+timestep > 0){
 	cost += bc_grid->get_pos(x+movex[i], y+movey[i], timestep);
 	count++;
-	//} else {
-	// break;
-	//}
       }
     }
   }
 
   return cost/count;
-  //double cost = bc_grid->get_pos(x, y, timestep);
 
+  /**
+   * In normal circumstances, when the Best Cost/Danger Grid and A* are fully tuned to each other, we would use this value.
+   * This grabs the weight of this square at this timestep
+   */
+  //double cost = bc_grid->get_pos(x, y, timestep);
   //return cost;
 }
 
@@ -328,25 +462,30 @@ bool MapSearchNode::IsGoal( MapSearchNode &nodeGoal )
 // is specific to the application
 bool MapSearchNode::GetSuccessors( AStarSearch<MapSearchNode> *astarsearch, MapSearchNode *parent_node )
 {
+  // Our time_z starts at -1, if it continues to be -1 then something has gone wrong in the code that must be resolved
   int time_z = -1;
 
   if ( !parent_node ){
     // if we have a parent, we actually only have one really legal move...that is going in the same direction as we current are
+    // a change in direction occurs by which children we expand
     legal_expansions_for_child.push(initial_bearing);
     parent_bearing = initial_bearing;
-    cout << parent_bearing << endl;
   } else {
 
   } 
-  // update our time step
-  time_z = timestep+1>10 ? 10 : 1+timestep;
+
+  // update our time step -- if the time exceeds our predined value, give it a max time instead (maximum is number of time in Best Cost/Danger Grid
+  time_z = timestep+1>19 ? 19 : 1+timestep;
 
 
+  /**
+   * The following three blocks of code determine the amount of range our field can consider (Sparse A*)
+   * We do not allow A* to consider a node outside of this sparse range
+   */
   int greater_x = 0;
   int lesser_x = 0;
   int greater_y = 0;
   int lesser_y = 0;
-  // additional range that is acceptable to look into
 
   if (s_x > e_x){
     greater_x = s_x + sparse_expansion;
@@ -365,51 +504,40 @@ bool MapSearchNode::GetSuccessors( AStarSearch<MapSearchNode> *astarsearch, MapS
   }
 
   // in legal_moves, we are checking for the legal moves allowed 2 moves into the future (the next additional move is only our immediate move)
-  // Immedaite next move addition
+  // Immediate next move addition
   // Check to see if expansion to the given node is legal...if not, tough luck
   while (!legal_expansions_for_child.empty()){
     bearing_t next_expansion = legal_expansions_for_child.front();
     legal_expansions_for_child.pop();
-    // at most we will have 3 possible moves at t=2, usually only 2 moves, though
     
-    int a_st_bearing = -1;
     // convert the parent bearing to the A-Star move setup (0 = EAST in A_ST, 0 = NORTH in MAP)
-    if (parent_bearing == N)
-      a_st_bearing = 6;
-    else if (parent_bearing == NE)
-      a_st_bearing = 7;
-    else if (parent_bearing == E)
-      a_st_bearing = 0;
-    else if (parent_bearing == SE)
-      a_st_bearing = 1;
-    else if (parent_bearing == S)
-      a_st_bearing = 2;
-    else if (parent_bearing == SW)
-      a_st_bearing = 3;
-    else if (parent_bearing == W)
-      a_st_bearing = 4;
-    else if (parent_bearing == NW)
-      a_st_bearing = 5;
+    int a_st_bearing = map_to_astar[parent_bearing];
 
+    // the three legal expansions considered by A*
     int r[] = {(a_st_bearing-1), a_st_bearing%movegoals, (a_st_bearing+1)%movegoals}; 
 
+    // Since C++ does not do MOD on negative numbers, we must manually wrap around
     if(r[0] < 0){ // wraps around from 0 to 7
       r[0] += movegoals;
     }
 
-    int range_start = -1;
-    int range_end = -1;
-
-
-    range_start = 0;
-    range_end = 2;
+    // r[] positions to consider
+    int range_start = 0;
+    int range_end = 2;
     
 
-    if (time_z == 1){ // at time 1, we only have 1 valid move...
+    /**
+     * If time_z = 1, then our parent is at t = 0
+     * If our parent is at t = 0, then we only have one legal move in the future, and that is to continue our current course (it takes at least two moves to change course)
+     */
+    if (time_z == 1){
       range_start = 1;
       range_end = 1;
     }
-    
+
+    /**
+     * This for loop looks at every possible child node the parent can have and determines if it is legal, if it is push onto A*'s set of nodes
+     */    
     for (int i = range_start; i <= range_end; i++){
       queue<bearing_t> child_expansions;
       int legal_moves = -1;
@@ -421,14 +549,13 @@ bool MapSearchNode::GetSuccessors( AStarSearch<MapSearchNode> *astarsearch, MapS
 	child_expansions.push(astar_to_map[r[i]]);
 	legal_moves = r[i];
 
-      }        
+      } 
       MapSearchNode NewNode;
       // push each possible move except allowing the search to go backwards
 
       // left
       if( legal_moves == 4 )
 	{
-	  //cout << "L " << x-1 << ", " << y << endl;
 	  NewNode = MapSearchNode( x-1, y, time_z, W, child_expansions);
 	  astarsearch->AddSuccessor( NewNode );
 	}	
@@ -436,7 +563,6 @@ bool MapSearchNode::GetSuccessors( AStarSearch<MapSearchNode> *astarsearch, MapS
       // top
       if( legal_moves == 6 )
 	{
-	  //cout << "T " << x << ", " << y-1 << endl;
 	  NewNode = MapSearchNode( x, y-1, time_z, N, child_expansions);
 	  astarsearch->AddSuccessor( NewNode );
 	}	
@@ -444,7 +570,6 @@ bool MapSearchNode::GetSuccessors( AStarSearch<MapSearchNode> *astarsearch, MapS
       // right
       if( legal_moves == 0 )
 	{
-	  //cout << "R " << x+1 << ", " << y << endl;
 	  NewNode = MapSearchNode( x+1, y, time_z, E, child_expansions);
 	  astarsearch->AddSuccessor( NewNode );
 	}	
@@ -452,17 +577,15 @@ bool MapSearchNode::GetSuccessors( AStarSearch<MapSearchNode> *astarsearch, MapS
       // down	
       if( legal_moves == 2 )
 	{
-	  //cout << "D " << x << ", " << y+1 << endl;
 	  NewNode = MapSearchNode( x, y+1, time_z, S, child_expansions);
 	  astarsearch->AddSuccessor( NewNode );
 	}	
 
 
-      // Andrew Kaizer is adding Diagonals below here...
+      // Andrew Kaizer is adding Diagonals below here...original code did not allow for such nonsense!
       // down right
       if( legal_moves == 1 )
 	{
-	  //cout << "DR " << x+1 << ", " << y+1 << endl;
 	  NewNode = MapSearchNode( x+1, y+1, time_z, SE,child_expansions);
 	  astarsearch->AddSuccessor( NewNode );
 	}	
@@ -478,7 +601,6 @@ bool MapSearchNode::GetSuccessors( AStarSearch<MapSearchNode> *astarsearch, MapS
       // down left
       if( legal_moves == 3 )
 	{
-	  //cout << "DL " << x-1 << ", " << y+1 << endl;
 	  NewNode = MapSearchNode( x-1, y+1,time_z, SW, child_expansions);
 	  astarsearch->AddSuccessor( NewNode );
 	}	
@@ -486,7 +608,6 @@ bool MapSearchNode::GetSuccessors( AStarSearch<MapSearchNode> *astarsearch, MapS
       // top left
       if( legal_moves == 5 )
 	{
-	  //cout << "TL " << x-1 << ", " << y-1 << endl;
 	  NewNode = MapSearchNode( x-1, y-1, time_z, NW, child_expansions);
 	  astarsearch->AddSuccessor( NewNode );
 	}	
@@ -507,7 +628,10 @@ float MapSearchNode::GetCost( MapSearchNode &successor )
 }
 
 // place code in here to make main for UAV Sim friendly -- Andrew Kaizer
-int other_main(int startx, int starty, int endx, int endy, int planeid ){
+/**
+ * This code contains the A* search calls, it is apart from astar_point to try and separate our concerns
+ */
+int other_main(){
   AStarSearch<MapSearchNode> astarsearch;
 
   unsigned int SearchCount = 0;
@@ -530,92 +654,35 @@ int other_main(int startx, int starty, int endx, int endy, int planeid ){
     {
       // Create a start state
       MapSearchNode nodeStart;
-      nodeStart.x = startx;
-      nodeStart.y = starty;
+      nodeStart.x = s_x;
+      nodeStart.y = s_y;
 
       // Define the goal state
       MapSearchNode nodeEnd;
-      nodeEnd.x = endx;					      
-      nodeEnd.y = endy; 
+      nodeEnd.x = e_x;					      
+      nodeEnd.y = e_y; 
 
       // Set Start and goal states
       astarsearch.SetStartAndGoalStates( nodeStart, nodeEnd );
  
       unsigned int SearchState;
       unsigned int SearchSteps = 0;
-      do
+      do // Loop until we find a goal or fail
 	{
 	  SearchState = astarsearch.SearchStep();
 
 	  SearchSteps++;
-
-#if DEBUG_LISTS
-
-	  cout << "Steps:" << SearchSteps << "\n";
-
-	  int len = 0;
-
-	  cout << "Open:\n";
-	  MapSearchNode *p = astarsearch.GetOpenListStart();
-	  while( p )
-	    {
-	      len++;
-#if !DEBUG_LIST_LENGTHS_ONLY			
-	      ((MapSearchNode *)p)->PrintNodeInfo();
-#endif
-	      p = astarsearch.GetOpenListNext();
-
-	    }
-
-	  cout << "Open list has " << len << " nodes\n";
-
-	  len = 0;
-
-	  cout << "Closed:\n";
-	  p = astarsearch.GetClosedListStart();
-	  while( p )
-	    {
-	      len++;
-#if !DEBUG_LIST_LENGTHS_ONLY			
-	      p->PrintNodeInfo();
-#endif			
-	      p = astarsearch.GetClosedListNext();
-
-	    }
-
-	  cout << "Closed list has " << len << " nodes\n";
-#endif
-
 	}
       while( SearchState == AStarSearch<MapSearchNode>::SEARCH_STATE_SEARCHING );
 
+      // A* has found our goal from our start
       if( SearchState == AStarSearch<MapSearchNode>::SEARCH_STATE_SUCCEEDED )
 	{
-#if OUTPUT_NODES
-	  cout << "Search found goal state\n";
-#endif
-
 	  MapSearchNode *node = astarsearch.GetSolutionStart();
 
-#if DISPLAY_SOLUTION
-	  cout << "Displaying solution\n";
-#endif
 	  int steps = 0;
-
-#if OUTPUT_NODES
-	  node->PrintNodeInfo();	  
-#endif
-
-	  if (!(node->getY()*MAP_WIDTH+node->getX() == nodeStart.y*MAP_WIDTH+nodeStart.x ||
-		node->getY()*MAP_WIDTH+node->getX() == nodeEnd.y*MAP_WIDTH+nodeEnd.x)){
-	    // Route that astar has selected
-	    point p;
-	    p.x = node->getX();
-	    p.y = node->getY();
-	    a_path.push(p);
-	    cout << "FIRST" << node->getT() << endl;
-	  }
-
+	  
+	  // Loop until we no more nodes to look at
 	  for( ;; )
 	    {
 	      node = astarsearch.GetSolutionNext();
@@ -624,10 +691,10 @@ int other_main(int startx, int starty, int endx, int endy, int planeid ){
 		{
 		  break;
 		}
-#if OUTPUT_NODES
-	      node->PrintNodeInfo();
-#endif
-	      
+   
+	      /**
+	       * Push A*'s recommendation onto our a_path queue
+	       */
 	      if (!(node->getY()*MAP_WIDTH+node->getX() == nodeStart.y*MAP_WIDTH+nodeStart.x ||
 		    node->getY()*MAP_WIDTH+node->getX() == nodeEnd.y*MAP_WIDTH+nodeEnd.x)){
 		// Route that astar has selected
@@ -637,43 +704,30 @@ int other_main(int startx, int starty, int endx, int endy, int planeid ){
 		p.t = node->getT();
 		p.b = node->getB();
 		a_path.push(p);
-		a_path_out.push(p);
-		
-		//cout << node->getT() << ": " << p.x << ", " << p.y << " and " << node->getT() << " --> " << bc_grid->get_pos(p.x, p.y, node->getT()) << endl;
-		//getchar();
-		//cout << "  " << p.x << ", " << p.y+1 << " --> " << bc_grid->get_pos(p.x, p.y+1, node->getT()) << endl;
-		//cout << "  " << p.x << ", " << p.y-1 << " --> " << bc_grid->get_pos(p.x, p.y-1, node->getT()) << endl << endl;
 	      }
 
 	      steps ++;				
 	    };
-#if OUTPUT_NODES
-	  cout << "Solution steps " << steps << endl;
-#endif
+
+	  // if steps < 1 (i.e. steps == 0), then we are currently on our goal
 	  if (steps < 1){
 	    moves = 8; // moves should be a 8, if we have no move
 	  }	  
 
-	  // Once you're done with the solution you can free the nodes up
-	  astarsearch.FreeSolutionNodes();
-
-	
+	  // Once you're done with the solution you can free the nodes up in memory
+	  astarsearch.FreeSolutionNodes();       
 	}
       else if( SearchState == AStarSearch<MapSearchNode>::SEARCH_STATE_FAILED ) 
 	{
+	  // This code could be removed, however it is usually instructive to know when A* fails
 	  if (ROUTE_ABANDONED > 0)
 	    cout << "Search terminated. Did not find goal state\n";  
+
+	  // moves = -1, we have failed to find any legal moves from start to goal (try checking how you are expanding your nodes and your sparseness)
 	  moves = -1;
 	}
-      // Display the number of loops the search went through
-#if OUTPUT_NODES
-      cout << "SearchSteps : " << SearchSteps << "\n";
-#endif
 
       SearchCount ++;
-
-      //astarsearch.CancelSearch();
-      //astarsearch.SearchStep();
 
       astarsearch.EnsureMemoryFreed();
     }
@@ -681,151 +735,32 @@ int other_main(int startx, int starty, int endx, int endy, int planeid ){
   return moves;
 }
 
-
-point IREFUSETODIE(point previous, point a_st){
-  bearing_t b = astar_to_map[getGridBearing(previous.x, previous.y, a_st.x, a_st.y)];
-  double comp1 = numeric_limits<double>::infinity();
-  double comp2 = numeric_limits<double>::infinity();
-  double comp3 = numeric_limits<double>::infinity(); //only used in diag
-  if (b == N || b == W || b == S || b == E){
-    if (b == S || b == N){
-      cout << "Divergence on a S or N " << endl;
-      if (previous.x + 1 < MAP_WIDTH)
-	comp1 = bc_grid->get_pos(previous.x+1, previous.y, previous.t);
-      if (previous.x - 1 >= 0)
-	comp2 = bc_grid->get_pos(previous.x-1, previous.y, previous.t);
-
-      if (comp1 < comp2){
-	previous.x += 1;
-      } else if (comp2 < comp1) {
-	previous.x -= 1;
-      } else if (b == N) { // comp1 == comp2
-	previous.x -= 1;
-      } else if (b == S) {
-	previous.x += 1;
-      }
-
-    } else if (b == E || b == W) {
-      cout << "Divergence on a E or W" << endl;
-      if (previous.y + 1 < MAP_HEIGHT)
-	comp1 = bc_grid->get_pos(previous.x, previous.y+1, previous.t);
-      if (previous.y - 1 >= 0)
-	comp2 = bc_grid->get_pos(previous.x, previous.y-1, previous.t);
-	  
-      if (comp1 < comp2){
-	previous.y += 1;	
-      } else if (comp2 < comp1){
-	previous.y -= 1;
-      } else if (b == E){
-	previous.y -= 1;
-      } else if (b == W){
-	previous.y += 1;
-      }
-    } 
-  } else if (b == SE || b == SW || b == NW || b == NE){	
-    if (b == SE){
-      cout << "Divergence on a SE " << endl;
-      if (previous.x + 1 < MAP_WIDTH && previous.y+1 < MAP_HEIGHT)
-	comp1 = bc_grid->get_pos(previous.x+1, previous.y+1, previous.t);
-      if (previous.x + 1 < MAP_WIDTH)
-	comp2 = bc_grid->get_pos(previous.x+1, previous.y, previous.t);
-      if (previous.y + 1 < MAP_HEIGHT)
-	comp3 = bc_grid->get_pos(previous.x, previous.y+1, previous.t);
-	  
-      if (comp1 < comp2 && comp1 < comp3){
-	previous.x += 1;
-	previous.y += 1;
-      } else if (comp2 < comp1 && comp2 < comp3) {
-	previous.x += 1;
-      } else if (comp3 < comp1 && comp3 < comp1) {
-	previous.y += 1;
-      } else {
-	previous = a_st;
-      }	  
-    } else if (b == NE) {
-      cout << "Divergence on a NE " << endl;
-      if (previous.x + 1 < MAP_WIDTH && previous.y-1 >= 0)
-	comp1 = bc_grid->get_pos(previous.x+1, previous.y-1, previous.t);
-      if (previous.x + 1 < MAP_WIDTH)
-	comp2 = bc_grid->get_pos(previous.x+1, previous.y, previous.t);
-      if (previous.y - 1 >= 0)
-	comp3 = bc_grid->get_pos(previous.x, previous.y-1, previous.t);
-	  
-      if (comp1 < comp2 && comp1 < comp3){
-	previous.x += 1;
-	previous.y -= 1;
-      } else if (comp2 < comp1 && comp2 < comp3) {
-	previous.x += 1;
-      } else if (comp3 < comp1 && comp3 < comp1) {
-	previous.y -= 1;
-      } else {
-	previous = a_st;
-      } 
-    } else if (b == NW) {
-      cout << "Divergence on a NW" << endl;
-      if (previous.x - 1 >= 0 && previous.y-1 >= 0)
-	comp1 = bc_grid->get_pos(previous.x-1, previous.y-1, previous.t);
-      if (previous.x - 1 >= 0)
-	comp2 = bc_grid->get_pos(previous.x-1, previous.y, previous.t);
-      if (previous.y - 1 >= 0)
-	comp3 = bc_grid->get_pos(previous.x, previous.y-1, previous.t);
-	  
-      if (comp1 < comp2 && comp1 < comp3){
-	previous.x -= 1;
-	previous.y -= 1;
-      } else if (comp2 < comp1 && comp2 < comp3) {
-	previous.x -= 1;
-      } else if (comp3 < comp1 && comp3 < comp1) {
-	previous.y -= 1;
-      } else {
-	previous = a_st;
-      } 
-    } else if (b == SW) {
-      cout << "Divergence on a SW" << endl;
-      if (previous.x - 1 >= 0 && previous.y+1 < MAP_HEIGHT)
-	comp1 = bc_grid->get_pos(previous.x-1, previous.y+1, previous.t);
-      if (previous.x - 1 >= 0)
-	comp2 = bc_grid->get_pos(previous.x-1, previous.y, previous.t);
-      if (previous.y + 1 < MAP_HEIGHT)
-	comp3 = bc_grid->get_pos(previous.x, previous.y-1, previous.t);
-	  
-      if (comp1 < comp2 && comp1 < comp3){
-	previous.x -= 1;
-	previous.y += 1;
-      } else if (comp2 < comp1 && comp2 < comp3) {
-	previous.x -= 1;
-      } else if (comp3 < comp1 && comp3 < comp1) {
-	previous.y += 1;
-      } else {
-	previous = a_st;
-      } 
-    }	
-  }
-
-  return previous;
-} 
-
-
-bool is_sparse(best_cost *bc){
-  int startx = s_x;
-  int starty = s_y;
-  int endx = e_x;
-  int endy = e_y;
+/**
+ * This function determines if the path between our current position and our goal is clear (the ultimate sparseness is not even considering other moves).
+ * If it is clear, then we can tell our plane to just go to its goal (no use in running A*)
+ *
+ * @param bc the grid is used to determine if our pathway is clear
+ */
+bool is_sparse(){
   // used to determine if the plane advances on the X or the Y axis through time
   // if the optimal first move from Start to End is X1 and the optimal last move from End to Start is X1, then orientation is X based (0) and we need to check based on Y (1)
   // for example: if the start is (23,11) and the goal is (12,29): the first move from S-E is to (22,11), the last move from E-S is to (23,11)
-  //  to determine the rest of the optimal paths through time will require us to look at the X values, not the Y values
+  // ---to determine the rest of the optimal paths through time will require us to look at the X values, not the Y values
   int goal_orientation = -1;
   
-  // if Sparse find a dangerous space in the area, change to false
+  // if Sparse finds a dangerous space in the area, change to false (we will need to run A*)
   bool sparse = true;
+
+  // The optimal euclidean path from the Start to the Goal and the Goal to the Start
   stack<point> goal_to_start;
   queue<point> start_to_goal;
   
   // calculate the bearing to the goal
-  int opt_bearing = getGridBearing(startx, starty, endx, endy);
+  int opt_bearing = getGridBearing(s_x, s_y, e_x, e_y);
+
+  // Is our path already on a straight line (i.e. our x or y start == x or y goal)
   bool straight_line  = false;
-  if (startx == endx || starty == endy){
+  if (s_x == e_x || s_y == e_y){
     straight_line = true;
   }
   
@@ -833,20 +768,22 @@ bool is_sparse(best_cost *bc){
   // This is the optimal number steps from start to the goal, as such it is also the minimum number of steps needed to search for Sparse-A*
   int num_steps = 0;
 
-  int min_x = abs(startx-endx);
-  int min_y = abs(starty-endy);
+  // Determine the Chebyshev distance from our current position to the goal
+  // The Chebyshev is the number of steps to reach the goal in a minimum number of moves
+  int min_x = abs(s_x-e_x);
+  int min_y = abs(s_y-e_y);
   if (min_x > min_y)
     num_steps = min_x;
   else
     num_steps = min_y;
 
-  // Markers for our movement
+  // Markers for our movement from Start to Goal (forward) and Goal to Start (backward)
   point forward;
   point backward;
-  forward.x = startx;
-  forward.y = starty;
-  backward.x = endx;
-  backward.y = endy;
+  forward.x = s_x;
+  forward.y = s_y;
+  backward.x = e_x;
+  backward.y = e_y;
 
   for (int i = 0; i < num_steps - 1; i++){
     int f_move = 0;
@@ -858,8 +795,9 @@ bool is_sparse(best_cost *bc){
     // construct our optimal move using modman to determine the cost of all moves
     // if we encounter a cheaper move, choose that one
     for (int j = 0; j < 8; j++){
-      int f = abs(forward.x + movex[j] - endx) + abs(forward.y + movey[j] - endy);
-      int b = abs(backward.x + movex[j] - startx) + abs(backward.y + movey[j] - starty);
+      int f = abs(forward.x + movex[j] - e_x) + abs(forward.y + movey[j] - e_y);
+      int b = abs(backward.x + movex[j] - s_x) + abs(backward.y + movey[j] - s_y);
+
       if (f < opt_f_cost){
 	opt_f_cost = f;
 	f_move = j;
@@ -880,11 +818,11 @@ bool is_sparse(best_cost *bc){
     start_to_goal.push(forward);    
   } // end creation of optimal forward and backward grid paths
 
-  queue<point> opt_path;
-
   // we need time to select the correct best cost grid
+  // start at time 1
   int time_select = 1;
   while (!start_to_goal.empty() && !goal_to_start.empty()){
+    // if we have found danger we must return that our path is not clear, however we must first free up all of our queue/stack memory
     if (!sparse){
       while(!start_to_goal.empty())
 	start_to_goal.pop();
@@ -895,41 +833,26 @@ bool is_sparse(best_cost *bc){
       break;
     }
     
-    // grab points from the queue and stack, which are on the same x coordinate (this only holds for a square or rectangular grid)
+    // grab points from the queue and stack (this will be the first step for Start to Goal and the last step for Goal to Start)
     point g_t_s = goal_to_start.top();
     point s_t_g = start_to_goal.front();
     goal_to_start.pop();
     start_to_goal.pop();
-    //straight_line = false; // maybe?
 
     // on the first pop, we must check our orientation to determine which spaces to consider for optimality
     if (goal_orientation == -1){
       if ((opt_bearing == 1 || opt_bearing == 3 || opt_bearing == 5 || opt_bearing == 7) && s_t_g.x == g_t_s.x && s_t_g.y == g_t_s.y){
 	goal_orientation = 2; // diagonal
-	//straight_line = true;
-
-	// need to calculate the diagonals bearing, to determine if we have 1/1, 1/-1, -1/1, -1/-1 optimal expansions
-	point temp = start_to_goal.front();
-	if (temp.x > s_t_g.x && temp.y > s_t_g.y){ 
-	  opt_bearing = 1; // +1/+1
-	} else if (temp.x > s_t_g.x && temp.y < s_t_g.y){ 
-	  opt_bearing = 7; // +1/-1
-	} else if (temp.x < s_t_g.x && temp.y > s_t_g.y){
-	  opt_bearing = 3; // -1/+1
-	} else if (temp.y < s_t_g.x && temp.y < s_t_g.y){
-	  opt_bearing = 5; // -1/-1
-	}	
-	goal_orientation = 0;
       } else if (g_t_s.x == s_t_g.x){
 	goal_orientation = 0; //check Y positions
       } else if (g_t_s.y == s_t_g.y){
-	goal_orientation = 1;
+	goal_orientation = 1; //check X positions
       } else {
 	// used to be assert code here
       }
     }
 
-    // Need to calculate which y's to look at (the ones from (y_small to y_large)
+    // Need to calculate which x's and y's to look at (the ones from y_small to y_large)
     double small_y = 0;
     double large_y = 0;
     double small_x = 0;
@@ -952,43 +875,22 @@ bool is_sparse(best_cost *bc){
     }
     
     // calculate the "middle point" that a plane in continuous space would take (i.e. the plane is taking a straight line, not the jagged nature of a grid)
+    // if you do not believe that this is correct, draw a grid and place the start/goal a reasonable distance part; when you see the optimal euclidean forward/backward
+    // --- you will see that in between those two points is where a plane would most likely fly if the path was actually clear
     int avgy = round((large_y+small_y)/2);
     int avgx = round((large_x+small_x)/2);
 
-    // on the off chance that the path is not clear, we need to keep a record of the optimal path through continuous space (i.e. the euclidean path)
-    point opt_p;
-    opt_p.x = avgx;
-    opt_p.y = avgy;			      
-    opt_p.t = time_select;
-
-    opt_path.push(opt_p);
     if (straight_line){
-      double euclidean_danger = sqrt(pow(abs(endx-avgx),2) + pow(abs(endy-avgy), 2));
-      double danger_grid = bc->get_pos(avgx, avgy, time_select);
+      double euclidean_danger = sqrt(pow(abs(e_x-avgx),2) + pow(abs(e_y-avgy), 2));
+      double danger_grid = bc_grid->get_pos(avgx, avgy, time_select);
       if (danger_grid > euclidean_danger && sparse == true){
 	sparse = false; // failed to find a clear path
-
-	danger_point.x = avgx;
-	danger_point.y = avgy;
-	danger_point.t = time_select;
       }	 
     } else if (goal_orientation == 2) {
-      /*
-	OPT_BEARING:
-	1: +1/+1
-	3: -1/+1
-	5: -1/-1
-	7: +1/-1
-      */
-      double euclidean_danger = sqrt(pow(abs(endx-avgx),2) + pow(abs(endy-avgy), 2));
-      double danger_grid = bc->get_pos(avgx, avgy, time_select);
+      double euclidean_danger = sqrt(pow(abs(e_x-avgx),2) + pow(abs(e_y-avgy), 2));
+      double danger_grid = bc_grid->get_pos(avgx, avgy, time_select);
       if (danger_grid > euclidean_danger && sparse == true){
 	sparse = false; // failed to find a clear path
-	  
-	// Death, Despair, Disaster...a plane will probably be in this spot in the future that we want to avoid
-	danger_point.x = avgx;
-	danger_point.y = avgy;
-	danger_point.t = time_select;
       }     
     } else if (goal_orientation == 1){
       for (int x = avgx -1; x<=avgx+1; x++){
@@ -996,18 +898,11 @@ bool is_sparse(best_cost *bc){
 	if (x < 0 || x >= MAP_WIDTH)
 	  continue;
 
-	double euclidean_danger = sqrt(pow(abs(endx-x),2) + pow(abs(endy-avgy), 2));
-	double danger_grid = bc->get_pos(x, avgy, time_select);
+	double euclidean_danger = sqrt(pow(abs(e_x-x),2) + pow(abs(e_y-avgy), 2));
+	double danger_grid = bc_grid->get_pos(x, avgy, time_select);
 
 	if (danger_grid > euclidean_danger && sparse == true){
 	  sparse = false; // failed to find a clear path
-	  // NOTE: Should BLOCK OFF these three optimal areas from A* (i.e., A* cannot look at these three or so dangerous spaces, no matter how good they may look)
-	  // code here
-	  
-	  // Death, Despair, Disaster...a plane will probably be in this spot in the future that we want to avoid
-	  danger_point.x = avgx;
-	  danger_point.y = avgy;
-	  danger_point.t = time_select;
 	}	
       }
     } else if (goal_orientation == 0){
@@ -1017,17 +912,10 @@ bool is_sparse(best_cost *bc){
 	if (y < 0 || y >= MAP_HEIGHT)
 	  continue;
 
-	double euclidean_danger = sqrt(pow(abs(endx-avgx),2) + pow(abs(endy-y), 2));
-	double danger_grid = bc->get_pos(avgx, y, time_select);
+	double euclidean_danger = sqrt(pow(abs(e_x-avgx),2) + pow(abs(e_y-y), 2));
+	double danger_grid = bc_grid->get_pos(avgx, y, time_select);
 	if (danger_grid > euclidean_danger && sparse == true){
 	  sparse = false; // failed to find a clear path
-	  // NOTE: Should BLOCK OFF these three optimal areas from A* (i.e., A* cannot look at these three or so dangerous spaces, no matter how good they may look)
-	  // code here
-	  
-	  danger_point.x = avgx;
-	  danger_point.y = avgy;
-	  danger_point.t = time_select;
-	  // getchar();
 	}
       }
     }
@@ -1037,6 +925,7 @@ bool is_sparse(best_cost *bc){
     time_select = time_select>19 ? 19 : time_select;
   }
 
+  // if the path is clear, return true else false
   if (sparse){
     return true;
   } else {
@@ -1044,12 +933,22 @@ bool is_sparse(best_cost *bc){
   }
 }
 
-point immediate_avoidance_point(best_cost *bc, std::map<int, Plane> &planey_the_plane_map, point a_st, point previous){
+/**
+ * If, in the path A* returns, we encounter a spot with too much danger between times 3 and 8, we enact immediate avoidance maneuvers
+ * If less than 3, nothing we do will make any real difference (it is too late to change course since it will be time 2 by the time the plane gets the command and it will collide)
+ * It searches the dangerous area (up to at 16 by 16 block sparse block) to determine what the closest threat is that it is trying to avoid
+ *
+ * @param planey_the_plane_map
+ * @param a_st
+ * @param previous [current unused]
+ */
+point immediate_avoidance_point(std::map<int, Plane> &planey_the_plane_map, point a_st, point previous){
   // new_avoidance is our new, safer waypoint to move to that is still within the range of legal moves
   point new_avoidance = a_st;
 
+  // a queue of any planes we have discovered in our sparse threat block
   queue<point> planes_discovered;
-  // the owner of the danger has to be withint a_st.t
+  // the owner of the danger has to be within a_st.t (up to 16 by 16 blocks wide)
   // Since we assume planes move one (1) grid per second, the time at a_st.t means that the plane that is a threat should be, at most, t steps away
   // loop through our grid look at time 0 to find these deadly planes
   for (int y = -a_st.t-1; y <= a_st.t+1; y++){
@@ -1059,7 +958,7 @@ point immediate_avoidance_point(best_cost *bc, std::map<int, Plane> &planey_the_
 	int x_pos = a_st.x + x;
 	int y_pos = a_st.y + y;
 
-	if (bc->get_pos(x_pos, y_pos, 0) >  sqrt(pow(x_pos-e_x, 2) + pow(y_pos-e_y, 2))){
+	if (bc_grid->get_pos(x_pos, y_pos, 0) >  sqrt(pow(x_pos-e_x, 2) + pow(y_pos-e_y, 2))){
 	  point add;
 	  add.x = x_pos;
 	  add.y = y_pos;
@@ -1069,7 +968,7 @@ point immediate_avoidance_point(best_cost *bc, std::map<int, Plane> &planey_the_
     }
   }
 
-  // Any plane we actually discover with the proper coordinates if added to our threat queue, which we will then use (in conjunction with the map) to plot proper avoidance :))))
+  // Any plane we actually discover with the proper coordinates is added to our threat queue, which we will then use (in conjunction with the BC/DG) to plot proper avoidance :))))
   queue<int> threat;
   while (!planes_discovered.empty()){
     point plane_threat = planes_discovered.front();
@@ -1079,33 +978,13 @@ point immediate_avoidance_point(best_cost *bc, std::map<int, Plane> &planey_the_
 	Position plane_p = myplane.getLocation();
 	if (plane_p.getX() == plane_threat.x && plane_p.getY() == plane_threat.y){
 	  if (similar_bearing(myplane.get_named_bearing(), initial_bearing)){
-	    //cout << "Aha! We have discovered that plane " <<  (*crnt_plane).second.getId() << " is a threat to our well being.  Taking avoidance actions...maybe. " << endl;
 	    threat.push( (*crnt_plane).second.getId());
-	  } else {
-	    //cout << "We discovered that plane " <<  (*crnt_plane).second.getId() << " was in our threat area, however is moving away from us, so no need to add to danger list" << endl;
 	  }
 	  break;
 	}
       } // end for each plane
     planes_discovered.pop();
   } // end while planes discovered not empty
-
-  // Setup bearings
-  int i_bearing = map_to_astar[initial_bearing];
-
-  bearing_t go_behind_one = astar_to_map[(i_bearing + 2)%8];  // +2
-  bearing_t go_behind_two = N;
-  if (i_bearing - 2 == -1)
-    bearing_t go_behind_two = astar_to_map[7]; // -2
-  else if (i_bearing - 2 == -2)
-    go_behind_two = astar_to_map[6];
-  else
-    go_behind_two = astar_to_map[i_bearing - 2];
-
-  bearing_t avoid_head_on = opposite_bearing(initial_bearing);
-
-  bearing_t opp_one =  astar_to_map[(i_bearing + 3)%8]; // +3
-  bearing_t opp_two = i_bearing - 3 < 0 ? astar_to_map[movegoals+i_bearing-3] : astar_to_map[i_bearing - 3]; // -3
 
   // determine closest threat that is at least 2 spots away (otherwise we cannot do anything about it)
   double closest = numeric_limits<double>::infinity();
@@ -1155,21 +1034,31 @@ point immediate_avoidance_point(best_cost *bc, std::map<int, Plane> &planey_the_
 	  }
 	}
 	
-	
 	closest = distance;
       }
     }
     threat.pop();
   }
 
-  //cout << "A_ST initially said: " << a_st.x << ", " << a_st.y << " at " << a_st.t << endl;
-  //cout << "Now we say: " << new_avoidance.x << ", " << new_avoidance.y << endl;
+  // The point returned will be reasonably safe (or at least start to divert us from crossing the planes path)
   return new_avoidance;
 }
 
 // Returns the point of divergence between provable optimal path and a-star path
+/**
+ * This function is what is called by collisionAvoidance, as well as what coordinates all the parts of A* (Check Sparse, setup Search, run Search, Analyze Search)
+ *
+ * @param bc the Best Cost/Danger Grid created by our heuristics
+ * @param sx the starting position of a plane; the decimal value is where in the grid it is located (useful for future work)
+ * @param sy same as sx
+ * @param endx, endy the goal position
+ * @param planeid the current plane we are operating on, very useful for debugging purposes
+ * @param current_bear the current planes bearing as given by collision avoidance
+ * @param planey_the_plane_map a list of all living planes in our world, as known by collision avoidance
+ */
 point astar_point(best_cost *bc, double sx, double sy, int endx, int endy, int planeid, bearing_t current_bear, std::map<int, Plane> *planey_the_plane_map)
 {
+  // set our global pointer bc_grd to point to the pointer bc which points to a Best Cost/Danger Grid
   bc_grid = bc;
 
   // Construct atar_to_map std::map (since map is 0=N and A_ST is 0=E)
@@ -1191,38 +1080,36 @@ point astar_point(best_cost *bc, double sx, double sy, int endx, int endy, int p
   map_to_astar[N] = 6;
   map_to_astar[NE] = 7;
 
+  // Get our maps parameters
   MAP_WIDTH = bc->get_width_in_squares();
   MAP_HEIGHT = bc->get_height_in_squares();
  
-
+  // Since A* is allocated memory once, we need to make sure any traces of previous executions is removed to avoid conflicts
   while(!a_path.empty()){
     a_path.pop();
   }
 
-  while(!a_path_out.empty()){
-    a_path_out.pop();
-  }
-  
-
-  // DETERMINE ROUGH QUADRANT (see top of file for visual display
-  int startx = s_x = floor(sx);
-  int starty = s_y = floor(sy);
-
-  // For easy debugging (blank lines before and after a plane is announced)
-  //cout << endl << endl << planeid << " : (" << startx << ", " << starty << ") --> (" << endx << ", " << endy << ")" << endl << endl;
-
+  // DETERMINE ROUGH QUADRANT (note: currently not in use) and assign values
+  s_x = floor(sx);
+  s_y = floor(sy);
   e_x = endx;
   e_y = endy;
+
+  // Set our initial bearing to our planes current bearing (note: this is important for A* node expansion and collision avoidance maneuvers)
   initial_bearing = current_bear;
+
+  // move is the next move we recommend to Collision Avoidance
   point move;
 
-  // used to avoid considering the dangerous point
-  int goal_orientation = getGridBearing(startx, starty, endx, endy);
+  // grab the bearing to the goal from A* bearing, convert it to our goal bearing in Map (N, S, W, ...) and then grab the A* bearing of our initial_bearing
+  int goal_orientation = getGridBearing(s_x, s_y, e_x, e_y);
   bearing_t goal_bearing = astar_to_map[goal_orientation];
   int astar_bearing = map_to_astar[initial_bearing];
 
-
-  if (initial_bearing == goal_bearing && is_sparse(bc)){
+  /**
+   * We can only run is_sparse() (clear path checking) if we are already facing the goal's bearing, otherwise it is not accurate
+   */
+  if (initial_bearing == goal_bearing && is_sparse()){
     move.x = endx;
     move.y = endy;
     if (move.x < 0)
@@ -1239,14 +1126,15 @@ point astar_point(best_cost *bc, double sx, double sy, int endx, int endy, int p
   }
   
 
+  // A queue of optimal moves that we will use to compare results with
   queue<point> opt_path;
   bool at_goal = false;
 
-  int current_x = startx;
-  int current_y = starty;
+  int current_x = s_x;
+  int current_y = s_y;
   int time = 0;
 
-  
+  // If our goal and initial bearing are similar, we can force our opt_path to follow A* slightly more closely (this way we expand our first step according to our initial bearing)  
   if (similar_bearing(initial_bearing, goal_bearing)){
     current_x += movex[astar_bearing];
     current_y += movey[astar_bearing];
@@ -1257,9 +1145,8 @@ point astar_point(best_cost *bc, double sx, double sy, int endx, int endy, int p
     pr.t = time;
     opt_path.push(pr);
   }
-  
-  bool new_goal_at_straight = false;
 
+  // Construct our optimal, euclidean distance based path
   while (!at_goal){
     double min_cost = numeric_limits<double>::infinity();
     int best_move = -1;
@@ -1278,26 +1165,25 @@ point astar_point(best_cost *bc, double sx, double sy, int endx, int endy, int p
     point pr;
     pr.x = current_x;
     pr.y = current_y;
-    pr.t = time+1 < 10 ? time + 1 : 10;
+    pr.t = time+1 < 20 ? time + 1 : 20;
     opt_path.push(pr);
     time += 1;
-    if (current_x == endx && current_y == endy)
+    if (current_x == e_x && current_y == e_y)
       at_goal = true;
   }
 
 
   // third, run the algorithm and get our actual set of points
-  move.x = endx;
-  move.y = endy;
-  int result = other_main(startx, starty, endx, endy, planeid);
+  move.x = e_x;
+  move.y = e_y;
 
-  // Outside Zero means: our plane is trying to move away from our goal (probably due to orientation facing a different direction)
+  // if result is -1...something bad has happened
+  int result = other_main();
+
+  // Outside Zero means: our plane is trying to move away from our goal (probably due to bearing facing a different direction)
   // However, if this is true, we must do a new type of bounds checking to bring it back in.
   // Our new type of checking asks: if plane is still out of bounds AND the position is safe, continue ELSE return spot
   bool outside_zero = false;
-
-  // only matters if it is outside of zero on the first move -- anything else should be handled by other code
-  bool first;
 
   // These lessers values are used to determine where our grid exists...the greater_x is the larger x between the start and end positions (same for y)
   // These are used in outside_zero for our bounds checking
@@ -1306,26 +1192,26 @@ point astar_point(best_cost *bc, double sx, double sy, int endx, int endy, int p
   int lesser_y = -1;
   int greater_y = -1;
 
-  if (startx > endx){
-    greater_x = startx;
-    lesser_x = endx;
+  if (s_x > e_x){
+    greater_x = s_x;
+    lesser_x = e_x;
   } else {
-    greater_x = endx;
-    lesser_x = startx;
+    greater_x = e_x;
+    lesser_x = s_x;
   }
 
-  if (starty > endy){
-    greater_y = starty;
-    lesser_y = endy;
+  if (s_y > e_y){
+    greater_y = s_y;
+    lesser_y = e_y;
   } else {
-    greater_y = endy;
-    lesser_y = starty;
+    greater_y = e_y;
+    lesser_y = s_y;
   }
   
 
   point previous;
-  previous.x = startx;
-  previous.y = starty;
+  previous.x = s_x;
+  previous.y = s_y;
   previous.t = 0;
 
   if (!a_path.empty()){
@@ -1337,10 +1223,10 @@ point astar_point(best_cost *bc, double sx, double sy, int endx, int endy, int p
   }
 
   bool straight = true;
-  if (startx != endx && starty != endy)
+  if (s_x != e_x && s_y != e_y)
     straight = false;
 
-  // THESE ARE TWO DIFFERENT CASES
+  // THESE ARE TWO DIFFERENT CASES (read the research paper to find out more :P)
   if (outside_zero){
     point double_previous;
     double_previous.x = -1;
@@ -1351,20 +1237,18 @@ point astar_point(best_cost *bc, double sx, double sy, int endx, int endy, int p
       // since we are using euclidean grid math, we must AVOID on the PIVOT (we do not have straight diagonals)
       // follow the star    
 
-      double predicted_val = sqrt(pow(a_st.x-endx, 2) + pow(a_st.y-endy, 2));
-      // if, for some reason, our turn is dangerous -- break from it
-      
-      
+      double predicted_val = sqrt(pow(a_st.x-e_x, 2) + pow(a_st.y-e_y, 2));
+      // if, for some reason, our turn is dangerous -- break from it      
       if ((bc->get_pos(a_st.x, a_st.y, a_st.t) > predicted_val) && a_st.t > 1){
-	move = immediate_avoidance_point(bc, *planey_the_plane_map, a_st, previous);
+	move = immediate_avoidance_point(*planey_the_plane_map, a_st, previous);
 	break;
       }
       
-      
+      // if we have managed to turn out plane to face our goal again, return that spot
       if (a_st.x > greater_x || a_st.x < lesser_x || a_st.y > greater_y || a_st.y < lesser_y){
 	outside_zero = true;
       } else {
-	move = immediate_avoidance_point(bc, *planey_the_plane_map, a_st, previous);
+	move = immediate_avoidance_point(*planey_the_plane_map, a_st, previous);
 	break;
       } 
       
@@ -1387,21 +1271,22 @@ point astar_point(best_cost *bc, double sx, double sy, int endx, int endy, int p
 	  // DETERMINE EMPIRICALLY the best place to go; behind the hazardous plane or in front of it.
 	  // At times 4, 5, and 6 this is reasonable; at times 2 and 3 it may not be as good, but you should already be out of the way by then :)
 
-	  move = immediate_avoidance_point(bc, *planey_the_plane_map, a_st, previous);	  
+	  move = immediate_avoidance_point(*planey_the_plane_map, a_st, previous);	  
 	} else {	  
 	  move = a_st;
 	}
 	break;
       }
       
+      // If the optimal and A* paths diverge, just return the point of divergence
       if ((opt.x != a_st.x || opt.y != a_st.y) && a_st.t > 1){	  
 	move = a_st;
 	break;
    
       }
       
-      
       // Pivot is an odd issue...
+      // This occurs when we start with one bearing but we encount a turn that must be made
       if ((a_st.x == endx || a_st.y == endy) && !straight && a_st.t > 1){
 	move = a_st; //used to a_st
 	break;
@@ -1414,7 +1299,7 @@ point astar_point(best_cost *bc, double sx, double sy, int endx, int endy, int p
   }
 
 
-
+  // Bounds check our move -- if it is moving off the field bring it back in
   if (move.x < 0)
     move.x = 0;
 
